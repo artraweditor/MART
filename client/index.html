@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="color-scheme" content="dark">
+    <title>MART</title>
+    <link rel="stylesheet" href="styles/base.css">
+</head>
+<body>
+    <header id="bar">
+        <span id="title">MART</span>
+        <button id="undo" type="button" class="icon" aria-label="Undo" disabled>&#x21b6;</button>
+        <button id="redo" type="button" class="icon" aria-label="Redo" disabled>&#x21b7;</button>
+        <button id="look" type="button" class="text">Look</button>
+        <button id="info" type="button" class="icon" aria-label="Image information">&#x24d8;</button>
+        <button id="save" type="button" class="text" disabled>Save</button>
+        <span id="conn" class="dot" title="connection"></span>
+    </header>
+    <main id="stage">
+        <canvas id="view"></canvas>
+        <canvas id="crop" hidden></canvas>
+        <div id="toast" role="status" hidden></div>
+    </main>
+    <section id="panel">
+        <nav id="tabs" role="tablist"></nav>
+        <div id="tools"></div>
+    </section>
+    <div id="sheet" hidden>
+        <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+            <header><h2 id="sheet-title" class="sheet-title"></h2><button type="button" class="sheet-close" aria-label="Close">&times;</button></header>
+            <div class="sheet-body"></div>
+        </div>
+    </div>
+    <div id="overlay" hidden>
+        <div class="card">
+            <h2 id="ov-title"></h2>
+            <p id="ov-text"></p>
+            <form id="ov-form" hidden>
+                <input id="ov-path" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
+                       placeholder="/path/to/photo.arw" aria-label="Path of the image on the server">
+                <button type="submit">Open</button>
+            </form>
+        </div>
+    </div>
+    <script type="module" src="app/main.js"></script>
+</body>
+</html>

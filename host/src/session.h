@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#pragma once
+#include "libart_dyn.h"
+#include "profiles.h"
+#include "third_party/json.hpp"
+#include <string>
+#include <vector>
+
+namespace mart {
+
+using json = nlohmann::json;
+
+struct ApiError: std::runtime_error {
+    int status;
+    ApiError(int s, const std::string &m): std::runtime_error(m), status(s) {}
+};
+
+struct PreviewRequest {
+    double scale = 0;            // 0: derive from out_w
+    int out_w = 0;               // requested output width, if scale == 0
+    int x = 0, y = 0, w = 0, h = 0;  // region in full-image pixels (w == 0: all)
+};
+
+struct PreviewFrame {
+    std::string jpeg;
+    int width = 0, height = 0;
+    int x = 0, y = 0, w = 0, h = 0;  // the region of the image that was rendered
+};
+
+// The one open image and the engine. All methods must run on the worker thread.
+class Session {
+public:
+    Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs);
+    ~Session();
+
+    json status() const;
+    json open(const std::string &path, bool discard = false);   // returns get-info; 409 if dirty and !discard
+    json info();
+    PreviewFrame preview(const PreviewRequest &r);
+
+    json params();                                    // {params:{Group:{Key:v}}, ini}
+    void applyPatch(const json &patch, const std::string &mergeKey);
+    json undo();                                      // result of `undo`
+    json redo();
+    json history();                                   // {selected, count, can_undo, can_redo}
+    json save();                                      // {file}
+    json metadata(bool makernotes, bool edits);       // flat object of tags
+    json spotWB(int x, int y, int w, int h);
+    Profiles &profiles() { return profiles_; }
+    void applyProfile(const std::string &id, bool append);
+    bool dirty() const { return dirty_; }
+    bool isOpen() const { return !file_.empty(); }
+    int fullWidth() const { return info_.value("full_width", 0); }
+    int fullHeight() const { return info_.value("full_height", 0); }
+
+private:
+    json command(const std::vector<std::string> &argv);  // "result" of a JSON reply
+    std::string confine(const std::string &path) const;  // realpath under a root
+    void refreshInfo();                                  // the size changes with coarse rotation
+
+    EngineOptions opts_;
+    std::unique_ptr<Engine> engine_;
+    std::vector<std::string> roots_;
+    std::string tmpdir_;
+    std::string file_;
+    json info_;
+    bool dirty_ = false;
+    Profiles profiles_;
+};
+
+} // namespace mart

@@ -1,0 +1,16 @@
+{
+    "name": "mart-client",
+    "version": "0.1.0",
+    "private": true,
+    "description": "MART web client (plain TypeScript compiled to ES modules, no runtime dependencies)",
+    "license": "GPL-3.0-or-later",
+    "type": "module",
+    "scripts": {
+        "build": "node build.mjs",
+        "check": "tsc --noEmit",
+        "test": "node --test tests/*.test.mjs"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.0"
+    }
+}

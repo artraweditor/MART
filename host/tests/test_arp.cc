@@ -1,0 +1,84 @@
+// Unit tests of the patch serialiser. SPDX-License-Identifier: GPL-3.0-or-later
+#include "../src/arp.h"
+#include <fstream>
+#include <iostream>
+
+using namespace mart::arp;
+
+static int failures = 0;
+#define CHECK(c) do { if (!(c)) { ++failures; std::cerr << __FILE__ << ":" << __LINE__ << ": CHECK failed: " #c "\n"; } } while (0)
+
+static bool refused(const json &patch)
+{
+    try { serialize(patch); } catch (const PatchError &) { return true; }
+    return false;
+}
+
+int main()
+{
+    CHECK(serialize({{"Exposure", {{"Enabled", true}, {"Compensation", 0.5}}}}) ==
+          "[Exposure]\nCompensation=0.5\nEnabled=true\n\n");  // keys come out sorted
+    // integers are written as integers, even when the client sends 5170.0
+    CHECK(serialize({{"White Balance", {{"Temperature", 5170.0}}}}) == "[White Balance]\nTemperature=5170\n\n");
+    CHECK(refused({{"White Balance", {{"Temperature", 5170.5}}}}));
+    CHECK(serialize({{"ToneCurve", {{"Curve", {1, 0, 0, 0.5, 0.6, 1, 1}}}}}) == "[ToneCurve]\nCurve=1;0;0;0.5;0.6;1;1;\n\n");
+    CHECK(serialize({{"ToneCurve", {{"Curve", {0}}}}}) == "[ToneCurve]\nCurve=0;\n\n");
+
+    // geometry
+    CHECK(serialize({{"Crop", {{"Enabled", true}, {"X", 10}, {"Y", 20}, {"W", 300}, {"H", 200}, {"FixedRatio", true}, {"Ratio", "3:2"}, {"Orientation", "Landscape"}}}}) ==
+          "[Crop]\nEnabled=true\nFixedRatio=true\nH=200\nOrientation=Landscape\nRatio=3:2\nW=300\nX=10\nY=20\n\n");
+    CHECK(serialize({{"Rotation", {{"Enabled", true}, {"Degree", -3.25}}}}) == "[Rotation]\nDegree=-3.25\nEnabled=true\n\n");
+    CHECK(serialize({{"Coarse Transformation", {{"Rotate", 90}, {"HorizontalFlip", false}}}}) == "[Coarse Transformation]\nHorizontalFlip=false\nRotate=90\n\n");
+    CHECK(refused({{"Coarse Transformation", {{"Rotate", 45}}}}));
+    CHECK(refused({{"Coarse Transformation", {{"Rotate", "90"}}}}));
+    CHECK(refused({{"Coarse Transformation", {{"Rotate", 90.5}}}}));
+    CHECK(refused({{"Rotation", {{"Degree", 46}}}}));
+    CHECK(refused({{"Crop", {{"W", 1.5}}}}));
+    CHECK(refused({{"Crop", {{"Ratio", "7:3"}}}}));
+    CHECK(refused({{"Crop", {{"Guide", "Grid"}}}}));
+
+    CHECK(refused(json::object()));
+    CHECK(refused(json::array()));
+    CHECK(refused({{"Nope", {{"A", 1}}}}));
+    CHECK(refused({{"Version", {{"Version", 1}}}}));          // never writable
+    CHECK(refused({{"General", {{"Rank", 5}}}}));
+    CHECK(refused({{"Exposure", {{"Nope", 1}}}}));
+    CHECK(refused({{"Exposure", {{"Compensation", 13}}}}));    // out of range
+    CHECK(refused({{"Exposure", {{"Compensation", "1"}}}}));   // wrong type
+    CHECK(refused({{"Exposure", {{"Enabled", 1}}}}));
+    CHECK(refused({{"Exposure", json::object()}}));
+    CHECK(refused({{"Exposure", {{"HLRecovery", "Off\n[Crop]\nEnabled=true"}}}}));  // no injection
+    CHECK(refused({{"Exposure", {{"Compensation", std::numeric_limits<double>::infinity()}}}}));
+    CHECK(refused({{"ToneCurve", {{"Curve", {1, 0, 0, 0.5}}}}}));          // even length
+    CHECK(refused({{"ToneCurve", {{"Curve", {1, 0, 0, 0, 1, 1, 1}}}}}));   // x not increasing
+    CHECK(refused({{"ToneCurve", {{"Curve", {9, 0, 0, 1, 1}}}}}));         // bad type
+    CHECK(refused({{"Exposure", 3}}));
+
+    json p = parse("[Version]\nVersion=1047\n\n[Exposure]\nEnabled=true\nCompensation=0.40000000000000002\n"
+                   "Black=0\nHLRecovery=Off\n\n[ToneCurve]\nCurve=1;0;0;1;1;\n# comment\n");
+    CHECK(p["Version"]["Version"] == 1047);
+    CHECK(p["Exposure"]["Enabled"] == true);
+    CHECK(p["Exposure"]["Compensation"].is_number_float());
+    CHECK(p["Exposure"]["Black"].is_number_integer());
+    CHECK(p["Exposure"]["HLRecovery"] == "Off");
+    CHECK(p["ToneCurve"]["Curve"] == "1;0;0;1;1;");
+
+    // every key we allow is a real key of ART's profile format
+    std::ifstream f(MART_KNOWN_KEYS);
+    json known = json::parse(f, nullptr, false);
+    CHECK(known.is_object() && known.contains("groups"));
+    if (known.is_object() && known.contains("groups"))
+        for (auto &[g, keys] : allowedKeys()) {
+            CHECK(known["groups"].contains(g));
+            if (!known["groups"].contains(g)) continue;
+            for (auto &k : keys) {
+                bool found = false;
+                for (auto &kk : known["groups"][g]) found |= (kk == k);
+                CHECK(found);
+                if (!found) std::cerr << "  unknown key [" << g << "] " << k << "\n";
+            }
+        }
+    if (failures) return 1;
+    std::cout << "test_arp: ok\n";
+    return 0;
+}
