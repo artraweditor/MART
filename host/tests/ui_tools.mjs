@@ -1,0 +1,106 @@
+// The tone curve editor and the other tools in the browser.
+//   node tests/ui_tools.mjs http://localhost:8080 outdir        (host started on a COPY of an image; nothing is saved)
+import assert from "node:assert/strict";
+import { launch, sleep } from "./cdp.mjs";
+
+const base = process.argv[2] ?? "http://localhost:8080";
+const b = await launch({ out: process.argv[3] ?? "/tmp", window: process.env.WINDOW ?? "1180,820" });
+const { js, shot } = b;
+const until = async (what, fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error("timeout: " + what); await sleep(100); } };
+const params = async () => (await (await fetch(base + "/api/params")).json()).params;
+const tab = (name) => js(`[...document.querySelectorAll("#tabs button")].find(b => b.textContent === ${JSON.stringify(name)}).click()`);
+const nums = (s) => String(s).split(";").filter(Boolean).map(Number);
+// the visible range inputs of the open tab, by label
+const sliders = () => js(`[...document.querySelectorAll("#tools section:not([hidden]) .ctl")].filter(c => !c.hidden && c.querySelector("input[type=range]")).map(c => c.querySelector("label").textContent)`);
+const setSlider = (label, v) => js(`(() => { const c = [...document.querySelectorAll("#tools section:not([hidden]) .ctl")].find(c => c.querySelector("label")?.textContent === ${JSON.stringify(label)} && !c.hidden); const i = c.querySelector("input"); i.value = ${v}; i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+const chip = (text) => js(`[...document.querySelectorAll("#tools section:not([hidden]) .chip")].find(c => c.textContent.trim() === ${JSON.stringify(text)} && c.offsetParent !== null).click()`);
+const visibleChips = () => js(`[...document.querySelectorAll("#tools section:not([hidden]) .chip")].filter(c => c.offsetParent !== null).map(c => c.textContent.trim())`);
+try {
+    await b.goto(base);
+    await until("loaded", () => js(`document.getElementById("overlay").hidden && window.__mart?.size().w > 0`));
+
+    // ---- the tone curve --------------------------------------------------------------------------------------
+    await tab("Tone");
+    await js(`document.querySelector("canvas.curve").scrollIntoView({ block: "center" })`);
+    await sleep(300);
+    // the image may come with a curve: reset it first
+    await js(`document.querySelector(".curve-ctl .reset").click()`);
+    await until("curve reset", async () => (await params()).ToneCurve.Curve === "0;");
+    const at = async (x, y) => js(`(() => { const r = document.querySelector("canvas.curve").getBoundingClientRect(), s = r.width, pad = 12; return { x: r.left + pad + ${x} * (s - 2 * pad), y: r.top + s - pad - ${y} * (s - 2 * pad) }; })()`);
+    const a = await at(0.5, 0.5), a2 = await at(0.5, 0.7);
+    await b.drag(a.x, a.y, a2.x, a2.y);
+    const c = await until("a point was added and moved", async () => { const v = nums((await params()).ToneCurve.Curve); return v.length === 7 && v; });
+    assert.equal(c[0], 1);
+    assert.ok(Math.abs(c[3] - 0.5) < 0.03 && Math.abs(c[4] - 0.7) < 0.03, "the point is at (0.5, 0.7): " + c);
+    assert.equal((await params()).ToneCurve.Enabled, true);
+    assert.equal((await params()).ToneCurve.CurveMode, "Neutral", "the curve is applied in Neutral mode");
+    await shot("tools-1-curve.png");
+    // moving the end point changes only its y
+    const e0 = await at(1, 1), e1 = await at(1, 0.9);
+    await b.drag(e0.x, e0.y, e1.x, e1.y);
+    const c2 = await until("end moved", async () => { const v = nums((await params()).ToneCurve.Curve); return v.length === 7 && Math.abs(v[6] - 0.9) < 0.03 && v; });
+    assert.equal(c2[5], 1, "the end keeps x = 1");
+    // "Remove point" needs a selected inner point; a double tap deletes
+    await b.tap(a2.x, a2.y);
+    await sleep(150);
+    await b.tap(a2.x, a2.y);
+    const c3 = await until("the point was deleted", async () => nums((await params()).ToneCurve.Curve).length === 5);
+    // reset
+    await js(`document.querySelector(".curve-ctl .reset").click()`);
+    await until("curve reset", async () => (await params()).ToneCurve.Curve === "0;");
+    // one undo step per drag: undo brings back the curve before the reset
+    console.log("tone curve: ok");
+
+    // ---- tone equalizer and soft light -----------------------------------------------------------------------
+    await setSlider("Shadows", 30);
+    await until("band", async () => (await params()).ToneEqualizer.Band1 === 30);
+    console.log("tone equalizer: ok");
+
+    // ---- channel mixer ----------------------------------------------------------------------------------------
+    await tab("Color");
+    await js(`[...document.querySelectorAll(".tool-heading")].find(h => h.textContent.startsWith("Channel mixer")).scrollIntoView()`);
+    const l = await sliders();
+    assert.deepEqual(l.filter((x) => /hue|saturation/.test(x)).length, 6, "the six primaries sliders: " + l);
+    assert.ok(!l.some((x) => /from/.test(x)), "no matrix");
+    await setSlider("Green hue", -25);
+    await until("hue tweak", async () => nums((await params())["Channel Mixer"].HueTweak).join() === "0,-25,0");
+    await shot("tools-2-mixer.png");
+    console.log("channel mixer: ok");
+
+    // ---- soft light (also on the Color tab) ----------------------------------------------------------------
+    await chip("Enabled");
+    await until("soft light on", async () => (await params()).SoftLight.Enabled === true);
+    await setSlider("Strength", 55);
+    await until("soft light strength", async () => (await params()).SoftLight.Strength === 55);
+    console.log("soft light: ok");
+
+    // ---- detail: lens and sharpening ---------------------------------------------------------------------------
+    await tab("Detail");
+    let chips = await visibleChips();
+    assert.ok(!chips.includes("Distortion") || (await params()).LensProfile.LcMode !== "none", "lens options only with a source");
+    await chip("Off");
+    await until("lens off", async () => (await params()).LensProfile.LcMode === "none");
+    assert.ok(!(await visibleChips()).includes("Chromatic aberration"), "no options while off");
+    await chip("Automatic");
+    await until("lens auto", async () => (await params()).LensProfile.LcMode === "lfauto");
+    assert.ok((await visibleChips()).includes("Chromatic aberration"));
+    await chip("Chromatic aberration");
+    await until("CA", async () => (await params()).LensProfile.UseCA === true);
+    await chip("Embedded");
+    await until("lens exif", async () => (await params()).LensProfile.LcMode === "exif");
+    await setSlider("Radius", 1.1);
+    const S = await until("sharpening", async () => { const s = (await params()).Sharpening; return s.Enabled && s.DeconvRadius === 1.1 && s; });
+    assert.equal(S.Method, "rld");
+    assert.equal(S.DeconvAutoRadius, false, "never the automatic radius");
+    await setSlider("Amount", 60);
+    await setSlider("Contrast threshold", 35);
+    await until("amount, contrast", async () => { const s = (await params()).Sharpening; return s.DeconvAmount === 60 && s.Contrast === 35; });
+    await chip("Enabled");  // the switch, now on
+    await until("sharpening off", async () => (await params()).Sharpening.Enabled === false);
+    await shot("tools-3-detail.png");
+    console.log("lens, sharpening: ok");
+
+    console.log("ui tools: ok");
+} finally {
+    await b.close();
+}

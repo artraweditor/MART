@@ -22,8 +22,10 @@ network; the server then requires the token it prints (open the printed URL).
 
 ## What it does
 
-Light, Color, Tone and Crop tabs (exposure, white balance with a neutral-gray picker, contrast and base curve,
-saturation, crop with ratios, quarter turns, flips and straightening), undo/redo, Save (the standard `.arp`
+Tone, Color, Detail and Crop tabs (exposure and highlight recovery, contrast, base curve, a point-curve editor, tone
+equalizer; white balance with a neutral-gray picker, saturation, channel mixer (primaries mode), soft light; lens
+correction from the automatic or embedded data, capture sharpening by Richardson-Lucy deconvolution; crop with ratios,
+quarter turns, flips and straightening), undo/redo, Save (the standard `.arp`
 sidecar), a **Look** sheet to apply ART's built-in Neutral or Default profile, or a saved one (bundled, yours, or from the device), and a **⋯** menu
 with **Export** (JPEG, PNG or TIFF at full size, then a download), the image information and metadata, and opening
 another image. Opening another image never drops unsaved edits silently.
@@ -52,6 +54,8 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/ui_smoke.mjs http://localhost:8080 /tmp           # sliders, undo
     node host/tests/ui_m3.mjs http://localhost:8080 /tmp /path/copy.arw   # crop drags, sheets, white balance, Save
     node host/tests/ui_m4.mjs http://localhost:8080 /tmp              # export sheet, busy state, download
+    node host/tests/tools_e2e.mjs http://localhost:8080               # every tool's patch against the engine (changes the open image, not the sidecar)
+    node host/tests/ui_tools.mjs http://localhost:8080 /tmp           # curve editor and the new tools (use a freshly started host)
     node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone
     node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back

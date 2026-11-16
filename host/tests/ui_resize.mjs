@@ -29,7 +29,7 @@ try {
         assert.ok(f.tight, what + ": the picture is not fitted to the view");
     };
     await check("start");
-    for (const tab of ["Color", "Tone", "Crop", "Light", "Crop", "Color", "Light"]) {
+    for (const tab of ["Color", "Tone", "Crop", "Tone", "Crop", "Color", "Tone"]) {
         await js(`[...document.querySelectorAll("#tabs button")].find(x => x.textContent === ${JSON.stringify(tab)}).click()`);
         await check("tab " + tab);
     }

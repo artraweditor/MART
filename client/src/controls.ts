@@ -1,9 +1,11 @@
 // The controls of a tool panel: sliders (native range inputs: touch friendly
 // and accessible), choice chips and toggles.
 
-import type { ChoiceDef, ControlDef, SliderDef, ToggleDef } from "./tools.js";
+import type { ChoiceDef, ControlDef, CurveDef, HeadingDef, SliderDef, ToggleDef } from "./tools.js";
+import { addPoint, encode, hitPoint, identity, isIdentity, makeEvaluator, movePoint, parseCurve, removePoint } from "./curve.js";
+import type { Curve } from "./curve.js";
 import type { Params } from "./live.js";
-import { readValue } from "./tools.js";
+import { isShown, readValue } from "./tools.js";
 
 export interface ControlHost {
     /** a value was set; `gesture` is a gesture id for slider drags, 0 for discrete changes */
@@ -27,7 +29,7 @@ function fmt(v: number, digits: number): string {
 function slider(def: SliderDef, host: ControlHost): Control {
     const el = document.createElement("div");
     el.className = "ctl";
-    const id = `c-${def.group}-${def.key}`.replace(/\W/g, "_");
+    const id = `c-${def.group}-${def.key}-${def.index ?? ""}`.replace(/\W/g, "_");
     el.innerHTML = `<div class="row"><label for="${id}"></label><output></output><button type="button" class="reset" aria-label="Reset"></button></div>`;
     const label = el.querySelector("label")!;
     const out = el.querySelector("output")!;
@@ -97,7 +99,7 @@ function choice(def: ChoiceDef, host: ControlHost): Control {
     const chips = document.createElement("div");
     chips.className = "chips";
     chips.setAttribute("role", "radiogroup");
-    const buttons = new Map<string, HTMLButtonElement>();
+    const buttons = new Map<string, HTMLButtonElement>();  // by String(value): the profile's Mode is a number
     for (const o of def.options) {
         const b = document.createElement("button");
         b.type = "button";
@@ -108,11 +110,11 @@ function choice(def: ChoiceDef, host: ControlHost): Control {
             select(o.value);
             host.set(def, o.value, 0);
         });
-        buttons.set(o.value, b);
+        buttons.set(String(o.value), b);
         chips.appendChild(b);
     }
-    const select = (v: string) => {
-        for (const [value, b] of buttons) b.setAttribute("aria-checked", String(value === v));
+    const select = (v: string | number) => {
+        for (const [value, b] of buttons) b.setAttribute("aria-checked", String(value === String(v)));
     };
     el.append(title, chips);
     select(def.def);
@@ -120,7 +122,7 @@ function choice(def: ChoiceDef, host: ControlHost): Control {
         el,
         sync(params) {
             const v = readValue(params, def);
-            select(typeof v === "string" ? v : def.def);
+            select(typeof v === "string" || typeof v === "number" ? v : def.def);
         },
     };
 }
@@ -150,7 +152,213 @@ function toggle(def: ToggleDef, host: ControlHost): Control {
     };
 }
 
+function heading(def: HeadingDef): Control {
+    const el = document.createElement("h3");
+    el.className = "tool-heading";
+    el.textContent = def.label;
+    return { el, sync() {} };
+}
+
+/** The tone curve: tap to add a point, drag to move it, double-tap a point (or "Remove point") to delete it. */
+function curveEditor(def: CurveDef, host: ControlHost): Control {
+    const el = document.createElement("div");
+    el.className = "ctl curve-ctl";
+    el.innerHTML =
+        `<div class="row"><label></label><button type="button" class="reset changed" aria-label="Reset the curve">↺</button></div>` +
+        `<canvas class="curve" role="img" aria-label="Tone curve editor"></canvas>` +
+        `<div class="row"><button type="button" class="chip remove" disabled>Remove point</button><span class="muted note"></span></div>`;
+    el.querySelector("label")!.textContent = def.label;
+    const canvas = el.querySelector("canvas")!;
+    const reset = el.querySelector<HTMLButtonElement>(".reset")!;
+    const remove = el.querySelector<HTMLButtonElement>(".remove")!;
+    const note = el.querySelector<HTMLElement>(".note")!;
+    const ctx = canvas.getContext("2d")!;
+
+    let curve: Curve | null = identity(); // null: a curve this editor cannot show
+    let selected = -1;
+    let drag = -1;
+    let gesture = 0;
+    let lastTap = { t: 0, i: -1 };
+    const css = (name: string): string => getComputedStyle(el).getPropertyValue(name).trim() || "#888";
+
+    const side = (): number => canvas.clientWidth;
+    const pad = 12;
+    const toPx = (x: number, y: number): [number, number] => [pad + x * (side() - 2 * pad), side() - pad - y * (side() - 2 * pad)];
+    const toUnit = (px: number, py: number): [number, number] => [(px - pad) / (side() - 2 * pad), (side() - pad - py) / (side() - 2 * pad)];
+
+    const size = (): void => {
+        const dpr = window.devicePixelRatio || 1;
+        const s = side();
+        canvas.width = Math.max(1, Math.round(s * dpr));
+        canvas.height = Math.max(1, Math.round(s * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw();
+    };
+
+    const draw = (): void => {
+        const s = side();
+        if (!s) return;
+        ctx.clearRect(0, 0, s, s);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = css("--line");
+        for (let i = 0; i <= 4; i++) {
+            const [x0, y0] = toPx(i / 4, 0);
+            const [x1, y1] = toPx(i / 4, 1);
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            const [a0, b0] = toPx(0, i / 4);
+            const [a1, b1] = toPx(1, i / 4);
+            ctx.moveTo(a0, b0);
+            ctx.lineTo(a1, b1);
+            ctx.stroke();
+        }
+        ctx.strokeStyle = css("--muted");
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(...toPx(0, 0));
+        ctx.lineTo(...toPx(1, 1));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (!curve) return;
+        const f = makeEvaluator(curve);
+        ctx.strokeStyle = css("--accent");
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i <= 128; i++) {
+            const x = i / 128;
+            const [px, py] = toPx(x, f(x));
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        curve.pts.forEach(([x, y], i) => {
+            const [px, py] = toPx(x, y);
+            ctx.beginPath();
+            ctx.arc(px, py, i === selected ? 9 : 7, 0, Math.PI * 2);
+            ctx.fillStyle = i === selected ? css("--accent") : css("--panel");
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = css("--accent");
+            ctx.stroke();
+        });
+    };
+
+    const status = (): void => {
+        remove.disabled = !curve || selected <= 0 || selected >= curve.pts.length - 1;
+        note.textContent = curve ? "" : "A curve of another kind: reset it to edit here.";
+        reset.classList.toggle("changed", !curve || !isIdentity(curve));
+        canvas.style.opacity = curve ? "1" : "0.5";
+    };
+
+    const send = (g: number): void => {
+        if (curve) host.set(def, encode(curve), g);
+    };
+
+    const local = (e: PointerEvent): [number, number] => {
+        const r = canvas.getBoundingClientRect();
+        return [e.clientX - r.left, e.clientY - r.top];
+    };
+    const hit = (px: number, py: number): number => {
+        if (!curve) return -1;
+        // a finger needs a larger target than a mouse: 22 CSS px, in curve units
+        const [x, y] = toUnit(px, py);
+        return hitPoint(curve.pts, x, y, 22 / (side() - 2 * pad));
+    };
+
+    canvas.addEventListener("pointerdown", (e) => {
+        if (!curve) return;
+        canvas.setPointerCapture(e.pointerId);
+        const [px, py] = local(e);
+        let i = hit(px, py);
+        const now = performance.now();
+        if (i >= 0 && lastTap.i === i && now - lastTap.t < 350 && i > 0 && i < curve.pts.length - 1) {
+            // a double tap on a point deletes it
+            curve = { ...curve, pts: removePoint(curve.pts, i) };
+            selected = -1;
+            lastTap = { t: 0, i: -1 };
+            draw();
+            status();
+            send(0);
+            return;
+        }
+        if (i < 0) {
+            const [x, y] = toUnit(px, py);
+            const a = addPoint(curve.pts, Math.min(1, Math.max(0, x)), y);
+            curve = { ...curve, pts: a.pts };
+            i = a.index;
+        }
+        lastTap = { t: now, i };
+        selected = drag = i;
+        gesture = nextGesture++;
+        draw();
+        status();
+        // a new point lies on the curve as it is: nothing is sent until it is moved
+    });
+    canvas.addEventListener("pointermove", (e) => {
+        if (drag < 0 || !curve) return;
+        const [px, py] = local(e);
+        const [x, y] = toUnit(px, py);
+        curve = { ...curve, pts: movePoint(curve.pts, drag, x, y) };
+        lastTap = { t: 0, i: -1 };
+        draw();
+        status();
+        send(gesture);
+    });
+    const end = (): void => {
+        if (drag < 0) return;
+        drag = -1;
+        if (gesture) {
+            gesture = 0;
+            host.gestureEnd();
+        }
+    };
+    canvas.addEventListener("pointerup", end);
+    canvas.addEventListener("pointercancel", end);
+    remove.addEventListener("click", () => {
+        if (!curve || selected <= 0 || selected >= curve.pts.length - 1) return;
+        curve = { ...curve, pts: removePoint(curve.pts, selected) };
+        selected = -1;
+        draw();
+        status();
+        send(0);
+    });
+    reset.addEventListener("click", () => {
+        curve = identity();
+        selected = -1;
+        draw();
+        status();
+        host.set(def, [0], 0);
+    });
+    new ResizeObserver(size).observe(canvas);
+    status();
+    return {
+        el,
+        sync(params) {
+            if (drag >= 0) return;
+            curve = parseCurve(params[def.group]?.[def.key]);
+            if (curve && selected >= curve.pts.length) selected = -1;
+            draw();
+            status();
+        },
+    };
+}
+
 export function makeControl(def: ControlDef, host: ControlHost): Control {
+    const c = build(def, host);
+    if (!def.showWhen) return c;
+    c.el.hidden = !isShown({}, def);
+    // shown only while another setting of the tool has the right value
+    return {
+        el: c.el,
+        sync(params) {
+            c.el.hidden = !isShown(params, def);
+            c.sync(params);
+        },
+    };
+}
+
+function build(def: ControlDef, host: ControlHost): Control {
     switch (def.kind) {
         case "slider":
             return slider(def, host);
@@ -158,5 +366,9 @@ export function makeControl(def: ControlDef, host: ControlHost): Control {
             return choice(def, host);
         case "toggle":
             return toggle(def, host);
+        case "curve":
+            return curveEditor(def, host);
+        case "heading":
+            return heading(def);
     }
 }

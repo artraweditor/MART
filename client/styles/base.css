@@ -202,3 +202,10 @@ body.busy #sheet { pointer-events: auto; }
     #tools { position: static; height: auto; flex: 1; min-height: 0; background: transparent; border-top: 0; }
     #panel.collapsed #tools { display: block; }
 }
+
+/* tool headings and the curve editor */
+.tool-heading { margin: 18px 0 2px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+#tools section > .tool-heading:first-child { border-top: 0; margin-top: 6px; }
+.curve-ctl canvas { display: block; width: min(100%, 280px); aspect-ratio: 1; margin: 4px auto 8px; touch-action: none; background: var(--field); border-radius: 8px; }
+.curve-ctl .remove { min-height: 36px; }
+.curve-ctl .note { flex: 1; }

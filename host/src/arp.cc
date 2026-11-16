@@ -11,13 +11,14 @@ namespace mart { namespace arp {
 
 namespace {
 
-enum class Kind { Bool, Int, IntSet, Double, Enum, Curve };
+enum class Kind { Bool, Int, IntSet, Double, Enum, Curve, IntList };
 
 struct Spec {
     Kind kind;
     double lo = 0, hi = 0;
     std::set<std::string> values;  // Enum
     std::set<long long> ints;      // IntSet
+    size_t n = 0;                  // IntList: the number of values
 };
 
 using Group = std::map<std::string, Spec>;
@@ -28,6 +29,8 @@ Spec IS(std::set<long long> v) { return {Kind::IntSet, 0, 0, {}, std::move(v)}; 
 Spec D(double lo, double hi) { return {Kind::Double, lo, hi, {}, {}}; }
 Spec E(std::set<std::string> v) { return {Kind::Enum, 0, 0, std::move(v), {}}; }
 Spec C() { return {Kind::Curve, 0, 0, {}, {}}; }
+// a list of `n` integers, each within lo..hi
+Spec L(size_t n, double lo, double hi) { Spec s{Kind::IntList, lo, hi, {}, {}}; s.n = n; return s; }
 
 // Keys and ranges: tools/mcp/reference (the GUI ranges, which the engine accepts)
 const std::map<std::string, Group> &table()
@@ -46,9 +49,37 @@ const std::map<std::string, Group> &table()
         {"ToneCurve", {{"Enabled", B()},
                        {"Contrast", I(-100, 100)},
                        {"BaseCurve", E({"Linear", "Rolloff", "SCurve"})},
+                       {"CurveMode", E({"Neutral"})},
+                       {"CurveMode2", E({"Neutral"})},
                        {"HistogramMatching", B()},
                        {"Curve", C()}}},
         {"Saturation", {{"Enabled", B()}, {"Saturation", I(-100, 100)}, {"Vibrance", I(-100, 100)}}},
+        {"ToneEqualizer", {{"Enabled", B()},
+                           {"Band0", I(-100, 100)},
+                           {"Band1", I(-100, 100)},
+                           {"Band2", I(-100, 100)},
+                           {"Band3", I(-100, 100)},
+                           {"Band4", I(-100, 100)},
+                           {"Regularization", I(0, 4)},
+                           {"Pivot", D(-12, 12)}}},
+        // primaries mode only (Mode 1): a hue and a saturation shift for each of red, green and blue
+        {"Channel Mixer", {{"Enabled", B()},
+                           {"Mode", IS({1})},
+                           {"HueTweak", L(3, -100, 100)},
+                           {"SatTweak", L(3, -100, 100)}}},
+        {"SoftLight", {{"Enabled", B()}, {"Strength", I(0, 100)}}},
+        // no Enabled key: the tool is on when LcMode is not "none"; only the automatic and embedded sources are offered
+        {"LensProfile", {{"LcMode", E({"none", "lfauto", "exif"})},
+                         {"UseDistortion", B()},
+                         {"UseVignette", B()},
+                         {"UseCA", B()}}},
+        // capture sharpening: Richardson-Lucy deconvolution with a fixed radius
+        {"Sharpening", {{"Enabled", B()},
+                        {"Method", E({"rld"})},
+                        {"Contrast", D(0, 200)},
+                        {"DeconvRadius", D(0.4, 2.5)},
+                        {"DeconvAmount", I(0, 100)},
+                        {"DeconvAutoRadius", B()}}},
         // geometry: the crop rectangle is in pixels of the (coarsely rotated) image that `preview` shows
         {"Crop", {{"Enabled", B()},
                   {"X", I(-1, 100000)},
@@ -97,6 +128,18 @@ std::string value(const std::string &g, const std::string &k, const Spec &s, con
         if (!v.is_string() || !s.values.count(v.get<std::string>()))
             throw PatchError(what + ": not an allowed value");
         return v.get<std::string>();
+    case Kind::IntList: {
+        if (!v.is_array() || v.size() != s.n) throw PatchError(what + ": expected a list of " + std::to_string(s.n) + " numbers");
+        std::string out;
+        for (auto &e : v) {
+            if (!e.is_number()) throw PatchError(what + ": expected numbers");
+            double d = e.get<double>();
+            if (!std::isfinite(d) || d < s.lo || d > s.hi) throw PatchError(what + ": out of range");
+            if (d != std::floor(d)) throw PatchError(what + ": expected integers");
+            out += std::to_string(static_cast<long long>(d)) + ";";
+        }
+        return out;
+    }
     case Kind::Curve: {
         // [type, x1, y1, x2, y2, ...] with 0 = linear/identity alone
         if (!v.is_array() || v.empty()) throw PatchError(what + ": expected a list");

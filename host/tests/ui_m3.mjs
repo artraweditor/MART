@@ -50,7 +50,7 @@ try {
     assert.ok(Math.abs(c2.W / c2.H - crop.W / crop.H) < 0.01, "the ratio holds while dragging");
 
     // ---- outside the Crop tab the view shows the cropped part --------------------------------------
-    await click("#tabs button", "Light");
+    await click("#tabs button", "Tone");
     await until("cropped view", async () => { const bd = await js("window.__mart.bounds()"); return bd.w === c2.W && bd.h === c2.H && bd.x === c2.X; });
     assert.equal(await js(`document.getElementById("crop").hidden`), true);
     await sleep(2000);

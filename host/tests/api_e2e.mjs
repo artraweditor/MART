@@ -80,6 +80,10 @@ console.log("profiles:", list.length, [...new Set(list.map((p) => p.source))].jo
         if (id === ":neutral") assert.notEqual(st.params.Sharpening?.Enabled, true, "neutral switches sharpening off");
         await next((m) => m.type === "frame" && m.seq === s);
     }
+    // the built-in profiles replaced much of the state: start from the sidecar again
+    { const r = await post("/api/open", { path: image, discard: true }); assert.equal(r.status, 200); }
+    send({ type: "sync", view });
+    await next((m) => m.type === "state");
     // upload
     assert.equal((await api("/api/profiles?name=x", { method: "POST", body: "this is not a profile" })).status, 400);
     assert.equal((await api("/api/profiles?name=x", { method: "POST", body: "" })).status, 400);

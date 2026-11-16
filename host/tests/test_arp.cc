@@ -37,6 +37,38 @@ int main()
     CHECK(refused({{"Crop", {{"Ratio", "7:3"}}}}));
     CHECK(refused({{"Crop", {{"Guide", "Grid"}}}}));
 
+    // the other tools
+    CHECK(serialize({{"ToneEqualizer", {{"Enabled", true}, {"Band1", 35}, {"Pivot", -1.5}, {"Regularization", 4}}}}) ==
+          "[ToneEqualizer]\nBand1=35\nEnabled=true\nPivot=-1.5\nRegularization=4\n\n");
+    CHECK(refused({{"ToneEqualizer", {{"Band0", 101}}}}));
+    CHECK(refused({{"ToneEqualizer", {{"Regularization", 5}}}}));
+    CHECK(serialize({{"Channel Mixer", {{"Mode", 1}, {"SatTweak", {0, 30, 0}}}}}) == "[Channel Mixer]\nMode=1\nSatTweak=0;30;0;\n\n");
+    CHECK(serialize({{"Channel Mixer", {{"HueTweak", {-10, 0, 20}}}}}) == "[Channel Mixer]\nHueTweak=-10;0;20;\n\n");
+    CHECK(refused({{"Channel Mixer", {{"HueTweak", {10, 0}}}}}));         // three values
+    CHECK(refused({{"Channel Mixer", {{"HueTweak", {10, 0, 0.5}}}}}));    // integers
+    CHECK(refused({{"Channel Mixer", {{"HueTweak", {101, 0, 0}}}}}));     // range
+    CHECK(refused({{"Channel Mixer", {{"HueTweak", "10;0;0;"}}}}));       // not a list
+    CHECK(refused({{"Channel Mixer", {{"Mode", 0}}}}));                   // no matrix mode
+    CHECK(refused({{"Channel Mixer", {{"Red", {900, 100, 0}}}}}));
+    CHECK(serialize({{"SoftLight", {{"Enabled", true}, {"Strength", 40}}}}) == "[SoftLight]\nEnabled=true\nStrength=40\n\n");
+    CHECK(refused({{"SoftLight", {{"Strength", 101}}}}));
+    CHECK(serialize({{"LensProfile", {{"LcMode", "lfauto"}, {"UseCA", true}}}}) == "[LensProfile]\nLcMode=lfauto\nUseCA=true\n\n");
+    CHECK(serialize({{"LensProfile", {{"LcMode", "exif"}}}}) == "[LensProfile]\nLcMode=exif\n\n");
+    CHECK(refused({{"LensProfile", {{"LcMode", "lcp"}}}}));               // only automatic and embedded
+    CHECK(refused({{"LensProfile", {{"LcMode", "lfmanual"}}}}));
+    CHECK(refused({{"LensProfile", {{"LCPFile", "/etc/passwd"}}}}));      // no file paths
+    CHECK(refused({{"LensProfile", {{"Enabled", true}}}}));
+    CHECK(serialize({{"Sharpening", {{"Enabled", true}, {"Method", "rld"}, {"DeconvRadius", 0.8}, {"DeconvAutoRadius", false}}}}) ==
+          "[Sharpening]\nDeconvAutoRadius=false\nDeconvRadius=0.8\nEnabled=true\nMethod=rld\n\n");
+    CHECK(refused({{"Sharpening", {{"Method", "usm"}}}}));
+    CHECK(refused({{"Sharpening", {{"Method", "psf"}}}}));
+    CHECK(refused({{"Sharpening", {{"PSFKernel", "/etc/passwd"}}}}));
+    CHECK(refused({{"Sharpening", {{"DeconvRadius", 0.3}}}}));
+    CHECK(refused({{"Sharpening", {{"Contrast", 201}}}}));
+
+    CHECK(serialize({{"ToneCurve", {{"CurveMode", "Neutral"}, {"CurveMode2", "Neutral"}}}}) == "[ToneCurve]\nCurveMode=Neutral\nCurveMode2=Neutral\n\n");
+    CHECK(refused({{"ToneCurve", {{"CurveMode", "Standard"}}}}));         // the editor assumes Neutral
+
     CHECK(refused(json::object()));
     CHECK(refused(json::array()));
     CHECK(refused({{"Nope", {{"A", 1}}}}));

@@ -228,17 +228,19 @@ const controls: Control[] = [];
 
 const host: ControlHost = {
     set(def: ControlDef, value: unknown, gesture: number) {
+        if (def.kind === "heading") return;
         const patch = patchFor(def, value, (g, k) => params[g]?.[k]);
         mergePatch(params, patch); // so that the next control sees it
         if (gesture) dragging = true;
         throttle.push(patch, gesture ? `${def.key}#${gesture}` : "");
         if (!gesture) throttle.flush();
-        // a Temperature/Tint change also switches the preset chips
-        if (def.group === "White Balance") syncControls();
+        // a Temperature/Tint change also switches the preset chips, and a mode shows other controls
+        if (def.group === "White Balance" || !gesture) syncControls();
     },
     gestureEnd() {
         throttle.flush();
         dragging = false;
+        syncControls(); // a drag can switch its tool on: show the "Enabled" switch as it is
         const v = preview.request(false); // the full quality frame
         if (v) live.view(v);
     },
