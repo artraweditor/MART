@@ -23,7 +23,8 @@ export interface Status {
     art_version: string;
     backend: "inprocess" | "remote";
     open: { file: string } | null;
-    busy: string | null;
+    dirty: boolean;
+    busy: string | null; // "exporting" while the engine is busy with an export
 }
 
 export interface Region {
@@ -133,4 +134,44 @@ export async function spotWB(x: number, y: number, w: number, h: number): Promis
 
 export async function saveImage(): Promise<{ file: string }> {
     return (await request("/api/save", { method: "POST" })).json();
+}
+
+export interface ExportOptions {
+    format: "jpg" | "png" | "tif";
+    quality?: number; // jpg: 1..100
+    bits?: number; // png: 8 or 16; tif: 8, 16 or 32
+    float?: boolean; // tif with 16 bits
+    compression?: "none" | "zip"; // tif
+    name?: string; // file name without extension; the image's name if empty
+}
+
+export interface ExportStatus {
+    state: "queued" | "running" | "done" | "error";
+    format: string;
+    elapsed_ms: number;
+    name?: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    path?: string; // where the server keeps it, if it keeps exported files
+    error?: string;
+}
+
+/** Start a full-size export of the image as it is now (unsaved edits included). Resolves with the job id. */
+export async function startExport(o: ExportOptions): Promise<string> {
+    const res = await request("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(o),
+    });
+    return ((await res.json()) as { job: string }).job;
+}
+
+export async function exportStatus(job: string): Promise<ExportStatus> {
+    return (await request(`/api/export/${encodeURIComponent(job)}`, { cache: "no-store" })).json();
+}
+
+/** The address of the exported file, to download it. */
+export function exportUrl(job: string): string {
+    return `/api/export/${encodeURIComponent(job)}/file`;
 }

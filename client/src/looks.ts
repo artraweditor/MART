@@ -4,7 +4,7 @@ import { listProfiles, uploadProfile } from "./api.js";
 import type { ProfileEntry } from "./api.js";
 import { el, openSheet } from "./sheet.js";
 
-const SOURCES: Record<string, string> = { bundled: "ART", user: "Yours", folder: "Folder", uploaded: "Uploaded" };
+const SOURCES: Record<string, string> = { builtin: "Reset", bundled: "ART", user: "Yours", folder: "Folder", uploaded: "Uploaded" };
 
 /** profiles whose name contains every word of `filter`, grouped by source in the order of `SOURCES` */
 export function groupProfiles(list: ProfileEntry[], filter: string): [string, ProfileEntry[]][] {

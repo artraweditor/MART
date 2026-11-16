@@ -29,6 +29,8 @@ export async function launch({ window = process.env.WINDOW ?? "1180,820", out = 
     await cmd("Runtime.enable"); await cmd("Page.enable");
     return {
         logs,
+        /** any DevTools protocol command */
+        cmd: async (method, params = {}) => (await cmd(method, params)).result,
         goto: (url) => cmd("Page.navigate", { url }),
         async js(expr) {
             const r = await cmd("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });

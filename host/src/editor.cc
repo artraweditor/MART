@@ -31,16 +31,41 @@ void Conn::detach()
 void Editor::attach(const std::shared_ptr<Conn> &c)
 {
     std::shared_ptr<Conn> old;
+    bool exporting = false;
     {
         std::lock_guard<std::mutex> g(m_);
         old = current_;
         current_ = c;
         q_.clear();
+        exporting = exporting_;
     }
+    if (exporting) c->sendText(json{{"type", "busy"}, {"what", "exporting"}}.dump());
     if (old) {
         old->sendText(json{{"type", "replaced"}}.dump());
         old->close("replaced by a newer connection");
     }
+}
+
+void Editor::shutdown()
+{
+    std::shared_ptr<Conn> c;
+    {
+        std::lock_guard<std::mutex> g(m_);
+        c = std::move(current_);
+        q_.clear();
+    }
+    if (c) c->close("the server is stopping");
+}
+
+void Editor::setBusy(bool exporting)
+{
+    std::shared_ptr<Conn> c;
+    {
+        std::lock_guard<std::mutex> g(m_);
+        exporting_ = exporting;
+        c = current_;
+    }
+    if (c) c->sendText(json{{"type", "busy"}, {"what", exporting ? json("exporting") : json(nullptr)}}.dump());
 }
 
 void Editor::detach(const std::shared_ptr<Conn> &c)

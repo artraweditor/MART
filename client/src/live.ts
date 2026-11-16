@@ -48,6 +48,8 @@ export interface LiveEvents {
     frame(h: FrameHeader, jpeg: Blob): void;
     state(s: StateMessage): void;
     error(message: string, seq: number): void;
+    /** the engine is busy (an export) or free again */
+    busy(what: string | null): void;
 }
 
 const HEARTBEAT_MS = 5000;
@@ -120,6 +122,9 @@ export class Live {
                     break;
                 case "state":
                     this.ev.state(m as StateMessage);
+                    break;
+                case "busy":
+                    this.ev.busy(typeof m.what === "string" ? m.what : null);
                     break;
                 case "error":
                     this.ev.error(String(m.message), Number(m.seq));

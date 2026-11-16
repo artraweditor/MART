@@ -1,15 +1,22 @@
 // MART host: serves the web UI and drives ART through libART.
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "editor.h"
+#include "exporter.h"
 #include "session.h"
 #include "worker.h"
 #include "third_party/httplib.h"
+#include <atomic>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <mutex>
+#include <pthread.h>
 #include <random>
+#include <thread>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -31,6 +38,7 @@ void usage()
         "                   profile folder, if they exist)\n"
         "  --gpu MODE       auto|off|force (in-process engine)\n"
         "  --library PATH   libART (default: $ART_LIBRARY, next to the binary)\n"
+        "  --export-dir DIR keep exported files in DIR (default: a temporary folder, for downloading only)\n"
         "  --token TOKEN    access token for non-loopback listening (default: random)\n", stderr);
 }
 
@@ -83,11 +91,19 @@ std::string exeDir(const char *argv0)
 
 int main(int argc, char **argv)
 {
+    // SIGINT and SIGTERM stop the server cleanly (so that the temporary folders are removed): they are blocked in
+    // every thread, and one thread waits for them
+    sigset_t stopSignals;
+    sigemptyset(&stopSignals);
+    sigaddset(&stopSignals, SIGINT);
+    sigaddset(&stopSignals, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &stopSignals, nullptr);
     EngineOptions eo;
     std::string listen = "127.0.0.1", www, token, image;
     int port = 8080;
     std::vector<std::string> roots;
     std::vector<ProfileDir> profileDirs;
+    std::string exportDir;
     bool userProfiles = true;
     bool remote = false;
     for (int i = 1; i < argc; ++i) {
@@ -102,6 +118,7 @@ int main(int argc, char **argv)
         else if (a == "--www") www = val();
         else if (a == "--socket") { eo.socket = val(); remote = true; }
         else if (a == "--data") eo.data_dir = val();
+        else if (a == "--export-dir") exportDir = val();
         else if (a == "--profiles") { profileDirs.push_back({"folder", val()}); userProfiles = false; }
         else if (a == "--gpu") eo.gpu = val();
         else if (a == "--library") eo.library = val();
@@ -146,7 +163,14 @@ int main(int argc, char **argv)
     }
 
     httplib::Server svr;
-    svr.set_payload_max_length(2u << 20);  // the largest body is an uploaded profile (1 MiB)
+    // only SO_REUSEADDR (to restart at once): with SO_REUSEPORT, which the library sets by default, two copies of
+    // MART could share the port and a browser would talk to either of them
+    svr.set_socket_options([](socket_t sock) {
+        int yes = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&yes), sizeof(yes));
+    });
+    svr.set_payload_max_length(2u << 20);
+    svr.set_file_extension_and_mimetype_mapping("webmanifest", "application/manifest+json");  // the largest body is an uploaded profile (1 MiB)
     if (!svr.set_mount_point("/", www))
         std::fprintf(stderr, "mart: warning: client directory not found: %s\n", www.c_str());
 
@@ -188,8 +212,55 @@ int main(int argc, char **argv)
         editor.detach(conn);
     });
 
+    std::unique_ptr<Exporter> exporter;
+    try {
+        exporter = std::make_unique<Exporter>(worker, *session, exportDir, [&](bool b) { editor.setBusy(b); });
+    } catch (const std::exception &e) {
+        std::fprintf(stderr, "mart: %s\n", e.what());
+        return 1;
+    }
+
+    // The status must not wait for the engine: during an export it is answered from the last one computed.
+    std::mutex statusMutex;
+    json lastStatus;
     svr.Get("/api/status", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->status(); }).get()); });
+        serve(worker, res, [&](Worker &w) {
+            json s;
+            if (exporter->busy()) {
+                std::lock_guard<std::mutex> g(statusMutex);
+                s = lastStatus.is_object() ? lastStatus : json::object();
+                s["busy"] = "exporting";
+            } else {
+                s = w.submit([&] { return session->status(); }).get();
+                std::lock_guard<std::mutex> g(statusMutex);
+                lastStatus = s;
+            }
+            sendJson(res, s);
+        });
+    });
+    svr.Get("/api/export/formats", [&](const httplib::Request &, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->exportFormats(); }).get()); });
+    });
+    svr.Post("/api/export", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &) {
+            json body = json::parse(req.body.empty() ? "{}" : req.body, nullptr, false);
+            if (body.is_discarded()) throw ApiError(400, "expected a JSON object");
+            sendJson(res, exporter->start(body), 202);
+        });
+    });
+    svr.Get(R"(/api/export/(\w+)/file)", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &) {
+            std::string path, name, mime;
+            if (!exporter->file(req.matches[1], path, name, mime)) throw ApiError(404, "no such finished export");
+            res.set_header("Content-Disposition", "attachment; filename=\"" + name + "\"");
+            res.set_header("Cache-Control", "no-store");
+            struct stat st;
+            if (stat(path.c_str(), &st) != 0) throw ApiError(404, "the exported file is gone");
+            res.set_file_content(path, mime);
+        });
+    });
+    svr.Get(R"(/api/export/(\w+))", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &) { sendJson(res, exporter->status(req.matches[1])); });
     });
     svr.Post("/api/open", [&](const httplib::Request &req, httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
@@ -258,10 +329,22 @@ int main(int argc, char **argv)
         });
     });
 
+    std::atomic<bool> signalled{false};
+    std::thread signalThread([&] {
+        int sig = 0;
+        sigwait(&stopSignals, &sig);
+        signalled = true;
+        editor.shutdown();
+        svr.stop();
+    });
     std::printf("MART listening on http://%s:%d/%s\n", listen.c_str(), port,
                 needToken ? ("?token=" + token).c_str() : "");
     std::fflush(stdout);
-    if (!svr.listen(listen, port)) {
+    const bool listened = svr.listen(listen, port);
+    const bool stoppedByUser = signalled;  // before waking the thread ourselves
+    if (!stoppedByUser) pthread_kill(signalThread.native_handle(), SIGTERM);
+    signalThread.join();
+    if (!listened && !stoppedByUser) {
         std::fprintf(stderr, "mart: cannot listen on %s:%d\n", listen.c_str(), port);
         return 1;
     }

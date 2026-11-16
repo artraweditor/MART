@@ -92,7 +92,8 @@ try {
     assert.equal(await js(`document.getElementById("sheet").hidden`), true, "the sheet closes after choosing");
 
     // ---- the Info sheet ---------------------------------------------------------------------------------------
-    await js(`document.getElementById("info").click()`);
+    await js(`document.getElementById("more").click()`);
+    await click(".action", "Image information");
     await until("summary", () => js(`document.querySelectorAll(".facts dt").length > 4`));
     const facts = await js(`[...document.querySelectorAll(".facts dt, .facts dd")].map(e => e.textContent).join("|")`);
     assert.match(facts, /Camera\|SONY ILCE-7M4/);

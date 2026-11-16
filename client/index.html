@@ -4,16 +4,25 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
     <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#2b2b2b">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="MART">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>MART</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="stylesheet" href="styles/base.css">
 </head>
 <body>
     <header id="bar">
+        <img id="logo" src="icons/icon-192.png" alt="" width="28" height="28">
         <span id="title">MART</span>
         <button id="undo" type="button" class="icon" aria-label="Undo" disabled>&#x21b6;</button>
         <button id="redo" type="button" class="icon" aria-label="Redo" disabled>&#x21b7;</button>
         <button id="look" type="button" class="text">Look</button>
-        <button id="info" type="button" class="icon" aria-label="Image information">&#x24d8;</button>
+        <button id="more" type="button" class="icon" aria-label="More: export, information, open">&#x22ef;</button>
         <button id="save" type="button" class="text" disabled>Save</button>
         <span id="conn" class="dot" title="connection"></span>
     </header>

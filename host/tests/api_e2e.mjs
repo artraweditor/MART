@@ -72,6 +72,14 @@ console.log("profiles:", list.length, [...new Set(list.map((p) => p.source))].jo
         assert.equal(st.params.Sharpening.Enabled, true, "the bundled Sharpening profile enables sharpening");
         await next((m) => m.type === "frame" && m.seq === s);
     }
+    // ART's built-in profiles
+    for (const id of [":default", ":neutral"]) {
+        assert.ok(list.some((p) => p.id === id && p.source === "builtin"), id + " is listed");
+        const s = send({ type: "profile", id, view });
+        const st = await next((m) => m.type === "state" && m.seq === s);
+        if (id === ":neutral") assert.notEqual(st.params.Sharpening?.Enabled, true, "neutral switches sharpening off");
+        await next((m) => m.type === "frame" && m.seq === s);
+    }
     // upload
     assert.equal((await api("/api/profiles?name=x", { method: "POST", body: "this is not a profile" })).status, 400);
     assert.equal((await api("/api/profiles?name=x", { method: "POST", body: "" })).status, 400);

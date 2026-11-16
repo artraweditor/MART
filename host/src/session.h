@@ -47,6 +47,9 @@ public:
     json metadata(bool makernotes, bool edits);       // flat object of tags
     json spotWB(int x, int y, int w, int h);
     Profiles &profiles() { return profiles_; }
+    std::string fileStem() const;                     // the image's file name without directory and extension ("" if none)
+    json exportImage(const std::vector<std::string> &exportArgs);   // runs `export ...` (blocks: seconds to minutes)
+    json exportFormats();
     void applyProfile(const std::string &id, bool append);
     bool dirty() const { return dirty_; }
     bool isOpen() const { return !file_.empty(); }

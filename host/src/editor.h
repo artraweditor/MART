@@ -49,6 +49,12 @@ public:
     void attach(const std::shared_ptr<Conn> &c);
     void detach(const std::shared_ptr<Conn> &c);
 
+    // the server is stopping: close the connection (a WebSocket would keep the process alive)
+    void shutdown();
+
+    // an export started or ended: the engine is busy, edits wait
+    void setBusy(bool exporting);
+
     // handle one text message of the client (called on its handler thread)
     void message(const std::shared_ptr<Conn> &c, const std::string &text);
 
@@ -63,6 +69,7 @@ private:
     Session &session_;
     std::mutex m_;
     std::shared_ptr<Conn> current_;
+    bool exporting_ = false;
     std::deque<Op> q_;
     bool scheduled_ = false;
     View view_;  // worker only: the view to render

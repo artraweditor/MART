@@ -22,6 +22,8 @@ public:
     // store an uploaded profile (text of an .arp); returns its entry. Throws std::invalid_argument
     nlohmann::json upload(const std::string &name, const std::string &text);
     // the file of an id; empty if unknown. Never a path outside the directories
+    /** ":neutral" and ":default": the profiles ART builds in */
+    static bool isBuiltin(const std::string &id) { return id == ":neutral" || id == ":default"; }
     std::string path(const std::string &id) const;
 
 private:

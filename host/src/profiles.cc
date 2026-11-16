@@ -63,6 +63,8 @@ Profiles::Profiles(std::vector<ProfileDir> dirs, const std::string &uploadDir): 
 nlohmann::json Profiles::list()
 {
     nlohmann::json r = nlohmann::json::array();
+    r.push_back({{"id", ":neutral"}, {"name", "Neutral"}, {"source", "builtin"}});
+    r.push_back({{"id", ":default"}, {"name", "Default"}, {"source", "builtin"}});
     for (size_t i = 0; i < dirs_.size(); ++i) {
         std::vector<std::string> files;
         scan(dirs_[i].path, "", 0, files);
@@ -103,6 +105,7 @@ nlohmann::json Profiles::upload(const std::string &name, const std::string &text
 
 std::string Profiles::path(const std::string &id) const
 {
+    if (isBuiltin(id)) return id;  // ART's own names: `apply :neutral`, `apply :default`
     if (uploads_.count(id)) return uploadDir_ + "/" + id + ".arp";
     if (id.size() < 3 || id[0] != 'd') return "";
     size_t colon = id.find(':');

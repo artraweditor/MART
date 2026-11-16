@@ -261,7 +261,7 @@ export class CropOverlay {
         }
         c.stroke();
         // handles
-        c.fillStyle = "#4da3ff";
+        c.fillStyle = "#f0891a";
         const pts: [number, number][] = [
             [s.x, s.y], [s.x + s.w / 2, s.y], [s.x + s.w, s.y],
             [s.x, s.y + s.h / 2], [s.x + s.w, s.y + s.h / 2],

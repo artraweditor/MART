@@ -24,18 +24,38 @@ network; the server then requires the token it prints (open the printed URL).
 
 Light, Color, Tone and Crop tabs (exposure, white balance with a neutral-gray picker, contrast and base curve,
 saturation, crop with ratios, quarter turns, flips and straightening), undo/redo, Save (the standard `.arp`
-sidecar), a **Look** sheet to apply a saved ART profile (bundled, yours, or one from the device), and an **Info**
-sheet with the image summary and all its metadata. Opening another image never drops unsaved edits silently.
+sidecar), a **Look** sheet to apply ART's built-in Neutral or Default profile, or a saved one (bundled, yours, or from the device), and a **⋯** menu
+with **Export** (JPEG, PNG or TIFF at full size, then a download), the image information and metadata, and opening
+another image. Opening another image never drops unsaved edits silently.
+
+On a phone (or any narrow screen) the tool panel floats over the picture at about 80% opacity; tap the picture, or the open tab, to fold it away.
+
+Export renders the whole image with the current edits, saved or not. It keeps the engine busy for seconds to
+minutes, so editing waits and the interface says so. Files go to a temporary folder and are downloaded by the
+browser; `--export-dir DIR` also keeps them in DIR.
+
+## Installing it as an app
+
+MART is a PWA (manifest, icons, service worker). Browsers only install web apps and run service workers from a
+**secure context**: `http://localhost`, or HTTPS. So on the machine running MART it can be installed as it is; from a
+tablet on the network (`http://192.168.x.x:8080`) it works as a web page but cannot be installed or cached, unless
+it is served over HTTPS (for example through a reverse proxy or a tunnel that provides a certificate). Once
+installed, the app opens without the server and shows "Cannot reach the MART server" until it is back.
+The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-icons.sh` (needs `rsvg-convert`).
 
 ## Tests
 
-    cd host && ctest --test-dir build                  # patch serialiser, key allowlist
-    cd client && npm test                              # patch helpers, crop geometry (after npm run build)
-    host/tests/run_e2e.sh /path/to/photo.arw           # live channel, profiles, geometry, Save (fresh copy of the image)
+    cd host && ctest --test-dir build                  # patch serialiser, key allowlist, export requests
+    cd client && npm test                              # patch helpers, crop geometry, export options (after npm run build)
+    host/tests/run_e2e.sh /path/to/photo.arw           # live channel, export, profiles, geometry, Save, clean shutdown
     # browser tests (headless Chrome), with a host running on a COPY of an image (Save writes its sidecar):
     node host/tests/ui_smoke.mjs http://localhost:8080 /tmp           # sliders, undo
     node host/tests/ui_m3.mjs http://localhost:8080 /tmp /path/copy.arw   # crop drags, sheets, white balance, Save
-    MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs
+    node host/tests/ui_m4.mjs http://localhost:8080 /tmp              # export sheet, busy state, download
+    node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone
+    node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
+    MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back
+    MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_pwa.mjs          # manifest, service worker, offline start
 
 ## Needs ART's `apply --merge`
 

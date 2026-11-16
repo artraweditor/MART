@@ -214,6 +214,25 @@ json Session::save()
     return r;
 }
 
+std::string Session::fileStem() const
+{
+    if (file_.empty()) return "";
+    std::string n = file_.substr(file_.rfind('/') + 1);
+    auto dot = n.rfind('.');
+    return dot == std::string::npos || dot == 0 ? n : n.substr(0, dot);
+}
+
+json Session::exportImage(const std::vector<std::string> &args)
+{
+    if (file_.empty()) throw ApiError(409, "no image is open");
+    return command(args);
+}
+
+json Session::exportFormats()
+{
+    return command({"export", "--list-formats"});
+}
+
 json Session::metadata(bool makernotes, bool edits)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
@@ -232,7 +251,7 @@ void Session::applyProfile(const std::string &id, bool append)
     const std::string p = profiles_.path(id);
     if (p.empty()) throw ApiError(404, "no such profile");
     std::vector<std::string> a = {"apply"};
-    if (append) a.push_back("--append");
+    if (append && !Profiles::isBuiltin(id)) a.push_back("--append");
     a.push_back(p);
     command(a);
     dirty_ = true;

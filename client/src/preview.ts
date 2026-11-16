@@ -43,6 +43,8 @@ export class PreviewView {
     afterDraw: (() => void) | null = null;
     /** a tap (not a drag) at this point of the image, if set */
     onTap: ((x: number, y: number) => void) | null = null;
+    /** any tap on the picture, wherever it is */
+    onAnyTap: (() => void) | null = null;
 
     constructor(canvas: HTMLCanvasElement, onSettled: () => void) {
         this.canvas = canvas;
@@ -223,11 +225,12 @@ export class PreviewView {
     private up(e: PointerEvent): void {
         const d = this.downAt;
         this.pointers.delete(e.pointerId);
-        if (d && e.type === "pointerup" && this.onTap && performance.now() - d.t < 400) {
+        if (d && e.type === "pointerup" && performance.now() - d.t < 400) {
             const p = this.pos(e);
             if (Math.hypot(p.x - d.x, p.y - d.y) < 8) {
+                this.onAnyTap?.();
                 const i = this.toImage(p.x, p.y);
-                this.onTap(i.x, i.y);
+                this.onTap?.(i.x, i.y);
             }
         }
         this.downAt = null;

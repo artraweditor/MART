@@ -1,15 +1,20 @@
 :root {
-    --bg: #14161a;
-    --panel: #1d2025;
-    --fg: #e6e8eb;
-    --muted: #8b929c;
-    --accent: #4da3ff;
-    --ok: #4cc38a;
-    --bad: #ff6b6b;
-    --line: #353a42;
+    --bg: #1e1e1e;
+    --panel: #2b2b2b;
+    --panel-a: rgba(43, 43, 43, 0.8);
+    --fg: #e4e4e4;
+    --muted: #9b9b9b;
+    --accent: #f0891a;
+    --on-accent: #1c1000;
+    --ok: #6fbf73;
+    --bad: #ff6b5e;
+    --line: #444;
+    --field: #1f1f1f;
+    --hover: #3a3a3a;
     --tap: 44px;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
 body {
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -28,6 +33,7 @@ button { font: inherit; color: inherit; }
     grid-area: bar; display: flex; align-items: center; gap: 8px;
     min-height: var(--tap); padding: 0 12px 0 16px; background: var(--panel);
 }
+#logo { width: 28px; height: 28px; border-radius: 6px; flex: none; }
 #title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #title.dirty::before { content: "\2022 "; color: var(--accent); }
 .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); margin-left: 4px; }
@@ -39,30 +45,36 @@ button { font: inherit; color: inherit; }
 #bar button.icon { font-size: 1.5rem; }
 #bar button.text { color: var(--accent); font-weight: 600; }
 #bar button:disabled { color: var(--muted); opacity: 0.45; }
-#bar button:not(:disabled):active { background: #2a2e35; }
+#bar button:not(:disabled):active { background: var(--hover); }
 
 #stage { grid-area: stage; min-height: 0; position: relative; }
 #view { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
 #crop { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; }
 #crop[hidden] { display: none; }
 #toast {
-    position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); max-width: calc(100% - 32px);
-    background: #2b2f36; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; pointer-events: none;
+    position: absolute; left: 50%; top: 16px; transform: translateX(-50%); max-width: calc(100% - 32px);
+    background: #353535; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; pointer-events: none;
 }
 #toast[hidden] { display: none; }
 
+/* phone and portrait: the tab strip is always there; the tools are laid over the picture (so it never
+   changes size) and can be folded away: tap a tab again, or the picture */
 #panel {
-    grid-area: panel; background: var(--panel); border-top: 1px solid var(--line);
-    /* the same height on every tab, so that switching tabs does not resize the picture */
-    display: flex; flex-direction: column; min-height: 0; height: 40dvh;
+    grid-area: panel; background: var(--panel); border-top: 1px solid var(--line); position: relative;
 }
-#tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }
+#tabs { display: flex; flex: none; }
 #tabs button {
     flex: 1; min-height: var(--tap); border: 0; background: transparent; color: var(--muted); font-weight: 600;
     border-bottom: 2px solid transparent;
 }
 #tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
-#tools { overflow-y: auto; padding: 4px 16px 12px; -webkit-overflow-scrolling: touch; }
+#panel.collapsed #tabs button[aria-selected="true"] { color: var(--muted); border-bottom-color: transparent; }
+#tools {
+    position: absolute; left: 0; right: 0; bottom: 100%; height: 40dvh; overflow-y: auto;
+    padding: 4px 16px 12px; -webkit-overflow-scrolling: touch;
+    background: var(--panel-a); border-top: 1px solid var(--line);
+}
+#panel.collapsed #tools { display: none; }
 #tools section[hidden] { display: none; }
 
 .ctl { padding: 8px 0; }
@@ -91,14 +103,14 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .chip {
     min-height: var(--tap); padding: 0 14px; border-radius: 22px; border: 1px solid var(--line);
-    background: #101215; cursor: pointer;
+    background: var(--field); cursor: pointer;
 }
-.chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: #05101c; font-weight: 600; }
+.chip[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .chip.wide { width: 100%; text-align: left; }
 
 #overlay {
     position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
-    background: rgba(10, 11, 13, 0.82);
+    background: rgba(10, 10, 10, 0.82);
 }
 #overlay[hidden] { display: none; }
 .card { background: var(--panel); border-radius: 12px; padding: 20px; width: min(100%, 440px); }
@@ -107,18 +119,18 @@ input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-of
 form { display: flex; gap: 8px; }
 input[type="text"] {
     min-height: var(--tap); border-radius: 8px; border: 1px solid var(--line);
-    background: #101215; color: var(--fg); font: inherit; padding: 0 14px;
+    background: var(--field); color: var(--fg); font: inherit; padding: 0 14px;
     flex: 1; min-width: 0; -webkit-user-select: text; user-select: text;
 }
 form button {
     min-height: var(--tap); border-radius: 8px; border: 0; padding: 0 16px;
-    background: var(--accent); color: #05101c; font-weight: 600;
+    background: var(--accent); color: var(--on-accent); font-weight: 600;
 }
 
 /* sheets */
 #sheet {
     position: fixed; inset: 0; z-index: 5; display: flex; align-items: flex-end; justify-content: center;
-    background: rgba(10, 11, 13, 0.6);
+    background: rgba(10, 10, 10, 0.6);
 }
 #sheet[hidden] { display: none; }
 .sheet-card {
@@ -138,7 +150,7 @@ form button {
 .subtabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .sheet-body input[type="search"], .sheet-body input[type="text"] {
     width: 100%; min-height: var(--tap); border-radius: 8px; border: 1px solid var(--line);
-    background: #101215; color: var(--fg); font: inherit; padding: 0 14px; margin-bottom: 10px;
+    background: var(--field); color: var(--fg); font: inherit; padding: 0 14px; margin-bottom: 10px;
 }
 .facts { display: grid; grid-template-columns: minmax(7rem, 38%) 1fr; gap: 6px 14px; margin: 0 0 16px; }
 .facts dt { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
@@ -146,7 +158,7 @@ form button {
 .facts.tags { font-size: 0.85rem; }
 .action {
     display: block; width: 100%; min-height: var(--tap); border-radius: 8px; border: 0; margin: 8px 0;
-    background: var(--accent); color: #05101c; font-weight: 600; padding: 0 16px;
+    background: var(--accent); color: var(--on-accent); font-weight: 600; padding: 0 16px;
 }
 .action.danger { background: #3a2226; color: #ffb4b4; }
 .looks h3 { margin: 16px 0 4px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -154,9 +166,28 @@ form button {
     display: block; width: 100%; min-height: var(--tap); text-align: left; border: 0; border-bottom: 1px solid var(--line);
     background: transparent; padding: 0 4px; font-size: 1rem;
 }
-.row-btn:active { background: #2a2e35; }
+.row-btn:active { background: var(--hover); }
 .chip:disabled { opacity: 0.4; }
 .choice { margin-top: 8px; }
+
+/* export */
+.export-progress { text-align: center; padding: 8px 0; }
+.spinner {
+    width: 40px; height: 40px; margin: 12px auto; border-radius: 50%;
+    border: 4px solid var(--line); border-top-color: var(--accent); animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+.export-status { font-size: 1.1rem; margin: 0 0 8px; }
+.export-done { font-size: 1.05rem; }
+.error { color: var(--bad); }
+a.action { text-align: center; text-decoration: none; line-height: var(--tap); }
+.action.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.sheet-body .ctl .row output { min-width: 3ch; text-align: right; }
+/* while the engine renders an export, editing waits */
+body.busy #panel, body.busy #undo, body.busy #redo, body.busy #look, body.busy #save { opacity: 0.45; pointer-events: none; }
+body.busy #view, body.busy #crop { pointer-events: none; }
+body.busy #sheet { pointer-events: auto; }
 
 /* tablets in landscape: the panel is a column on the right */
 @media (min-width: 820px) and (orientation: landscape) {
@@ -165,5 +196,9 @@ form button {
         grid-template-rows: auto 1fr;
         grid-template-areas: "bar bar" "stage panel";
     }
-    #panel { height: auto; border-top: 0; border-left: 1px solid var(--line); }
+    #panel { border-top: 0; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+    #tabs { border-bottom: 1px solid var(--line); }
+    #panel.collapsed #tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+    #tools { position: static; height: auto; flex: 1; min-height: 0; background: transparent; border-top: 0; }
+    #panel.collapsed #tools { display: block; }
 }

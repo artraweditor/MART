@@ -8,11 +8,13 @@ import { CropOverlay, clampRect, fitRatio } from "./crop.js";
 import type { Rect } from "./crop.js";
 import { buildCropTab, cropFromParams, cropPatch, ratioFor } from "./croptool.js";
 import type { RatioKey } from "./croptool.js";
+import { showExport } from "./exportsheet.js";
 import { showInfo } from "./info.js";
 import { Live } from "./live.js";
 import type { FrameHeader, HistoryState, Params, Patch, StateMessage } from "./live.js";
 import { showLooks } from "./looks.js";
 import { showOpen } from "./opener.js";
+import { el, openSheet } from "./sheet.js";
 import { PreviewView } from "./preview.js";
 import { FrameThrottle, mergePatch } from "./throttle.js";
 import { TOOLS, patchFor } from "./tools.js";
@@ -33,7 +35,7 @@ const saveBtn = $<HTMLButtonElement>("save");
 const toastEl = $("toast");
 
 const lookBtn = $<HTMLButtonElement>("look");
-const infoBtn = $<HTMLButtonElement>("info");
+const moreBtn = $<HTMLButtonElement>("more");
 
 let params: Params = {};
 let fileName = "";
@@ -42,6 +44,7 @@ let imgW = 0; // size of the image as `preview` shows it (changes with a quarter
 let imgH = 0;
 let activeTool = "";
 let picking = false; // the next tap on the image sets the white balance
+let busyWhat: string | null = null; // "exporting": the engine is busy, edits wait
 
 // ---- small helpers ---------------------------------------------------------
 
@@ -91,18 +94,31 @@ function applySize(w: number, h: number): void {
 }
 
 function setTitle(): void {
-    title.textContent = fileName || "MART";
+    title.textContent = (fileName || "MART") + (busyWhat ? " \u00b7 exporting\u2026" : "");
+}
+
+/** the engine is busy with an export: the tools are disabled until it is done */
+function setBusy(what: string | null): void {
+    busyWhat = what;
+    document.body.classList.toggle("busy", what !== null);
+    setTitle();
 }
 
 // ---- live channel, preview -------------------------------------------------
 
 let frameChain: Promise<void> = Promise.resolve();
 
+let wasConnected = false;
+
 const live = new Live({
-    open: () => void start(),
+    open: () => {
+        wasConnected = true;
+        void start();
+    },
     close: (reason) => {
         conn.className = "dot bad";
-        showOverlay("Connection lost", `Trying to reconnect to the MART server… (${reason})`);
+        if (wasConnected) showOverlay("Connection lost", `Trying to reconnect to the MART server… (${reason})`);
+        else showOverlay("Cannot reach the MART server", "Is it running, and is this device on the same network? Trying again…");
     },
     frame: (h: FrameHeader, jpeg: Blob) => {
         // decode in order, so that an older frame never replaces a newer one
@@ -127,6 +143,7 @@ const live = new Live({
         setHistory(s.history, s.dirty);
     },
     error: (message) => toast(message),
+    busy: (what) => setBusy(what),
 });
 
 const preview = new PreviewView($("view") as HTMLCanvasElement, () => {
@@ -281,6 +298,14 @@ function buildPanel(): void {
     const tools = $("tools");
     const sections: HTMLElement[] = [];
     const tabButtons: HTMLButtonElement[] = [];
+    const panel = $("panel");
+    // phone layout: the tools float over the picture and fold away (a tap on the picture, or on the open tab)
+    const setOpen = (open: boolean): void => {
+        panel.classList.toggle("collapsed", !open);
+        store("mart.open", open ? "1" : "0");
+    };
+    setOpen(store("mart.open") !== "0");
+    preview.onAnyTap = () => setOpen(false);
     const activate = (i: number): void => {
         sections.forEach((s, j) => (s.hidden = j !== i));
         tabButtons.forEach((b, j) => b.setAttribute("aria-selected", String(j === i)));
@@ -295,7 +320,11 @@ function buildPanel(): void {
         b.type = "button";
         b.textContent = tool.label;
         b.setAttribute("role", "tab");
-        b.addEventListener("click", () => activate(i));
+        b.addEventListener("click", () => {
+            const same = tabButtons[i]!.getAttribute("aria-selected") === "true";
+            setOpen(!(same && !panel.classList.contains("collapsed")));
+            activate(i);
+        });
         tabs.appendChild(b);
         tabButtons.push(b);
         const sec = document.createElement("section");
@@ -343,6 +372,7 @@ async function start(): Promise<void> {
     try {
         const st = await getStatus();
         conn.className = "dot ok";
+        setBusy(st.busy);
         if (st.open) show(await getInfo());
         else {
             showOverlay("Open an image", "Type the path of a raw file on the machine running MART.", true);
@@ -396,12 +426,25 @@ lookBtn.addEventListener("click", () => {
         },
     });
 });
-infoBtn.addEventListener("click", async () => {
-    try {
-        showInfo(await getInfo(), () => showOpen({ save, opened: show }));
-    } catch (e) {
-        onError(e);
-    }
+moreBtn.addEventListener("click", () => {
+    const sheet = openSheet("Image");
+    const item = (text: string, fn: () => void): void => {
+        const b = el("button", { class: "action", text });
+        b.addEventListener("click", () => {
+            sheet.close();
+            fn();
+        });
+        sheet.body.append(b);
+    };
+    item("Export\u2026", () => showExport(fileName.replace(/\.[^.]*$/, "")));
+    item("Image information", async () => {
+        try {
+            showInfo(await getInfo(), () => showOpen({ save, opened: show }));
+        } catch (e) {
+            onError(e);
+        }
+    });
+    item("Open another image\u2026", () => showOpen({ save, opened: show }));
 });
 document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
@@ -426,3 +469,10 @@ live.connect();
     bounds: () => preview.getBounds(),
     layout: () => preview.layout(),
 };
+
+// Keep the application for offline start-up. Only where the browser allows it: a secure context (https, or localhost).
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+        /* not allowed here (plain http on a network): the app just works without being installable */
+    });
+}
