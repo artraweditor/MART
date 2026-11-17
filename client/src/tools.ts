@@ -93,8 +93,28 @@ const customWB = (get: Getter): Record<string, unknown> => ({
     Green: num(get("White Balance", "Green"), 1),
 });
 
-/** the groups that have no `Enabled` key: they are on when their mode is not "none" */
-const NO_ENABLED = new Set(["LensProfile"]);
+/** the groups that have no `Enabled` key: LensProfile is on when its mode is not "none"; RAW has a switch for each feature */
+const NO_ENABLED = new Set(["LensProfile", "RAW"]);
+
+/**
+ * The haze removal slider (-100..100) and the strength curve of ART's Dehaze tool, which MART keeps a straight line:
+ * its level goes from 0 (adds haze) to 1 (removes it), 0.5 does nothing.
+ */
+export const hazeLevel = (v: number): number => Math.round((0.5 + v / 200) * 1e4) / 1e4;
+
+/**
+ * The slider value for the strength of the profile: its curve (`1;0;a;0;0;1;a;0;0;`, the mean level of its points),
+ * or the level `a` itself, which is what a patch holds (and what the client's parameters keep until the engine
+ * reports them again).
+ */
+export function hazeValue(curve: unknown): number {
+    if (typeof curve === "number") return Number.isFinite(curve) ? Math.round((curve - 0.5) * 200) : 0;
+    const n = typeof curve === "string" ? curve.split(";").filter((x) => x.trim() !== "").map(Number) : [];
+    const ys: number[] = [];
+    for (let i = 2; i < n.length; i += 4) if (Number.isFinite(n[i])) ys.push(n[i]!);
+    if (!ys.length) return 0;
+    return Math.round((ys.reduce((a, b) => a + b, 0) / ys.length - 0.5) * 200);
+}
 
 /** a profile's list of numbers (`900;100;0;`), or null */
 export function parseList(v: unknown): number[] | null {
@@ -147,6 +167,20 @@ export const TOOLS: Tool[] = [
                 key: "HLRecovery",
                 def: "Off",
                 options: ["Off", "Blend", "Color", "Balanced"].map((v) => ({ value: v, label: v })),
+            },
+            {
+                // one slider for the whole Dehaze tool: a straight strength curve, in RGB mode
+                kind: "slider",
+                label: "Haze removal",
+                group: "Dehaze",
+                key: "Strength",
+                min: -100,
+                max: 100,
+                step: 1,
+                def: 0,
+                digits: 0,
+                read: (params) => (params["Dehaze"]?.["Enabled"] === true ? hazeValue(params["Dehaze"]?.["Strength"]) : 0),
+                write: (v) => ({ Enabled: Number(v) !== 0, Strength: hazeLevel(Number(v)), Luminance: false }),
             },
             { kind: "heading", label: "Contrast and curve", group: "ToneCurve" },
             { kind: "slider", label: "Contrast", group: "ToneCurve", key: "Contrast", min: -100, max: 100, step: 1, def: 0, digits: 0, extra: neutral },
@@ -246,6 +280,15 @@ export const TOOLS: Tool[] = [
             { kind: "toggle", label: "Distortion", group: "LensProfile", key: "UseDistortion", def: true, showWhen: { key: "LcMode", values: ["lfauto", "exif"] } },
             { kind: "toggle", label: "Vignetting", group: "LensProfile", key: "UseVignette", def: true, showWhen: { key: "LcMode", values: ["lfauto", "exif"] } },
             { kind: "toggle", label: "Chromatic aberration", group: "LensProfile", key: "UseCA", def: false, showWhen: { key: "LcMode", values: ["lfauto", "exif"] } },
+            {
+                // the flat field of the raw file (DNG gain maps, as phones write them); it is used only if the file has one
+                kind: "toggle",
+                label: "Use the embedded flat field, if any",
+                group: "RAW",
+                key: "FlatFieldUseEmbedded",
+                def: false,
+                write: (v) => (v === true ? { FlatFieldUseEmbedded: true, FlatFieldEnabled: true } : { FlatFieldUseEmbedded: false }),
+            },
             { kind: "heading", label: "Capture sharpening", group: "Sharpening" },
             { kind: "toggle", label: "Enabled", group: "Sharpening", key: "Enabled", def: false, extra: rld },
             { kind: "slider", label: "Radius", group: "Sharpening", key: "DeconvRadius", min: 0.4, max: 2.5, step: 0.01, def: 0.75, digits: 2, extra: rld },

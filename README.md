@@ -22,9 +22,11 @@ network; the server then requires the token it prints (open the printed URL).
 
 ## What it does
 
-Tone, Color, Detail and Crop tabs (exposure and highlight recovery, contrast, base curve, a point-curve editor, tone
+Tone, Color, Detail and Crop tabs (exposure and highlight recovery, a haze removal slider (ART's dehaze with a straight
+strength curve, in RGB mode), contrast, base curve, a point-curve editor, tone
 equalizer; white balance with a neutral-gray picker, saturation, channel mixer (primaries mode), soft light; lens
-correction from the automatic or embedded data, capture sharpening by Richardson-Lucy deconvolution, film grain and
+correction from the automatic or embedded data, and the flat field embedded in the raw file (DNG gain maps, on by
+default for a DNG that has no saved choice), capture sharpening by Richardson-Lucy deconvolution, film grain and
 halation; film simulation with a LUT (a folder of the server's, or a file from the device, including CTL scripts with
 their parameters); crop with ratios,
 quarter turns, flips and straightening), an Other tab that lists, read-only, the tools of the profile that have no

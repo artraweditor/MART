@@ -87,3 +87,46 @@ test("halation is a group of its own, for the host to turn into a smoothing regi
     assert.deepEqual(patchFor(control("Halation", "Tint"), -0.2, noParams), { Halation: { Enabled: true, Tint: -0.2 } });
     assert.deepEqual(patchFor(control("Halation", "Enabled"), false, noParams), { Halation: { Enabled: false } });
 });
+
+test("haze removal: one slider for a straight dehaze curve, in RGB mode", () => {
+    const d = control("Dehaze", "Strength");
+    assert.deepEqual(patchFor(d, 50, noParams), { Dehaze: { Enabled: true, Strength: 0.75, Luminance: false } });
+    assert.deepEqual(patchFor(d, -40, noParams), { Dehaze: { Enabled: true, Strength: 0.3, Luminance: false } });
+    assert.deepEqual(patchFor(d, 100, noParams).Dehaze.Strength, 1);
+    // at zero the tool is off
+    assert.deepEqual(patchFor(d, 0, noParams), { Dehaze: { Enabled: false, Strength: 0.5, Luminance: false } });
+});
+
+test("haze removal: reading the strength curve of the profile", () => {
+    const d = control("Dehaze", "Strength");
+    const on = (curve) => ({ Dehaze: { Enabled: true, Strength: curve } });
+    assert.equal(readValue(on("1;0;0.75;0;0;1;0.75;0;0;"), d), 50);
+    assert.equal(readValue(on("1;0;0.3;0;0;1;0.3;0;0;"), d), -40);
+    assert.equal(readValue(on("1;0;0.5;0;0;1;0.5;0;0;"), d), 0);
+    // a curve made in ART that is not straight: its mean level
+    assert.equal(readValue(on("1;0;0.6;0;0;0.5;0.7;0;0;1;0.8;0;0;"), d), 40);
+    assert.equal(readValue({ Dehaze: { Enabled: false, Strength: "1;0;0.9;0;0;1;0.9;0;0;" } }, d), 0, "off: zero");
+    assert.equal(readValue({}, d), 0);
+    assert.equal(readValue(on("0;"), d), 0);
+});
+
+test("the embedded flat field: checking it turns the flat field on", () => {
+    const t = control("RAW", "FlatFieldUseEmbedded");
+    assert.deepEqual(patchFor(t, true, noParams), { RAW: { FlatFieldUseEmbedded: true, FlatFieldEnabled: true } });
+    // unchecking leaves the other flat field settings as they are; the group has no Enabled key
+    assert.deepEqual(patchFor(t, false, noParams), { RAW: { FlatFieldUseEmbedded: false } });
+    assert.equal(readValue({ RAW: { FlatFieldUseEmbedded: true } }, t), true);
+    assert.equal(readValue({}, t), false);
+});
+
+test("haze removal: the slider keeps its value after its own patch is merged into the parameters", () => {
+    // the client merges a patch into its parameters at once, so for a while Strength is the level, not the curve text
+    const d = control("Dehaze", "Strength");
+    for (const v of [-100, -30, 0, 1, 40, 100]) {
+        const merged = { Dehaze: { Enabled: v !== 0, ...patchFor(d, v, noParams).Dehaze } };
+        merged.Dehaze.Enabled = v !== 0;
+        assert.equal(readValue(merged, d), v, `value ${v}`);
+    }
+    assert.equal(readValue({ Dehaze: { Enabled: true, Strength: 0.7 } }, d), 40);
+    assert.equal(readValue({ Dehaze: { Enabled: true, Strength: NaN } }, d), 0);
+});

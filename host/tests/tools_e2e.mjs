@@ -88,6 +88,28 @@ assert.deepEqual([S.Enabled, S.Method, S.DeconvAutoRadius, S.DeconvRadius, S.Dec
 assert.match(await refused({ Sharpening: { Method: "usm" } }), /not an allowed value/);
 console.log("capture sharpening: ok");
 
+// haze removal: a straight strength curve in RGB mode
+const snap = async () => Buffer.from(await (await fetch(base + "/api/preview?out_w=200")).arrayBuffer()).toString("base64");
+const noHaze = await snap();
+p = await edit({ Dehaze: { Enabled: true, Strength: 0.8, Luminance: false } });
+assert.notEqual(await snap(), noHaze, "removing haze changes the picture");
+assert.equal(p.Dehaze.Enabled, true);
+assert.equal(p.Dehaze.Luminance, false);
+assert.deepEqual(p.Dehaze.Strength.split(";").filter(Boolean).map(Number), [1, 0, 0.8, 0, 0, 1, 0.8, 0, 0]);
+assert.match(await refused({ Dehaze: { Strength: 2 } }), /number from 0 to 1/);
+assert.match(await refused({ Dehaze: { Depth: 40 } }), /unknown key/);
+p = await edit({ Dehaze: { Enabled: false, Strength: 0.5, Luminance: false } });
+assert.equal(p.Dehaze.Enabled, false);
+console.log("haze removal: ok");
+
+// the embedded flat field of the raw file
+p = await edit({ RAW: { FlatFieldUseEmbedded: true, FlatFieldEnabled: true } });
+assert.deepEqual([p.RAW.FlatFieldEnabled, p.RAW.FlatFieldUseEmbedded], [true, true]);
+assert.match(await refused({ RAW: { FlatFieldFile: "/etc/passwd" } }), /unknown key/);
+p = await edit({ RAW: { FlatFieldUseEmbedded: false } });
+assert.deepEqual([p.RAW.FlatFieldEnabled, p.RAW.FlatFieldUseEmbedded], [true, false]);
+console.log("embedded flat field: ok");
+
 // film grain
 p = await edit({ Grain: { Enabled: true, ISO: 800, Strength: 35, Color: true } });
 assert.deepEqual([p.Grain.Enabled, p.Grain.ISO, p.Grain.Strength, p.Grain.Color], [true, 800, 35, true]);

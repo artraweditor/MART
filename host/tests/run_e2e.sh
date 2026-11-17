@@ -18,6 +18,7 @@ for i in $(seq 1 60); do curl -s localhost:8080/api/status >/dev/null && break; 
 node "$HERE/tests/ws_e2e.mjs"
 node "$HERE/tests/export_e2e.mjs" http://localhost:8080
 node "$HERE/tests/tools_e2e.mjs" http://localhost:8080
+node "$HERE/tests/dng_e2e.mjs" http://localhost:8080 "$WORK/$(basename "$IMG")"
 node "$HERE/tests/srgb_e2e.mjs" http://localhost:8080 "$WORK/$(basename "$IMG")"
 # last: it saves a crop into the sidecar
 node "$HERE/tests/api_e2e.mjs" http://localhost:8080 "$WORK/$(basename "$IMG")"

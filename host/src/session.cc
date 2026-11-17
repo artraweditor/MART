@@ -68,6 +68,7 @@ Session::~Session()
     engine_.reset();
     unlink((tmpdir_ + "/preview.jpg").c_str());
     unlink((tmpdir_ + "/patch.arp").c_str());
+    unlink((tmpdir_ + "/defaults.arp").c_str());
     unlink((tmpdir_ + "/export.arp").c_str());
     if (DIR *d = opendir((tmpdir_ + "/uploads").c_str())) {
         while (dirent *e = readdir(d))
@@ -125,6 +126,28 @@ json Session::status() const
     return s;
 }
 
+// A DNG made by a phone can carry a flat field (gain maps) that corrects its vignetting: using it is on by default,
+// unless the sidecar says otherwise. Other raws have none to use, so nothing is written for them.
+void Session::applyOpeningDefaults()
+{
+    base_ = 0;
+    std::string lower = file_;
+    for (auto &c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (!info_.value("is_raw", false) || lower.size() < 4 || lower.compare(lower.size() - 4, 4, ".dng") != 0) return;
+    std::ifstream side(file_ + ".arp", std::ios::binary);
+    std::stringstream text;
+    text << side.rdbuf();
+    if (text.str().find("FlatFieldUseEmbedded") != std::string::npos) return;  // a choice of the user
+    const std::string path = tmpdir_ + "/defaults.arp";
+    {
+        std::ofstream f(path, std::ios::binary | std::ios::trunc);
+        f << "[RAW]\nFlatFieldEnabled=true\nFlatFieldUseEmbedded=true\n";
+        if (!f) throw ApiError(500, "cannot write " + path);
+    }
+    command({"apply", path});
+    base_ = 1;  // an entry of the history to start from, not an edit: it cannot be undone and is not "unsaved"
+}
+
 json Session::open(const std::string &path, bool discard)
 {
     std::string p = confine(path);
@@ -133,6 +156,7 @@ json Session::open(const std::string &path, bool discard)
     file_ = p;
     dirty_ = false;
     info_ = command({"get-info"});
+    applyOpeningDefaults();
     return info_;
 }
 
@@ -260,6 +284,8 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
 json Session::undo()
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
+    json h = command({"get-history"});
+    if (h.value("selected", 0) <= base_) return {{"selected", h.value("selected", 0)}};  // at the start: nothing to undo
     json r = command({"undo"});
     dirty_ = true;
     refreshInfo();
@@ -280,7 +306,7 @@ json Session::history()
     json h = command({"get-history"});
     int sel = h.value("selected", -1);
     int count = h.contains("entries") ? int(h["entries"].size()) : 0;
-    return {{"selected", sel}, {"count", count}, {"can_undo", sel > 0}, {"can_redo", sel >= 0 && sel + 1 < count}};
+    return {{"selected", sel}, {"count", count}, {"can_undo", sel > base_}, {"can_redo", sel >= 0 && sel + 1 < count}};
 }
 
 json Session::save()

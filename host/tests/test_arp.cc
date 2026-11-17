@@ -96,6 +96,19 @@ int main()
         CHECK(refused({{"Film Simulation", {{"AfterToneCurve", true}}}}));
     }
 
+    // dehaze: a straight strength curve; the embedded flat field
+    CHECK(serialize({{"Dehaze", {{"Enabled", true}, {"Strength", 0.75}, {"Luminance", false}}}}) ==
+          "[Dehaze]\nEnabled=true\nLuminance=false\nStrength=1;0;0.75;0;0;1;0.75;0;0;\n\n");
+    CHECK(serialize({{"Dehaze", {{"Strength", 0.5}}}}) == "[Dehaze]\nStrength=1;0;0.5;0;0;1;0.5;0;0;\n\n");
+    CHECK(refused({{"Dehaze", {{"Strength", 1.1}}}}));
+    CHECK(refused({{"Dehaze", {{"Strength", -0.1}}}}));
+    CHECK(refused({{"Dehaze", {{"Strength", "1;0;0.5;0;0;1;0.5;0;0;"}}}}));   // never a curve of the client's making
+    CHECK(refused({{"Dehaze", {{"Depth", 40}}}}));
+    CHECK(serialize({{"RAW", {{"FlatFieldEnabled", true}, {"FlatFieldUseEmbedded", true}}}}) == "[RAW]\nFlatFieldEnabled=true\nFlatFieldUseEmbedded=true\n\n");
+    CHECK(refused({{"RAW", {{"FlatFieldFile", "/etc/passwd"}}}}));       // no file names
+    CHECK(refused({{"RAW", {{"DarkFrameFile", "/etc/passwd"}}}}));
+    CHECK(refused({{"RAW", {{"FlatFieldUseEmbedded", 1}}}}));
+
     CHECK(refused(json::object()));
     CHECK(refused(json::array()));
     CHECK(refused({{"Nope", {{"A", 1}}}}));

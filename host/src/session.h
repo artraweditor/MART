@@ -63,7 +63,8 @@ public:
 private:
     json command(const std::vector<std::string> &argv);  // "result" of a JSON reply
     std::string confine(const std::string &path) const;  // realpath under a root
-    void refreshInfo();                                  // the size changes with coarse rotation
+    void refreshInfo();
+    void applyOpeningDefaults();                                  // the size changes with coarse rotation
 
     EngineOptions opts_;
     std::unique_ptr<Engine> engine_;
@@ -72,6 +73,7 @@ private:
     std::string file_;
     json info_;
     bool dirty_ = false;
+    int base_ = 0;  // the first history entry the user can go back to (1 after a default that MART applied on opening)
     Profiles profiles_;
     Luts luts_;
 };

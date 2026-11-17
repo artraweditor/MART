@@ -56,6 +56,22 @@ try {
     await until("band", async () => (await params()).ToneEqualizer.Band1 === 30);
     console.log("tone equalizer: ok");
 
+    // ---- haze removal: one slider for the whole dehaze tool -----------------------------------------------------
+    await setSlider("Haze removal", 40);
+    const hz = await until("dehaze on", async () => { const d = (await params()).Dehaze; return d.Enabled === true && d; });
+    const level = hz.Strength.split(";").filter(Boolean).map(Number);
+    assert.ok(level.length === 9 && Math.abs(level[2] - 0.7) < 1e-6 && Math.abs(level[6] - 0.7) < 1e-6, "a straight line at 0.5 + 40/200: " + hz.Strength);
+    assert.equal(hz.Luminance, false, "RGB mode");
+    // it keeps its value when the new frame and the parameters come back (it used to jump to zero)
+    await sleep(1500);
+    const hazeInput = () => js(`(() => { const c = [...document.querySelectorAll("#tools section:not([hidden]) .ctl")].find(c => c.querySelector("label")?.textContent === "Haze removal"); return { value: c.querySelector("input").value, shown: c.querySelector("output").textContent }; })()`);
+    assert.deepEqual(await hazeInput(), { value: "40", shown: "40" });
+    await setSlider("Haze removal", -30);
+    await until("haze added", async () => Math.abs(Number((await params()).Dehaze.Strength.split(";")[2]) - 0.35) < 1e-6);
+    await setSlider("Haze removal", 0);
+    await until("dehaze off at zero", async () => (await params()).Dehaze.Enabled === false);
+    console.log("haze removal: ok");
+
     // ---- channel mixer ----------------------------------------------------------------------------------------
     await tab("Color");
     await js(`[...document.querySelectorAll(".tool-heading")].find(h => h.textContent.startsWith("Channel mixer")).scrollIntoView()`);
@@ -86,6 +102,15 @@ try {
     assert.ok((await visibleChips()).includes("Chromatic aberration"));
     await chip("Chromatic aberration");
     await until("CA", async () => (await params()).LensProfile.UseCA === true);
+    // the embedded flat field: checking it turns the flat field on, unchecking leaves the rest
+    const ffChecked = () => js(`[...document.querySelectorAll("#tools section:not([hidden]) .chip")].find(c => c.textContent.trim() === "Use the embedded flat field, if any").getAttribute("aria-checked")`);
+    assert.equal(await ffChecked(), "false", "off for a raw that is not a DNG");
+    await chip("Use the embedded flat field, if any");
+    await until("flat field on", async () => { const r = (await params()).RAW; return r.FlatFieldEnabled === true && r.FlatFieldUseEmbedded === true; });
+    assert.equal(await ffChecked(), "true");
+    await chip("Use the embedded flat field, if any");
+    await until("flat field off", async () => (await params()).RAW.FlatFieldUseEmbedded === false);
+    console.log("embedded flat field: ok");
     await chip("Embedded");
     await until("lens exif", async () => (await params()).LensProfile.LcMode === "exif");
     await setSlider("Radius", 1.1);

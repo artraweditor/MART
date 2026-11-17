@@ -8,7 +8,7 @@ import { el } from "./sheet.js";
 /** the groups that have controls here (or are no tools): never listed */
 const COVERED = new Set([
     "Exposure", "White Balance", "ToneCurve", "Saturation", "ToneEqualizer", "Channel Mixer", "SoftLight", "Sharpening",
-    "Grain", "Film Simulation", "Crop", "Rotation", "LensProfile", "Coarse Transformation", "Halation",
+    "Grain", "Film Simulation", "Crop", "Rotation", "LensProfile", "Coarse Transformation", "Halation", "Dehaze",
 ]);
 
 const NAMES: Record<string, string> = {

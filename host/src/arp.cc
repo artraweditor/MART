@@ -12,7 +12,7 @@ namespace mart { namespace arp {
 
 namespace {
 
-enum class Kind { Bool, Int, IntSet, Double, Enum, Curve, IntList, FileId, ClutParams };
+enum class Kind { Bool, Int, IntSet, Double, Enum, Curve, IntList, FileId, ClutParams, FlatCurve };
 
 struct Spec {
     Kind kind;
@@ -30,6 +30,8 @@ Spec IS(std::set<long long> v) { return {Kind::IntSet, 0, 0, {}, std::move(v)}; 
 Spec D(double lo, double hi) { return {Kind::Double, lo, hi, {}, {}}; }
 Spec E(std::set<std::string> v) { return {Kind::Enum, 0, 0, std::move(v), {}}; }
 Spec C() { return {Kind::Curve, 0, 0, {}, {}}; }
+// a flat curve that is a straight line at this level (0..1): `1;0;a;0;0;1;a;0;0;`
+Spec LV() { return {Kind::FlatCurve, 0, 1, {}, {}}; }
 Spec F() { return {Kind::FileId, 0, 0, {}, {}}; }   // the id of a file the host offers ("" for none)
 Spec P() { return {Kind::ClutParams, 0, 0, {}, {}}; }  // {"name": [numbers]}: the parameters of a LUT script
 // a list of `n` integers, each within lo..hi
@@ -72,6 +74,10 @@ const std::map<std::string, Group> &table()
                            {"SatTweak", L(3, -100, 100)}}},
         {"Grain", {{"Enabled", B()}, {"ISO", I(100, 6400)}, {"Strength", I(0, 100)}, {"Color", B()}}},
         {"Film Simulation", {{"Enabled", B()}, {"Strength", I(0, 100)}, {"ClutFilename", F()}, {"ClutParams", P()}}},
+        // only the uniform level of the strength curve is written, and always in RGB mode
+        {"Dehaze", {{"Enabled", B()}, {"Strength", LV()}, {"Luminance", B()}}},
+        // no Enabled key: each feature has its own switch. The flat field of the raw file itself (DNG gain maps)
+        {"RAW", {{"FlatFieldEnabled", B()}, {"FlatFieldUseEmbedded", B()}}},
         {"SoftLight", {{"Enabled", B()}, {"Strength", I(0, 100)}}},
         // no Enabled key: the tool is on when LcMode is not "none"; only the automatic and embedded sources are offered
         {"LensProfile", {{"LcMode", E({"none", "lfauto", "exif"})},
@@ -157,6 +163,12 @@ std::string value(const std::string &g, const std::string &k, const Spec &s, con
             out += ";";
         }
         return out;
+    }
+    case Kind::FlatCurve: {
+        if (!v.is_number() || !std::isfinite(v.get<double>()) || v.get<double>() < s.lo || v.get<double>() > s.hi)
+            throw PatchError(what + ": expected a number from 0 to 1");
+        const std::string a = num(v.get<double>());
+        return "1;0;" + a + ";0;0;1;" + a + ";0;0;";
     }
     case Kind::IntList: {
         if (!v.is_array() || v.size() != s.n) throw PatchError(what + ": expected a list of " + std::to_string(s.n) + " numbers");

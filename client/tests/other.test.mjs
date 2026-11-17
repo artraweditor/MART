@@ -47,3 +47,7 @@ test("long values are cut", () => {
     const [i] = summarize({ "RGB Curves": { Enabled: true, rCurve: "1;" + "0.123456;".repeat(30) } });
     assert.ok(i.rows[0][1].length <= 90 && i.rows[0][1].endsWith("…"));
 });
+
+test("dehaze has a control: not listed", () => {
+    assert.deepEqual(summarize({ Dehaze: { Enabled: true, Strength: "1;0;0.75;0;0;1;0.75;0;0;", Depth: 25 } }), []);
+});
