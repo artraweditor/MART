@@ -69,6 +69,33 @@ int main()
     CHECK(serialize({{"ToneCurve", {{"CurveMode", "Neutral"}, {"CurveMode2", "Neutral"}}}}) == "[ToneCurve]\nCurveMode=Neutral\nCurveMode2=Neutral\n\n");
     CHECK(refused({{"ToneCurve", {{"CurveMode", "Standard"}}}}));         // the editor assumes Neutral
 
+    // grain and film simulation (the LUT is an id that the resolver turns into a file)
+    CHECK(serialize({{"Grain", {{"Enabled", true}, {"ISO", 800}, {"Strength", 35}, {"Color", false}}}}) ==
+          "[Grain]\nColor=false\nEnabled=true\nISO=800\nStrength=35\n\n");
+    CHECK(refused({{"Grain", {{"ISO", 99}}}}));
+    CHECK(refused({{"Grain", {{"Strength", 101}}}}));
+    {
+        Resolver lut = [](const std::string &id) -> std::string { if (id == "u1") return "/tmp/x/film.cube"; throw PatchError("no such LUT"); };
+        CHECK(serialize({{"Film Simulation", {{"Enabled", true}, {"ClutFilename", "u1"}, {"Strength", 80}}}}, lut) ==
+              "[Film Simulation]\nClutFilename=/tmp/x/film.cube\nEnabled=true\nStrength=80\n\n");
+        CHECK(serialize({{"Film Simulation", {{"ClutFilename", ""}}}}, lut) == "[Film Simulation]\nClutFilename=\n\n");
+        bool r = false;
+        try { serialize({{"Film Simulation", {{"ClutFilename", "u9"}}}}, lut); } catch (const PatchError &) { r = true; }
+        CHECK(r);                                                         // an unknown id
+        CHECK(refused({{"Film Simulation", {{"ClutFilename", "/etc/passwd"}}}}));  // without a resolver nothing is a file
+        CHECK(refused({{"Film Simulation", {{"ClutFilename", 3}}}}));
+        CHECK(serialize({{"Film Simulation", {{"ClutParams", {{"gain", {0.5}}, {"hs", {1.5, 0.25}}}}}}}) ==
+              "[Film Simulation]\nClutParams=gain=0.5;hs=1.5,0.25;\n\n");
+        CHECK(serialize({{"Film Simulation", {{"ClutParams", json::object()}}}}) == "[Film Simulation]\nClutParams=\n\n");
+        CHECK(refused({{"Film Simulation", {{"ClutParams", {{"a b", {1}}}}}}}));        // a name
+        CHECK(refused({{"Film Simulation", {{"ClutParams", {{"a=b", {1}}}}}}}));
+        CHECK(refused({{"Film Simulation", {{"ClutParams", {{"a", json::array()}}}}}}));
+        CHECK(refused({{"Film Simulation", {{"ClutParams", {{"a", {"x"}}}}}}}));
+        CHECK(refused({{"Film Simulation", {{"ClutParams", "a=1;"}}}}));
+        CHECK(refused({{"Film Simulation", {{"Strength", 101}}}}));
+        CHECK(refused({{"Film Simulation", {{"AfterToneCurve", true}}}}));
+    }
+
     CHECK(refused(json::object()));
     CHECK(refused(json::array()));
     CHECK(refused({{"Nope", {{"A", 1}}}}));

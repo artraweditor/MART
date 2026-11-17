@@ -14,6 +14,7 @@ struct ExportRequest {
     int bits = 0;                // png: 8 or 16; tif: 8, 16 or 32 (0: the format's default)
     bool halfFloat = false;      // tif, with 16 bits: floating point
     std::string compression;     // tif: "none" or "zip" (empty: the default)
+    int size = 0;                // the longest edge in pixels at most (ART's fast export pipeline); 0: full size
     std::string stem;            // the file name without its extension
 };
 
@@ -21,7 +22,7 @@ struct ExportRequestError: std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
-// {"format","quality","bits","float","compression","name"}: unknown keys and options that do not apply to
+// {"format","quality","bits","float","compression","size","name"}: unknown keys and options that do not apply to
 // the format are refused. `defaultStem` is used when no (usable) name is given. Throws ExportRequestError.
 ExportRequest parseExportRequest(const nlohmann::json &body, const std::string &defaultStem);
 

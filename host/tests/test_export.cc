@@ -26,6 +26,18 @@ int main()
           (V{"export", "/out/x.tif", "--format", "tif", "--bits", "16", "--float", "--compression", "zip"}));
     CHECK(args({{"format", "tif"}, {"bits", 32}}) == (V{"export", "/out/x.tif", "--format", "tif", "--bits", "32"}));
 
+    // a size: the fast export pipeline, with the size after --fast (and OUTFILE before it)
+    CHECK(args({{"format", "jpg"}, {"size", 1920}}) == (V{"export", "/out/x.jpg", "--format", "jpg", "--quality", "92", "--fast", "1920"}));
+    CHECK(args({{"format", "tif"}, {"bits", 16}, {"compression", "zip"}, {"size", 3840}}) ==
+          (V{"export", "/out/x.tif", "--format", "tif", "--bits", "16", "--compression", "zip", "--fast", "3840"}));
+    CHECK(parseExportRequest({{"size", 1920}}, "x").size == 1920);
+    CHECK(parseExportRequest(json::object(), "x").size == 0);
+    CHECK(refused({{"size", 0}}));
+    CHECK(refused({{"size", -5}}));
+    CHECK(refused({{"size", 100001}}));
+    CHECK(refused({{"size", 1920.5}}));
+    CHECK(refused({{"size", "1920"}}));
+
     // what does not apply, or is out of range, is refused here with a clear message
     CHECK(refused(json::array()));
     CHECK(refused({{"format", "gif"}}));

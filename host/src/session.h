@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "libart_dyn.h"
+#include "luts.h"
 #include "profiles.h"
 #include "third_party/json.hpp"
 #include <string>
@@ -30,7 +31,8 @@ struct PreviewFrame {
 // The one open image and the engine. All methods must run on the worker thread.
 class Session {
 public:
-    Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs);
+    Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs,
+            std::vector<ProfileDir> lutDirs);
     ~Session();
 
     json status() const;
@@ -47,6 +49,8 @@ public:
     json metadata(bool makernotes, bool edits);       // flat object of tags
     json spotWB(int x, int y, int w, int h);
     Profiles &profiles() { return profiles_; }
+    Luts &luts() { return luts_; }
+    json lutParams(const std::string &id = "");                                 // {params, presets[, error]} of the LUT of Film Simulation (ART translates the labels)
     std::string fileStem() const;                     // the image's file name without directory and extension ("" if none)
     json exportImage(const std::vector<std::string> &exportArgs);   // runs `export ...` (blocks: seconds to minutes)
     json exportFormats();
@@ -69,6 +73,7 @@ private:
     json info_;
     bool dirty_ = false;
     Profiles profiles_;
+    Luts luts_;
 };
 
 } // namespace mart

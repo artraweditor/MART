@@ -30,6 +30,12 @@ try {
     assert.equal(await js(`document.querySelector(".sheet-body input[type=range]")`), null, "no quality for TIFF");
     assert.equal(await checked("16 bit"), "true");
     await click(".chip", "ZIP");
+    // the sizes: full size is the default; the others are resizes
+    assert.deepEqual(await js(`[...document.querySelectorAll(".sheet-body .chip")].map(c => c.textContent).filter(t => /px|Full/.test(t))`), ["Full size", "1920 px", "2560 px", "3840 px"]);
+    assert.equal(await checked("Full size"), "true");
+    assert.equal(await js(`document.querySelector(".sheet-body .muted")`), null, "no note about the fast pipeline at full size");
+    await click(".chip", "1920 px");
+    assert.match(await js(`document.querySelector(".sheet-body .muted").textContent`), /at most 1920 px.*fast export/);
     await js(`(() => { const i = document.querySelector(".sheet-body input[type=text]"); i.value = "ui export"; })()`);
     await shot("m4-2-options.png");
 
@@ -48,6 +54,8 @@ try {
     console.log("done:", link.done, "|", link.text);
     assert.match(link.href, /^\/api\/export\/e\d+\/file$/);
     assert.equal(link.name, "ui export.tif");
+    const edge = (t) => Math.max(...t.match(/(\d+) × (\d+)/).slice(1).map(Number));
+    assert.equal(edge(link.done), 1920, "resized to 1920: " + link.done);
     const dl = await js(`fetch(${JSON.stringify(link.href)}).then(async r => { const b = new Uint8Array(await r.arrayBuffer()); return { status: r.status, type: r.headers.get("content-type"), size: b.length, magic: String.fromCharCode(b[0], b[1]) }; })`);
     assert.equal(dl.status, 200); assert.equal(dl.type, "image/tiff"); assert.ok(dl.size > 1e6); assert.ok(dl.magic === "II" || dl.magic === "MM");
     await until("not busy any more", () => js(`!document.body.classList.contains("busy")`));
@@ -65,6 +73,8 @@ try {
     await until("sheet again", () => js(`document.querySelector(".sheet-title")?.textContent === "Export"`));
     assert.equal(await checked("TIFF"), "true", "the format is remembered");
     assert.equal(await checked("ZIP"), "true");
+    assert.equal(await checked("1920 px"), "true", "the size is remembered");
+    await click(".chip", "2560 px");
     await click(".chip", "JPEG");
     await js(`(() => { const i = document.querySelector(".sheet-body input[type=range]"); i.value = 60; i.dispatchEvent(new Event("input", {bubbles: true})); i.dispatchEvent(new Event("change", {bubbles: true})); })()`);
     await click(".action", "Export");
@@ -72,6 +82,7 @@ try {
     const jn = await js(`document.querySelector("a.action[download]").download`);
     assert.match(jn, new RegExp(`^${stem}(-\\d+)?\\.jpg$`));
     console.log("jpeg:", jn);
+    assert.equal(edge(await js(`document.querySelector(".export-done").textContent`)), 2560, "resized to 2560");
 
     // ---- a failure is shown, with a way back ----------------------------------------------------------------------
     await click(".action", "Export again");

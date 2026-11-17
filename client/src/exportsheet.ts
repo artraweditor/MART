@@ -1,4 +1,4 @@
-// The Export sheet: full-size export of the image as it is now, then a download.
+// The Export sheet: export of the image as it is now (full size, or resized), then a download.
 
 import { ApiError, NetworkError, exportStatus, exportUrl, startExport } from "./api.js";
 import type { ExportOptions, ExportStatus } from "./api.js";
@@ -10,9 +10,11 @@ interface Saved {
     pngBits: 8 | 16;
     tifBits: 8 | 16 | 32;
     compression: "none" | "zip";
+    /** the longest edge in pixels at most; 0: full size */
+    size: 0 | 1920 | 2560 | 3840;
 }
 
-const DEFAULTS: Saved = { format: "jpg", quality: 92, pngBits: 8, tifBits: 16, compression: "none" };
+const DEFAULTS: Saved = { format: "jpg", quality: 92, pngBits: 8, tifBits: 16, compression: "none", size: 0 };
 const KEY = "mart.export";
 
 function load(): Saved {
@@ -39,6 +41,7 @@ export function toOptions(s: Saved, name: string): ExportOptions {
         o.bits = s.tifBits;
         o.compression = s.compression;
     }
+    if (s.size) o.size = s.size;
     if (name.trim()) o.name = name.trim();
     return o;
 }
@@ -100,7 +103,9 @@ export function showExport(imageName: string): void {
     function renderOptions(): void {
         options.replaceChildren(
             chips("Format", [["jpg", "JPEG"], ["png", "PNG"], ["tif", "TIFF"]], () => s.format, (v) => (s.format = v as Saved["format"])),
+            chips("Size", [["0", "Full size"], ["1920", "1920 px"], ["2560", "2560 px"], ["3840", "3840 px"]], () => String(s.size), (v) => (s.size = Number(v) as Saved["size"])),
         );
+        if (s.size) options.append(el("p", { class: "muted", text: `The longest edge is at most ${s.size} px. A resized export uses ART's fast export pipeline.` }));
         if (s.format === "jpg") {
             const q = el("div", { class: "ctl" });
             const out = el("output", { text: String(s.quality) });

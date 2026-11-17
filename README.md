@@ -24,15 +24,19 @@ network; the server then requires the token it prints (open the printed URL).
 
 Tone, Color, Detail and Crop tabs (exposure and highlight recovery, contrast, base curve, a point-curve editor, tone
 equalizer; white balance with a neutral-gray picker, saturation, channel mixer (primaries mode), soft light; lens
-correction from the automatic or embedded data, capture sharpening by Richardson-Lucy deconvolution; crop with ratios,
-quarter turns, flips and straightening), undo/redo, Save (the standard `.arp`
+correction from the automatic or embedded data, capture sharpening by Richardson-Lucy deconvolution, film grain and
+halation; film simulation with a LUT (a folder of the server's, or a file from the device, including CTL scripts with
+their parameters); crop with ratios,
+quarter turns, flips and straightening), an Other tab that lists, read-only, the tools of the profile that have no
+controls here (they are kept on Save), undo/redo, Save (the standard `.arp`
 sidecar), a **Look** sheet to apply ART's built-in Neutral or Default profile, or a saved one (bundled, yours, or from the device), and a **⋯** menu
-with **Export** (JPEG, PNG or TIFF at full size, then a download), the image information and metadata, and opening
+with **Export** (JPEG, PNG or TIFF at full size or resized to 1920, 2560 or 3840 px, then a download), the image information and metadata, and opening
 another image. Opening another image never drops unsaved edits silently.
 
 On a phone (or any narrow screen) the tool panel floats over the picture at about 80% opacity; tap the picture, or the open tab, to fold it away.
 
-Export renders the whole image with the current edits, saved or not. It keeps the engine busy for seconds to
+Export renders the whole image with the current edits, saved or not. A resized export uses ART's fast export pipeline
+(`export --fast SIZE`: the longest edge is at most SIZE). It keeps the engine busy for seconds to
 minutes, so editing waits and the interface says so. Files go to a temporary folder and are downloaded by the
 browser; `--export-dir DIR` also keeps them in DIR.
 
@@ -56,12 +60,20 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/ui_m4.mjs http://localhost:8080 /tmp              # export sheet, busy state, download
     node host/tests/tools_e2e.mjs http://localhost:8080               # every tool's patch against the engine (changes the open image, not the sidecar)
     node host/tests/ui_tools.mjs http://localhost:8080 /tmp           # curve editor and the new tools (use a freshly started host)
+    node host/tests/ui_extras.mjs http://localhost:8080 /tmp          # grain, halation, film simulation, Other tab (fresh host)
+    node host/tests/ui_overflow.mjs http://localhost:8080 /tmp        # no sideways scrolling on phone widths
     node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone
     node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_pwa.mjs          # manifest, service worker, offline start
 
-## Needs ART's `apply --merge`
+Halation is a region of ART's Smoothing tool in halation mode, without a mask, named `MART halation` and added after
+the regions that the sidecar already has; in desktop ART it appears as an ordinary smoothing region.
+
+## Needs ART's `apply --merge` and `get-clut-params`
 
 One history entry per slider drag needs the `apply --merge KEY` option of ART's server mode
 (see `doc/server_mode.md` in ART). Without it every step of a drag is an undo step.
+The parameters of a CTL script, with their labels translated, are read with ART's `get-clut-params FILE` command (see
+the same document); without it a LUT can still be chosen but its parameters are not shown. LUTs are offered from `DATA/luts`, `DATA/ctlscripts`,
+ART's user `luts` folder and `--luts DIR`.

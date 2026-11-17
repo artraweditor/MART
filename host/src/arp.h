@@ -1,6 +1,7 @@
 // Edit patches <-> .arp text. SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "third_party/json.hpp"
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -17,8 +18,11 @@ struct PatchError: std::runtime_error {
 // serialise it as a partial .arp (no [Version], no [General]). Unknown groups
 // and keys, wrong types and out-of-range values throw PatchError. Only the
 // tools that MART has controls for are allowed (never a key holding a file
-// name, so that a client on the network cannot make ART read arbitrary files).
-std::string serialize(const json &patch);
+// name, so that a client on the network cannot make ART read arbitrary files:
+// the one file key, the LUT of Film Simulation, holds an id that `lutPath`
+// turns into a path of a file the host offers, or throws PatchError).
+using Resolver = std::function<std::string(const std::string &id)>;
+std::string serialize(const json &patch, const Resolver &lutPath = nullptr);
 
 // .arp text (GLib key file) -> {"Group": {"Key": value}}; values that look
 // like booleans or numbers become JSON ones, everything else (lists, enums)

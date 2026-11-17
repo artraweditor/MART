@@ -76,5 +76,75 @@ assert.deepEqual([S.Enabled, S.Method, S.DeconvAutoRadius, S.DeconvRadius, S.Dec
 assert.match(await refused({ Sharpening: { Method: "usm" } }), /not an allowed value/);
 console.log("capture sharpening: ok");
 
+// film grain
+p = await edit({ Grain: { Enabled: true, ISO: 800, Strength: 35, Color: true } });
+assert.deepEqual([p.Grain.Enabled, p.Grain.ISO, p.Grain.Strength, p.Grain.Color], [true, 800, 35, true]);
+console.log("film grain: ok");
+
+// halation: a Smoothing region in halation mode, after the ones of the sidecar, found again by its name
+const smoothing = async () => (await params()).Smoothing;
+const before = await smoothing();
+const regions = (sm) => Object.keys(sm).filter((k) => /^Mode_\d+$/.test(k)).length;
+const n0 = regions(before);
+p = await edit({ Halation: { Enabled: true, Strength: 2.5, Tint: -0.2 } });
+assert.deepEqual(p.Halation, { Enabled: true, Strength: 2.5, Tint: -0.2 });
+let sm = p.Smoothing;
+assert.equal(regions(sm), n0 + 1, "one region was added");
+assert.equal(sm["Mode_" + (n0 + 1)], 7);
+assert.equal(sm["MaskName_" + (n0 + 1)], "MART halation");
+assert.equal(sm.Enabled, true);
+for (const [k, v] of Object.entries(before)) if (/_\d+$/.test(k) && Number(k.match(/_(\d+)$/)[1]) <= n0) assert.deepEqual(sm[k], v, "the sidecar's region is unchanged: " + k);
+p = await edit({ Halation: { Enabled: true, Strength: 1.2 } });
+assert.equal(regions(p.Smoothing), n0 + 1, "editing changes the region in place");
+assert.deepEqual(p.Halation, { Enabled: true, Strength: 1.2, Tint: -0.2 });
+p = await edit({ Halation: { Enabled: false } });
+assert.equal(p.Halation.Enabled, false);
+assert.equal(regions(p.Smoothing), n0 + 1, "the region stays, off");
+assert.match(await refused({ Halation: { Strength: 9 } }), /out of range/);
+assert.match(await refused({ Halation: { Mode: 3 } }), /unknown key/);
+// undo: the preview of the image before and after halation differs
+console.log("halation: ok");
+
+// film simulation: a CTL script from this device, its parameters, and the effect
+const ctl = `// @ART-label: "Test"
+// @ART-param: ["gain", "Gain", -1.0, 1.0, 0.5, 0.1]
+// @ART-param: ["steps", "$TP_FILMSIMULATION_STRENGTH;Steps", 1, 10, 3]
+// @ART-param: ["inv", "Invert", true]
+// @ART-param: ["mode", "Mode", ["Option A", "Option B"], 1]
+void ART_main(varying float r, varying float g, varying float b, output varying float rout, output varying float gout, output varying float bout, float gain, int steps, bool inv, int mode)
+{
+    rout = r * (1 + gain); gout = g; bout = b;
+}
+`;
+const up = await fetch(base + "/api/luts?name=" + encodeURIComponent("../my test.ctl"), { method: "POST", body: ctl });
+assert.equal(up.status, 201);
+const lut = await up.json();
+assert.equal(lut.name, "_my test.ctl", "no path in the name, nothing hidden");
+assert.ok((await (await fetch(base + "/api/luts")).json()).some((l) => l.id === lut.id && l.source === "uploaded"));
+assert.equal((await fetch(base + "/api/luts?name=x.exe", { method: "POST", body: "MZ" })).status, 400, "not a LUT");
+assert.equal((await fetch(base + "/api/luts?name=x.ctl", { method: "POST", body: "" })).status, 400);
+assert.match(await refused({ "Film Simulation": { ClutFilename: "/etc/passwd" } }), /no such LUT/);
+const mean = async () => { const b = Buffer.from(await (await fetch(base + "/api/preview?out_w=200")).arrayBuffer()); return b.length + ":" + b.reduce((a, x) => (a * 31 + x) >>> 0, 7); };
+p = await edit({ "Film Simulation": { Enabled: false } });
+const plain = await mean();
+p = await edit({ "Film Simulation": { Enabled: true, ClutFilename: lut.id, ClutParams: {}, Strength: 100 } });
+assert.ok(decodeURIComponent(p["Film Simulation"].ClutFilename).endsWith("/_my test.ctl"), p["Film Simulation"].ClutFilename);
+console.log("clut filename:", p["Film Simulation"].ClutFilename);
+const lp = await (await fetch(base + "/api/lut/params")).json();
+assert.deepEqual(lp.params.map((x) => [x.name, x.type, x.label]), [["gain", "float", "Gain"], ["steps", "int", "Strength"], ["inv", "bool", "Invert"], ["mode", "choice", "Mode"]]);
+assert.deepEqual(lp.params[0].default, [0.5]);
+assert.deepEqual(lp.params[3].choices, [{ label: "Option A", value: 0 }, { label: "Option B", value: 1 }]);
+p = await edit({ "Film Simulation": { ClutParams: { gain: [0.9], steps: [4], inv: [0], mode: [1] } } });
+console.log("clut params:", p["Film Simulation"].ClutParams);
+assert.match(p["Film Simulation"].ClutParams, /gain=0\.9\d*/);
+const withLut = await mean();
+assert.notEqual(withLut, plain, "the script changes the picture");
+p = await edit({ "Film Simulation": { ClutParams: { gain: [-0.9], steps: [4], inv: [0], mode: [1] } } });
+assert.notEqual(await mean(), withLut, "its parameter changes the picture");
+p = await edit({ "Film Simulation": { Enabled: false, ClutFilename: "" } });
+assert.equal(p["Film Simulation"].ClutFilename, "");
+assert.deepEqual(await (await fetch(base + "/api/lut/params")).json(), { params: [], presets: [] });
+console.log("film simulation: ok");
+
 ws.close();
 console.log("tools e2e: ok");

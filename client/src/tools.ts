@@ -34,6 +34,9 @@ export interface SliderDef extends Base {
     scale?: number;
     /** the list when the profile has none */
     list?: number[];
+    /** for values that are not a plain key of the group (the parameters of a LUT): where to read it, what to write */
+    read?: (params: Params) => unknown;
+    write?: (value: unknown, get: Getter) => Record<string, unknown>;
 }
 
 export interface ChoiceDef extends Base {
@@ -42,6 +45,8 @@ export interface ChoiceDef extends Base {
     options: { value: string | number; label: string }[];
     def: string | number;
     extra?: (get: Getter) => Record<string, unknown>;
+    read?: (params: Params) => unknown;
+    write?: (value: unknown, get: Getter) => Record<string, unknown>;
 }
 
 export interface ToggleDef extends Base {
@@ -49,6 +54,8 @@ export interface ToggleDef extends Base {
     key: string;
     def: boolean;
     extra?: (get: Getter) => Record<string, unknown>;
+    read?: (params: Params) => unknown;
+    write?: (value: unknown, get: Getter) => Record<string, unknown>;
 }
 
 /** the tone curve editor */
@@ -63,7 +70,13 @@ export interface HeadingDef extends Base {
     kind: "heading";
 }
 
-export type ControlDef = SliderDef | ChoiceDef | ToggleDef | CurveDef | HeadingDef;
+/** a panel built by another module (see `registerControl` in controls.ts): the film simulation, the list of other tools */
+export interface CustomDef extends Base {
+    kind: "custom";
+    name: "clut" | "info";
+}
+
+export type ControlDef = SliderDef | ChoiceDef | ToggleDef | CurveDef | HeadingDef | CustomDef;
 
 export interface Tool {
     id: string;
@@ -209,6 +222,8 @@ export const TOOLS: Tool[] = [
             { kind: "heading", label: "Soft light", group: "SoftLight" },
             { kind: "toggle", label: "Enabled", group: "SoftLight", key: "Enabled", def: false },
             { kind: "slider", label: "Strength", group: "SoftLight", key: "Strength", min: 0, max: 100, step: 1, def: 30, digits: 0 },
+            { kind: "heading", label: "Film simulation", group: "Film Simulation" },
+            { kind: "custom", label: "Film simulation", group: "Film Simulation", name: "clut" },
         ],
     },
     {
@@ -236,6 +251,16 @@ export const TOOLS: Tool[] = [
             { kind: "slider", label: "Radius", group: "Sharpening", key: "DeconvRadius", min: 0.4, max: 2.5, step: 0.01, def: 0.75, digits: 2, extra: rld },
             { kind: "slider", label: "Amount", group: "Sharpening", key: "DeconvAmount", min: 0, max: 100, step: 1, def: 100, digits: 0, extra: rld },
             { kind: "slider", label: "Contrast threshold", group: "Sharpening", key: "Contrast", min: 0, max: 200, step: 1, def: 20, digits: 0, extra: rld },
+            { kind: "heading", label: "Film grain", group: "Grain" },
+            { kind: "toggle", label: "Enabled", group: "Grain", key: "Enabled", def: false },
+            { kind: "slider", label: "Strength", group: "Grain", key: "Strength", min: 0, max: 100, step: 1, def: 50, digits: 0 },
+            { kind: "slider", label: "Coarseness (ISO)", group: "Grain", key: "ISO", min: 100, max: 6400, step: 50, def: 400, digits: 0 },
+            { kind: "toggle", label: "Color grain", group: "Grain", key: "Color", def: false },
+            // not a group of the profile: a region of the Smoothing tool, in halation mode (host/src/halation.cc)
+            { kind: "heading", label: "Halation", group: "Halation" },
+            { kind: "toggle", label: "Enabled", group: "Halation", key: "Enabled", def: false },
+            { kind: "slider", label: "Strength", group: "Halation", key: "Strength", min: 0.01, max: 5, step: 0.01, def: 1, digits: 2 },
+            { kind: "slider", label: "Tint", group: "Halation", key: "Tint", min: -0.5, max: 0.5, step: 0.001, def: 0, digits: 3 },
         ],
     },
     {
@@ -246,11 +271,17 @@ export const TOOLS: Tool[] = [
             { kind: "slider", label: "Straighten", group: "Rotation", key: "Degree", min: -45, max: 45, step: 0.1, def: 0, digits: 1 },
         ],
     },
+    {
+        // the tools of the profile that this app has no controls for: information only (other.ts)
+        id: "other",
+        label: "Other",
+        controls: [{ kind: "custom", label: "Other tools", group: "", name: "info" }],
+    },
 ];
 
 /** the patch for setting a control to `value` */
 export function patchFor(def: ControlDef, value: unknown, get: Getter): Patch {
-    if (def.kind === "heading") throw new Error("a heading has no value");
+    if (def.kind === "heading" || def.kind === "custom") throw new Error("this control has no value");
     const keys: Record<string, unknown> = NO_ENABLED.has(def.group) ? {} : { Enabled: true };
     if (def.extra) Object.assign(keys, def.extra(get));
     if (def.kind === "slider" && def.index !== undefined) {
@@ -258,6 +289,8 @@ export function patchFor(def: ControlDef, value: unknown, get: Getter): Patch {
         const list = [...(parseList(get(def.group, def.key)) ?? def.list ?? [])];
         list[def.index] = Math.round(Number(value) * (def.scale ?? 1));
         keys[def.key] = list;
+    } else if (def.kind !== "curve" && def.write) {
+        Object.assign(keys, def.write(value, get));
     } else {
         // a white balance preset is a plain Setting, whatever extra says
         keys[def.key] = value;
@@ -266,7 +299,8 @@ export function patchFor(def: ControlDef, value: unknown, get: Getter): Patch {
 }
 
 export function readValue(params: Params, def: ControlDef): unknown {
-    if (def.kind === "heading") return undefined;
+    if (def.kind === "heading" || def.kind === "custom") return undefined;
+    if (def.kind !== "curve" && def.read) return def.read(params);
     const v = params[def.group]?.[def.key];
     if (def.kind === "curve") return v;
     if (def.kind === "slider" && def.index !== undefined) {

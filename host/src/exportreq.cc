@@ -49,7 +49,7 @@ std::string exportMimeType(const std::string &f)
 ExportRequest parseExportRequest(const nlohmann::json &body, const std::string &defaultStem)
 {
     if (!body.is_object()) throw ExportRequestError("expected an object");
-    static const std::set<std::string> known = {"format", "quality", "bits", "float", "compression", "name"};
+    static const std::set<std::string> known = {"format", "quality", "bits", "float", "compression", "size", "name"};
     for (auto &[k, v] : body.items())
         if (!known.count(k)) throw ExportRequestError("unknown option: " + k);
 
@@ -88,6 +88,7 @@ ExportRequest parseExportRequest(const nlohmann::json &body, const std::string &
             throw ExportRequestError("compression must be none or zip");
         r.compression = body["compression"];
     }
+    if (body.contains("size")) r.size = static_cast<int>(integer("size", 1, 100000));  // ART's own limits for --fast SIZE
     if (body.contains("name")) {
         if (!body["name"].is_string()) throw ExportRequestError("name must be a string");
         r.stem = sanitizeStem(body["name"]);
@@ -104,6 +105,8 @@ std::vector<std::string> exportArgs(const ExportRequest &r, const std::string &o
     if (r.bits) a.insert(a.end(), {"--bits", std::to_string(r.bits)});
     if (r.halfFloat) a.push_back("--float");
     if (!r.compression.empty()) a.insert(a.end(), {"--compression", r.compression});
+    // a smaller size is the fast export pipeline with the size: the number must follow --fast, after OUTFILE
+    if (r.size > 0) a.insert(a.end(), {"--fast", std::to_string(r.size)});
     return a;
 }
 

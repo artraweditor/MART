@@ -38,7 +38,8 @@ const exportFile = async (body) => { const r = await post("/api/export", body); 
     for (const f of ["jpg", "png", "tif"]) assert.ok(fm.includes(f), f);
     console.log("formats:", fm.length, "(" + fm.slice(0, 6).join(", ") + ", ...)");
     for (const [body, re] of [[{ format: "gif" }, /format/], [{ quality: 500 }, /quality/], [{ format: "png", quality: 5 }, /jpg only/], [{ format: "jpg", bits: 16 }, /png and tif/],
-        [{ format: "tif", compression: "lzw" }, /none or zip/], [{ overwrite: true }, /unknown option/], [{ format: "tif", bits: 8, float: true }, /float/]]) {
+        [{ format: "tif", compression: "lzw" }, /none or zip/], [{ overwrite: true }, /unknown option/], [{ format: "tif", bits: 8, float: true }, /float/],
+        [{ size: 0 }, /size/], [{ size: 1920.5 }, /size/], [{ size: "1920" }, /size/], [{ size: 100001 }, /size/]]) {
         const r = await post("/api/export", body);
         assert.equal(r.status, 400, JSON.stringify(body)); assert.match(r.body.error, re);
     }
@@ -97,6 +98,24 @@ let first;
     assert.equal(ti.w, info.full_width); assert.equal(ti.h, info.full_height); assert.equal(ti.depth, 16);
     assert.notEqual(ti.compression, 1, "zip compression is not 'none'");
     console.log("png16 / png8 / tif16 zip: ok");
+}
+
+// ---- a resized export: the fast export pipeline, the long edge is the size ----------------------------------------
+{
+    const long = Math.max(info.full_width, info.full_height), short = Math.min(info.full_width, info.full_height);
+    for (const [body, read] of [[{ format: "jpg", size: 600 }, jpegSize], [{ format: "png", size: 500 }, pngInfo], [{ format: "tif", bits: 16, size: 700 }, tiffInfo]]) {
+        const { s: st, f } = await exportFile(body);
+        const d = read(f.buf);
+        assert.ok(Math.max(d.w, d.h) <= body.size && Math.max(d.w, d.h) >= body.size - 2, `${body.format}: the long edge is ${body.size}, got ${d.w}x${d.h}`);
+        assert.ok(Math.abs(d.w / d.h - info.full_width / info.full_height) < 0.01, "the proportions are kept");
+        assert.deepEqual([st.width, st.height], [d.w, d.h], "the job reports the size written");
+        assert.ok(Math.max(d.w, d.h) < long, "smaller than the image");
+    }
+    // a size larger than the image is not an enlargement
+    const big = await exportFile({ format: "jpg", size: 100000 });
+    const bd = jpegSize(big.f.buf);
+    assert.ok(Math.max(bd.w, bd.h) <= long && Math.min(bd.w, bd.h) <= short, `no enlargement: ${bd.w}x${bd.h}`);
+    console.log("resized exports: ok", `(${long}px image)`);
 }
 
 // ---- export uses the current, unsaved parameters; the engine is busy meanwhile; edits wait --------------------

@@ -20,7 +20,7 @@ body {
     font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     display: grid;
     grid-template-rows: auto 1fr auto;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);  /* plain 1fr cannot shrink below the widest content: the page would scroll sideways */
     grid-template-areas: "bar" "stage" "panel";
     height: 100dvh;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -34,7 +34,7 @@ button { font: inherit; color: inherit; }
     min-height: var(--tap); padding: 0 12px 0 16px; background: var(--panel);
 }
 #logo { width: 28px; height: 28px; border-radius: 6px; flex: none; }
-#title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #title.dirty::before { content: "\2022 "; color: var(--accent); }
 .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); margin-left: 4px; }
 .dot.ok { background: var(--ok); }
@@ -64,7 +64,7 @@ button { font: inherit; color: inherit; }
 }
 #tabs { display: flex; flex: none; }
 #tabs button {
-    flex: 1; min-height: var(--tap); border: 0; background: transparent; color: var(--muted); font-weight: 600;
+    flex: 1; min-width: 0; padding: 0 4px; min-height: var(--tap); border: 0; background: transparent; color: var(--muted); font-weight: 600;
     border-bottom: 2px solid transparent;
 }
 #tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
@@ -209,3 +209,19 @@ body.busy #sheet { pointer-events: auto; }
 .curve-ctl canvas { display: block; width: min(100%, 280px); aspect-ratio: 1; margin: 4px auto 8px; touch-action: none; background: var(--field); border-radius: 8px; }
 .curve-ctl .remove { min-height: 36px; }
 .curve-ctl .note { flex: 1; }
+
+/* film simulation and the other tools */
+.other-item { border-bottom: 1px solid var(--line); }
+.other-item summary { min-height: var(--tap); display: flex; align-items: center; cursor: pointer; list-style-position: inside; }
+.other-item summary .muted { margin-left: 0.5em; }
+.other-item .facts { margin: 0 0 12px; }
+.clut-params { margin-top: 4px; }
+.other .facts.tags { grid-template-columns: minmax(9rem, 50%) 1fr; font-size: 0.8rem; }
+.other .facts.tags dt { overflow-wrap: break-word; word-break: break-word; }
+
+/* narrow phones: the bar's buttons are closer together, so that the file name keeps some room */
+@media (max-width: 480px) {
+    #bar { gap: 2px; padding: 0 8px 0 10px; }
+    #bar button { min-width: 40px; padding: 0 6px; }
+    .dot { margin-left: 2px; }
+}

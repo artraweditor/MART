@@ -94,16 +94,16 @@ try {
     // ---- the Info sheet ---------------------------------------------------------------------------------------
     await js(`document.getElementById("more").click()`);
     await click(".action", "Image information");
-    await until("summary", () => js(`document.querySelectorAll(".facts dt").length > 4`));
-    const facts = await js(`[...document.querySelectorAll(".facts dt, .facts dd")].map(e => e.textContent).join("|")`);
+    await until("summary", () => js(`document.querySelectorAll("#sheet .facts dt").length > 4`));
+    const facts = await js(`[...document.querySelectorAll("#sheet .facts dt, #sheet .facts dd")].map(e => e.textContent).join("|")`);
     assert.match(facts, /Camera\|SONY ILCE-7M4/);
     assert.match(facts, /Aperture\|f\/2\.8/);
     await shot("m3-5-info.png");
     await click(".subtabs .chip", "All metadata");
-    await until("metadata", () => js(`document.querySelectorAll(".facts.tags dt").length > 50`));
+    await until("metadata", () => js(`document.querySelectorAll("#sheet .facts.tags dt").length > 50`));
     await js(`(() => { const i = document.querySelector(".sheet-body input[type=search]"); i.value = "lens"; i.dispatchEvent(new Event("input", {bubbles:true})); })()`);
-    await until("filtered", () => js(`(() => { const n = document.querySelectorAll(".facts.tags dt").length; return n > 0 && n < 40; })()`));
-    console.log("metadata rows for 'lens':", await js(`document.querySelectorAll(".facts.tags dt").length`));
+    await until("filtered", () => js(`(() => { const n = document.querySelectorAll("#sheet .facts.tags dt").length; return n > 0 && n < 40; })()`));
+    console.log("metadata rows for 'lens':", await js(`document.querySelectorAll("#sheet .facts.tags dt").length`));
     await shot("m3-6-metadata.png");
 
     // ---- open another image: refused while there are unsaved edits ----------------------------------------------

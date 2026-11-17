@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "session.h"
 #include "arp.h"
+#include "halation.h"
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
@@ -30,13 +32,32 @@ std::string makeTmpdir()
     char tmpl[] = "/tmp/mart-XXXXXX";
     if (!mkdtemp(tmpl)) throw std::runtime_error("cannot create a temporary directory");
     std::string d = tmpl;
-    if (mkdir((d + "/uploads").c_str(), 0700) != 0) throw std::runtime_error("cannot create a temporary directory");
+    if (mkdir((d + "/uploads").c_str(), 0700) != 0 || mkdir((d + "/luts").c_str(), 0700) != 0) throw std::runtime_error("cannot create a temporary directory");
     return d;
+}
+
+// ART writes a LUT as a `file://` URI with %XX escapes; a plain path is accepted too
+std::string fileUriToPath(const std::string &s)
+{
+    if (s.compare(0, 7, "file://") != 0) return s;
+    std::string out;
+    for (size_t i = 7; i < s.size(); ++i) {
+        if (s[i] == '%' && i + 2 < s.size() && std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
+            std::isxdigit(static_cast<unsigned char>(s[i + 2]))) {
+            out += static_cast<char>(std::stoi(s.substr(i + 1, 2), nullptr, 16));
+            i += 2;
+        } else {
+            out += s[i];
+        }
+    }
+    return out;
 }
 } // namespace
 
-Session::Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs):
-    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()), profiles_(std::move(profileDirs), tmpdir_ + "/uploads")
+Session::Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs,
+                 std::vector<ProfileDir> lutDirs):
+    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()), profiles_(std::move(profileDirs), tmpdir_ + "/uploads"),
+    luts_(std::move(lutDirs), tmpdir_ + "/luts")
 {
     engine_ = Engine::create(o);
 }
@@ -52,6 +73,8 @@ Session::~Session()
         closedir(d);
     }
     rmdir((tmpdir_ + "/uploads").c_str());
+    luts_.clear();
+    rmdir((tmpdir_ + "/luts").c_str());
     rmdir(tmpdir_.c_str());
 }
 
@@ -154,29 +177,77 @@ json Session::params()
     if (file_.empty()) throw ApiError(409, "no image is open");
     json r = command({"get-params"});
     std::string ini = r.value("params", "");
-    return {{"params", arp::parse(ini)}, {"ini", ini}};
+    json doc = arp::parse(ini);
+    doc["Halation"] = halation::state(ini);  // not a group of the profile: MART's own view of one of the Smoothing regions
+    return {{"params", doc}, {"ini", ini}};
 }
 
-void Session::applyPatch(const json &patch, const std::string &mergeKey)
+json Session::lutParams(const std::string &id)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
-    std::string text;
+    std::string path;
+    if (!id.empty()) {
+        path = luts_.path(id);  // a LUT that was just chosen: the profile may not have it yet
+        if (path.empty()) throw ApiError(404, "no such LUT");
+    } else {
+        json p = arp::parse(command({"get-params"}).value("params", ""));
+        path = p.contains("Film Simulation") ? p["Film Simulation"].value("ClutFilename", "") : "";
+    }
+    json r = {{"params", json::array()}, {"presets", json::array()}};
+    if (path.empty()) return r;
+    path = fileUriToPath(path);
     try {
-        text = arp::serialize(patch);
-    } catch (const arp::PatchError &e) {
-        throw ApiError(400, e.what());
+        r = command({"get-clut-params", path});
+    } catch (const ApiError &e) {
+        r["error"] = e.what();  // the file may not be on this machine (a relative or foreign path in the sidecar)
     }
-    const std::string path = tmpdir_ + "/patch.arp";
-    {
-        std::ofstream f(path, std::ios::binary | std::ios::trunc);
-        f << text;
-        if (!f) throw ApiError(500, "cannot write " + path);
+    return r;
+}
+
+void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
+{
+    if (file_.empty()) throw ApiError(409, "no image is open");
+    json patch = patchIn;
+    json halationChange;
+    if (patch.is_object() && patch.contains("Halation")) {
+        halationChange = patch["Halation"];
+        patch.erase("Halation");
     }
-    std::vector<std::string> a = {"apply"};
-    if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
-    a.push_back(path);
-    command(a);
-    dirty_ = true;
+    auto apply = [&](const std::string &text) {
+        const std::string path = tmpdir_ + "/patch.arp";
+        {
+            std::ofstream f(path, std::ios::binary | std::ios::trunc);
+            f << text;
+            if (!f) throw ApiError(500, "cannot write " + path);
+        }
+        std::vector<std::string> a = {"apply"};
+        if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
+        a.push_back(path);
+        command(a);
+        dirty_ = true;
+    };
+    if (halationChange.is_null() || !patch.empty()) {
+        std::string text;
+        try {
+            text = arp::serialize(patch, [this](const std::string &id) {
+                std::string p = luts_.path(id);
+                if (p.empty()) throw arp::PatchError("no such LUT");
+                return p;
+            });
+        } catch (const arp::PatchError &e) {
+            throw ApiError(400, e.what());
+        }
+        apply(text);
+    }
+    if (!halationChange.is_null()) {
+        std::string text;
+        try {
+            text = halation::rewrite(command({"get-params"}).value("params", ""), halationChange);
+        } catch (const std::invalid_argument &e) {
+            throw ApiError(400, e.what());
+        }
+        apply(text);
+    }
     if (patch.contains("Coarse Transformation")) refreshInfo();
 }
 

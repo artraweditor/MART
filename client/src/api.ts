@@ -142,6 +142,7 @@ export interface ExportOptions {
     bits?: number; // png: 8 or 16; tif: 8, 16 or 32
     float?: boolean; // tif with 16 bits
     compression?: "none" | "zip"; // tif
+    size?: number; // the longest edge in pixels at most; full size if absent
     name?: string; // file name without extension; the image's name if empty
 }
 
@@ -157,7 +158,7 @@ export interface ExportStatus {
     error?: string;
 }
 
-/** Start a full-size export of the image as it is now (unsaved edits included). Resolves with the job id. */
+/** Start an export (full size, or as large as `size` at most) of the image as it is now (unsaved edits included). Resolves with the job id. */
 export async function startExport(o: ExportOptions): Promise<string> {
     const res = await request("/api/export", {
         method: "POST",
@@ -174,4 +175,56 @@ export async function exportStatus(job: string): Promise<ExportStatus> {
 /** The address of the exported file, to download it. */
 export function exportUrl(job: string): string {
     return `/api/export/${encodeURIComponent(job)}/file`;
+}
+
+export interface LutEntry {
+    id: string;
+    name: string;
+    source: string; // "bundled", "user", "folder", "uploaded"
+}
+
+export async function listLuts(): Promise<LutEntry[]> {
+    return (await request("/api/luts", { cache: "no-store" })).json();
+}
+
+/** Send a LUT, a CTL script or a Hald CLUT image from this device; it is then in the list. */
+export async function uploadLut(name: string, data: Blob): Promise<LutEntry> {
+    const res = await request(`/api/luts?name=${encodeURIComponent(name)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: data,
+    });
+    return res.json();
+}
+
+/** one parameter of a CTL script, as the engine describes it */
+export interface ClutParam {
+    name: string;
+    type: "int" | "float" | "bool" | "choice" | "curve" | "flatcurve" | "flatcurve_periodic" | "huesat";
+    label: string;
+    group: string;
+    tooltip: string;
+    min: number;
+    max: number;
+    step: number;
+    default: number[];
+    choices?: { label: string; value: number }[];
+}
+
+export interface ClutPreset {
+    key: string;
+    label: string;
+    values: Record<string, number[]>;
+}
+
+export interface ClutInfo {
+    params: ClutParam[];
+    presets: ClutPreset[];
+    error?: string;
+}
+
+/** The parameters of a LUT: of the one in the profile, or of the one with this id (the host's id from `listLuts`). */
+export async function lutParams(id?: string): Promise<ClutInfo> {
+    const q = id ? `?id=${encodeURIComponent(id)}` : "";
+    return (await request(`/api/lut/params${q}`, { cache: "no-store" })).json();
 }

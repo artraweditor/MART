@@ -2,12 +2,20 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formatBytes, formatElapsed, toOptions } from "../dist/app/exportsheet.js";
 
-const saved = { format: "jpg", quality: 92, pngBits: 8, tifBits: 16, compression: "none" };
+const saved = { format: "jpg", quality: 92, pngBits: 8, tifBits: 16, compression: "none", size: 0 };
 
 test("only the options of the chosen format are sent", () => {
     assert.deepEqual(toOptions(saved, ""), { format: "jpg", quality: 92 });
+    assert.deepEqual(toOptions({ ...saved, size: 2560 }, ""), { format: "jpg", quality: 92, size: 2560 });
     assert.deepEqual(toOptions({ ...saved, format: "png", pngBits: 16 }, ""), { format: "png", bits: 16 });
     assert.deepEqual(toOptions({ ...saved, format: "tif", tifBits: 32, compression: "zip" }, ""), { format: "tif", bits: 32, compression: "zip" });
+});
+
+test("a size is sent only when the image is resized", () => {
+    assert.equal("size" in toOptions(saved, ""), false);
+    assert.equal("size" in toOptions({ ...saved, size: undefined }, ""), false, "an old saved choice has no size");
+    assert.deepEqual(toOptions({ ...saved, size: 1920 }, ""), { format: "jpg", quality: 92, size: 1920 });
+    assert.deepEqual(toOptions({ ...saved, format: "png", pngBits: 16, size: 3840 }, "x"), { format: "png", bits: 16, size: 3840, name: "x" });
 });
 
 test("a typed name is sent, blanks are not", () => {

@@ -76,3 +76,14 @@ test("capture sharpening is deconvolution with a fixed radius", () => {
 test("the tone curve goes as a list", () => {
     assert.deepEqual(patchFor(control("ToneCurve", "Curve"), [1, 0, 0, 0.5, 0.6, 1, 1], noParams), { ToneCurve: { Enabled: true, CurveMode: "Neutral", CurveMode2: "Neutral", Curve: [1, 0, 0, 0.5, 0.6, 1, 1] } });
 });
+
+test("film grain", () => {
+    assert.deepEqual(patchFor(control("Grain", "ISO"), 800, noParams), { Grain: { Enabled: true, ISO: 800 } });
+    assert.deepEqual(patchFor(control("Grain", "Enabled"), false, noParams), { Grain: { Enabled: false } });
+});
+
+test("halation is a group of its own, for the host to turn into a smoothing region", () => {
+    assert.deepEqual(patchFor(control("Halation", "Strength"), 2, noParams), { Halation: { Enabled: true, Strength: 2 } });
+    assert.deepEqual(patchFor(control("Halation", "Tint"), -0.2, noParams), { Halation: { Enabled: true, Tint: -0.2 } });
+    assert.deepEqual(patchFor(control("Halation", "Enabled"), false, noParams), { Halation: { Enabled: false } });
+});

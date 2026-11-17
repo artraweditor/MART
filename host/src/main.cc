@@ -34,6 +34,8 @@ void usage()
         "  --www DIR        the built client (default: ../client/dist next to the binary)\n"
         "  --socket PATH    use a running `ART-cli --server` instead of the in-process engine\n"
         "  --data DIR       ART's data directory (in-process engine)\n"
+        "  --luts DIR       a folder of LUTs and CTL scripts to offer for film simulation (repeatable; default: DATA/luts,\n"
+        "                   DATA/ctlscripts and ART's user luts folder)\n"
         "  --profiles DIR   a folder of .arp profiles to offer (repeatable; default: DATA/profiles and ART's user\n"
         "                   profile folder, if they exist)\n"
         "  --gpu MODE       auto|off|force (in-process engine)\n"
@@ -102,9 +104,9 @@ int main(int argc, char **argv)
     std::string listen = "127.0.0.1", www, token, image;
     int port = 8080;
     std::vector<std::string> roots;
-    std::vector<ProfileDir> profileDirs;
+    std::vector<ProfileDir> profileDirs, lutDirs;
     std::string exportDir;
-    bool userProfiles = true;
+    bool userProfiles = true, userLuts = true;
     bool remote = false;
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -120,6 +122,7 @@ int main(int argc, char **argv)
         else if (a == "--data") eo.data_dir = val();
         else if (a == "--export-dir") exportDir = val();
         else if (a == "--profiles") { profileDirs.push_back({"folder", val()}); userProfiles = false; }
+        else if (a == "--luts") { lutDirs.push_back({"folder", val()}); userLuts = false; }
         else if (a == "--gpu") eo.gpu = val();
         else if (a == "--library") eo.library = val();
         else if (a == "--token") token = val();
@@ -152,10 +155,26 @@ int main(int argc, char **argv)
         }
     }
 
+    if (userLuts) {
+        auto add = [&](const char *tag, const std::string &d) {
+            struct stat st;
+            if (stat(d.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) lutDirs.push_back({tag, d});
+        };
+        const char *dd = eo.data_dir.empty() ? std::getenv("ART_DATA_DIR") : eo.data_dir.c_str();
+        if (dd) {
+            add("bundled", std::string(dd) + "/luts");
+            add("bundled", std::string(dd) + "/ctlscripts");
+        }
+        if (const char *home = std::getenv("HOME")) {
+            add("user", std::string(home) + "/.config/ART/luts");
+            add("user", std::string(home) + "/Library/Application Support/ART/luts");
+        }
+    }
+
     Worker worker;
     std::unique_ptr<Session> session;
     try {
-        worker.submit([&] { session = std::make_unique<Session>(eo, roots, profileDirs); }).get();
+        worker.submit([&] { session = std::make_unique<Session>(eo, roots, profileDirs, lutDirs); }).get();
         if (!image.empty()) worker.submit([&] { session->open(image); }).get();
     } catch (const std::exception &e) {
         std::fprintf(stderr, "mart: %s\n", e.what());
@@ -169,12 +188,17 @@ int main(int argc, char **argv)
         int yes = 1;
         setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&yes), sizeof(yes));
     });
-    svr.set_payload_max_length(2u << 20);
+    svr.set_payload_max_length(Luts::MAX_UPLOAD + (1u << 20));  // only an uploaded LUT is large: see the pre-routing handler
     svr.set_file_extension_and_mimetype_mapping("webmanifest", "application/manifest+json");  // the largest body is an uploaded profile (1 MiB)
     if (!svr.set_mount_point("/", www))
         std::fprintf(stderr, "mart: warning: client directory not found: %s\n", www.c_str());
 
     svr.set_pre_routing_handler([needToken, token](const httplib::Request &req, httplib::Response &res) {
+        // everything but an uploaded LUT is small (the largest other body is a profile of 1 MiB)
+        if (req.method == "POST" && req.path != "/api/luts" && req.body.size() > (2u << 20)) {
+            sendJson(res, {{"error", "request too large"}}, 413);
+            return httplib::Server::HandlerResponse::Handled;
+        }
         // a web page of another origin must not drive the API (CSRF, DNS rebinding)
         if (req.path.compare(0, 5, "/api/") == 0 && req.has_header("Origin")) {
             std::string o = req.get_header_value("Origin");
@@ -304,6 +328,25 @@ int main(int argc, char **argv)
             } catch (const std::invalid_argument &e) {
                 throw ApiError(400, e.what());
             }
+        });
+    });
+    svr.Get("/api/luts", [&](const httplib::Request &, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->luts().list(); }).get()); });
+    });
+    svr.Post("/api/luts", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            std::string name = req.get_param_value("name");
+            try {
+                sendJson(res, w.submit([&] { return session->luts().upload(name, req.body); }).get(), 201);
+            } catch (const std::invalid_argument &e) {
+                throw ApiError(400, e.what());
+            }
+        });
+    });
+    svr.Get("/api/lut/params", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            std::string id = req.get_param_value("id");
+            sendJson(res, w.submit([&] { return session->lutParams(id); }).get());
         });
     });
     svr.Get("/api/params", [&](const httplib::Request &, httplib::Response &res) {

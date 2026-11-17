@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "arp.h"
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -11,7 +12,7 @@ namespace mart { namespace arp {
 
 namespace {
 
-enum class Kind { Bool, Int, IntSet, Double, Enum, Curve, IntList };
+enum class Kind { Bool, Int, IntSet, Double, Enum, Curve, IntList, FileId, ClutParams };
 
 struct Spec {
     Kind kind;
@@ -29,6 +30,8 @@ Spec IS(std::set<long long> v) { return {Kind::IntSet, 0, 0, {}, std::move(v)}; 
 Spec D(double lo, double hi) { return {Kind::Double, lo, hi, {}, {}}; }
 Spec E(std::set<std::string> v) { return {Kind::Enum, 0, 0, std::move(v), {}}; }
 Spec C() { return {Kind::Curve, 0, 0, {}, {}}; }
+Spec F() { return {Kind::FileId, 0, 0, {}, {}}; }   // the id of a file the host offers ("" for none)
+Spec P() { return {Kind::ClutParams, 0, 0, {}, {}}; }  // {"name": [numbers]}: the parameters of a LUT script
 // a list of `n` integers, each within lo..hi
 Spec L(size_t n, double lo, double hi) { Spec s{Kind::IntList, lo, hi, {}, {}}; s.n = n; return s; }
 
@@ -67,6 +70,8 @@ const std::map<std::string, Group> &table()
                            {"Mode", IS({1})},
                            {"HueTweak", L(3, -100, 100)},
                            {"SatTweak", L(3, -100, 100)}}},
+        {"Grain", {{"Enabled", B()}, {"ISO", I(100, 6400)}, {"Strength", I(0, 100)}, {"Color", B()}}},
+        {"Film Simulation", {{"Enabled", B()}, {"Strength", I(0, 100)}, {"ClutFilename", F()}, {"ClutParams", P()}}},
         {"SoftLight", {{"Enabled", B()}, {"Strength", I(0, 100)}}},
         // no Enabled key: the tool is on when LcMode is not "none"; only the automatic and embedded sources are offered
         {"LensProfile", {{"LcMode", E({"none", "lfauto", "exif"})},
@@ -102,7 +107,7 @@ std::string num(double v)
     return buf;
 }
 
-std::string value(const std::string &g, const std::string &k, const Spec &s, const json &v)
+std::string value(const std::string &g, const std::string &k, const Spec &s, const json &v, const Resolver &lutPath)
 {
     const std::string what = "[" + g + "] " + k;
     switch (s.kind) {
@@ -128,6 +133,31 @@ std::string value(const std::string &g, const std::string &k, const Spec &s, con
         if (!v.is_string() || !s.values.count(v.get<std::string>()))
             throw PatchError(what + ": not an allowed value");
         return v.get<std::string>();
+    case Kind::FileId: {
+        if (!v.is_string()) throw PatchError(what + ": expected the id of a file");
+        const std::string id = v.get<std::string>();
+        if (id.empty()) return "";
+        std::string path = lutPath ? lutPath(id) : "";  // the resolver throws for an unknown id
+        if (path.empty() || path.find_first_of("\r\n") != std::string::npos) throw PatchError(what + ": no such file");
+        return path;
+    }
+    case Kind::ClutParams: {
+        if (!v.is_object()) throw PatchError(what + ": expected an object of parameters");
+        std::string out;
+        for (auto &[name, vals] : v.items()) {
+            if (name.empty() || name.size() > 64) throw PatchError(what + ": bad parameter name");
+            for (char c : name)
+                if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_')) throw PatchError(what + ": bad parameter name");
+            if (!vals.is_array() || vals.empty() || vals.size() > 4096) throw PatchError(what + ": " + name + ": expected a list of numbers");
+            out += name + "=";
+            for (size_t i = 0; i < vals.size(); ++i) {
+                if (!vals[i].is_number() || !std::isfinite(vals[i].get<double>())) throw PatchError(what + ": " + name + ": expected numbers");
+                out += (i ? "," : "") + num(vals[i].get<double>());
+            }
+            out += ";";
+        }
+        return out;
+    }
     case Kind::IntList: {
         if (!v.is_array() || v.size() != s.n) throw PatchError(what + ": expected a list of " + std::to_string(s.n) + " numbers");
         std::string out;
@@ -168,7 +198,7 @@ std::string value(const std::string &g, const std::string &k, const Spec &s, con
 
 } // namespace
 
-std::string serialize(const json &patch)
+std::string serialize(const json &patch, const Resolver &lutPath)
 {
     if (!patch.is_object() || patch.empty()) throw PatchError("the patch must be a non-empty object");
     std::ostringstream out;
@@ -180,7 +210,7 @@ std::string serialize(const json &patch)
         for (auto &[kname, kval] : gval.items()) {
             auto k = g->second.find(kname);
             if (k == g->second.end()) throw PatchError("unknown key: [" + gname + "] " + kname);
-            out << kname << "=" << value(gname, kname, k->second, kval) << "\n";
+            out << kname << "=" << value(gname, kname, k->second, kval, lutPath) << "\n";
         }
         out << "\n";
     }

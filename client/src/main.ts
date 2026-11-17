@@ -2,6 +2,8 @@
 
 import { ApiError, NetworkError, getInfo, getStatus, openImage, saveImage, spotWB } from "./api.js";
 import type { ImageInfo } from "./api.js";
+import "./clutpanel.js"; // these register their panels with controls.ts
+import "./other.js";
 import { makeControl } from "./controls.js";
 import type { Control, ControlHost } from "./controls.js";
 import { CropOverlay, clampRect, fitRatio } from "./crop.js";
@@ -228,7 +230,7 @@ const controls: Control[] = [];
 
 const host: ControlHost = {
     set(def: ControlDef, value: unknown, gesture: number) {
-        if (def.kind === "heading") return;
+        if (def.kind === "heading" || def.kind === "custom") return;
         const patch = patchFor(def, value, (g, k) => params[g]?.[k]);
         mergePatch(params, patch); // so that the next control sees it
         if (gesture) dragging = true;

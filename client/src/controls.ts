@@ -1,7 +1,7 @@
 // The controls of a tool panel: sliders (native range inputs: touch friendly
 // and accessible), choice chips and toggles.
 
-import type { ChoiceDef, ControlDef, CurveDef, HeadingDef, SliderDef, ToggleDef } from "./tools.js";
+import type { ChoiceDef, ControlDef, CurveDef, CustomDef, HeadingDef, SliderDef, ToggleDef } from "./tools.js";
 import { addPoint, encode, hitPoint, identity, isIdentity, makeEvaluator, movePoint, parseCurve, removePoint } from "./curve.js";
 import type { Curve } from "./curve.js";
 import type { Params } from "./live.js";
@@ -344,6 +344,14 @@ function curveEditor(def: CurveDef, host: ControlHost): Control {
     };
 }
 
+type Factory = (def: CustomDef, host: ControlHost) => Control;
+const factories = new Map<string, Factory>();
+
+/** a module that builds a whole panel registers it under the name its `custom` definition gives */
+export function registerControl(name: string, factory: Factory): void {
+    factories.set(name, factory);
+}
+
 export function makeControl(def: ControlDef, host: ControlHost): Control {
     const c = build(def, host);
     if (!def.showWhen) return c;
@@ -370,5 +378,10 @@ function build(def: ControlDef, host: ControlHost): Control {
             return curveEditor(def, host);
         case "heading":
             return heading(def);
+        case "custom": {
+            const f = factories.get(def.name);
+            if (!f) throw new Error(`no panel registered for ${def.name}`);
+            return f(def, host);
+        }
     }
 }
