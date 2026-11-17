@@ -15,6 +15,16 @@ extern const char *const REGION_NAME;
 /** {"Enabled", "Strength", "Tint"} of the halation region of a profile (the text of `get-params`); the defaults if none */
 json state(const std::string &profileText);
 
+/** does this profile (or `get-params`) text have the halation region? */
+bool present(const std::string &profileText);
+
+/** the `[Smoothing]` group of a profile that holds only the halation region of `paramsText` (the text of `get-params`),
+ *  numbered 1, switched on or off as it is; empty if there is none */
+std::string profileText(const std::string &paramsText);
+
+/** the profile text without its `[Smoothing]` group */
+std::string withoutSmoothing(const std::string &profileText);
+
 /**
  * The text of a `[Smoothing]` group to apply (replacing the regions of the tool) that holds every region of
  * `profileText` as it is, and the halation region changed by `change`: an object with any of `Enabled` (bool),

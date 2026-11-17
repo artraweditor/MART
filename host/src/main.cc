@@ -36,8 +36,7 @@ void usage()
         "  --data DIR       ART's data directory (in-process engine)\n"
         "  --luts DIR       a folder of LUTs and CTL scripts to offer for film simulation (repeatable; default: DATA/luts,\n"
         "                   DATA/ctlscripts and ART's user luts folder)\n"
-        "  --profiles DIR   a folder of .arp profiles to offer (repeatable; default: DATA/profiles and ART's user\n"
-        "                   profile folder, if they exist)\n"
+        "  --profiles DIR   the folder of MART's profiles, where they are saved (default: ~/.config/MART/profiles)\n"
         "  --gpu MODE       auto|off|force (in-process engine)\n"
         "  --library PATH   libART (default: $ART_LIBRARY, next to the binary)\n"
         "  --export-dir DIR keep exported files in DIR (default: a temporary folder, for downloading only)\n"
@@ -121,7 +120,7 @@ int main(int argc, char **argv)
         else if (a == "--socket") { eo.socket = val(); remote = true; }
         else if (a == "--data") eo.data_dir = val();
         else if (a == "--export-dir") exportDir = val();
-        else if (a == "--profiles") { profileDirs.push_back({"folder", val()}); userProfiles = false; }
+        else if (a == "--profiles") { profileDirs.clear(); profileDirs.push_back({"mine", val()}); userProfiles = false; }
         else if (a == "--luts") { lutDirs.push_back({"folder", val()}); userLuts = false; }
         else if (a == "--gpu") eo.gpu = val();
         else if (a == "--library") eo.library = val();
@@ -143,16 +142,10 @@ int main(int argc, char **argv)
     if (needToken && token.empty()) token = randomToken();
 
     if (userProfiles) {
-        auto add = [&](const char *tag, const std::string &d) {
-            struct stat st;
-            if (stat(d.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) profileDirs.push_back({tag, d});
-        };
-        const char *dd = eo.data_dir.empty() ? std::getenv("ART_DATA_DIR") : eo.data_dir.c_str();
-        if (dd) add("bundled", std::string(dd) + "/profiles");
-        if (const char *home = std::getenv("HOME")) {
-            add("user", std::string(home) + "/.config/ART/profiles");
-            add("user", std::string(home) + "/Library/Application Support/ART/profiles");
-        }
+        // MART's own profiles: one folder of the user's (made when the first profile is saved), not ART's
+        const char *xdg = std::getenv("XDG_CONFIG_HOME"), *home = std::getenv("HOME");
+        if (xdg && *xdg) profileDirs.push_back({"mine", std::string(xdg) + "/MART/profiles"});
+        else if (home) profileDirs.push_back({"mine", std::string(home) + "/.config/MART/profiles"});
     }
 
     if (userLuts) {
@@ -328,6 +321,70 @@ int main(int argc, char **argv)
             } catch (const std::invalid_argument &e) {
                 throw ApiError(400, e.what());
             }
+        });
+    });
+    svr.Get("/api/profile-sections", [&](const httplib::Request &, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->profileSections(); }).get()); });
+    });
+    svr.Post("/api/profiles/save", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            json b = json::parse(req.body, nullptr, false);
+            if (!b.is_object() || !b.contains("name") || !b["name"].is_string() || !b.contains("sections") || !b["sections"].is_array())
+                throw ApiError(400, "expected {name, sections[, overwrite]}");
+            std::vector<std::string> ids;
+            for (auto &x : b["sections"]) {
+                if (!x.is_string()) throw ApiError(400, "sections must be strings");
+                ids.push_back(x);
+            }
+            const bool overwrite = b.contains("overwrite") && b["overwrite"].is_boolean() && b["overwrite"].get<bool>();
+            const std::string name = b["name"];
+            sendJson(res, w.submit([&] { return session->saveProfile(name, ids, overwrite); }).get(), 201);
+        });
+    });
+    svr.Post("/api/profiles/rename", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            json b = json::parse(req.body, nullptr, false);
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string() || !b.contains("name") || !b["name"].is_string())
+                throw ApiError(400, "expected {id, name}");
+            const std::string id = b["id"], name = b["name"];
+            try {
+                sendJson(res, w.submit([&] { return session->profiles().rename(id, name); }).get());
+            } catch (const ProfileExists &e) {
+                throw ApiError(409, e.what());
+            } catch (const std::out_of_range &e) {
+                throw ApiError(404, e.what());
+            } catch (const std::invalid_argument &e) {
+                throw ApiError(400, e.what());
+            }
+        });
+    });
+    svr.Post("/api/profiles/delete", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            json b = json::parse(req.body, nullptr, false);
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string()) throw ApiError(400, "expected {id}");
+            const std::string id = b["id"];
+            try {
+                w.submit([&] { session->profiles().remove(id); }).get();
+            } catch (const std::out_of_range &e) {
+                throw ApiError(404, e.what());
+            } catch (const std::invalid_argument &e) {
+                throw ApiError(400, e.what());
+            }
+            sendJson(res, w.submit([&] { return session->profiles().list(); }).get());
+        });
+    });
+    svr.Post("/api/profiles/default", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            json b = json::parse(req.body, nullptr, false);
+            if (!b.is_object() || !b.contains("id") || !(b["id"].is_string() || b["id"].is_null()))
+                throw ApiError(400, "expected {id: a profile id, or null for none}");
+            const std::string id = b["id"].is_null() ? "" : b["id"].get<std::string>();
+            try {
+                w.submit([&] { session->profiles().setDefault(id); }).get();
+            } catch (const std::invalid_argument &e) {
+                throw ApiError(400, e.what());
+            }
+            sendJson(res, w.submit([&] { return session->profiles().list(); }).get());
         });
     });
     svr.Get("/api/luts", [&](const httplib::Request &, httplib::Response &res) {

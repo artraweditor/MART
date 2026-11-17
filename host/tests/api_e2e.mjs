@@ -66,18 +66,20 @@ assert.ok(Array.isArray(list) && list.length > 0, "profiles are listed");
 console.log("profiles:", list.length, [...new Set(list.map((p) => p.source))].join(","), "e.g.", list[0].name);
 {
     const sharp = list.find((p) => p.name === "Sharpening");
-    if (sharp) {
+    assert.ok(sharp && sharp.source === "mine", "the test's own profile folder is offered; ART's are not");
+    assert.ok(!list.some((p) => p.source === "bundled" || p.source === "user"), "ART's profiles are not loaded");
+    {
         const s = send({ type: "profile", id: sharp.id, view });
         const st = await next((m) => m.type === "state" && m.seq === s);
-        assert.equal(st.params.Sharpening.Enabled, true, "the bundled Sharpening profile enables sharpening");
+        assert.equal(st.params.Sharpening.Enabled, true, "the Sharpening profile enables sharpening");
         await next((m) => m.type === "frame" && m.seq === s);
     }
     // ART's built-in profiles
-    for (const id of [":default", ":neutral"]) {
+    for (const id of [":neutral"]) {
         assert.ok(list.some((p) => p.id === id && p.source === "builtin"), id + " is listed");
         const s = send({ type: "profile", id, view });
         const st = await next((m) => m.type === "state" && m.seq === s);
-        if (id === ":neutral") assert.notEqual(st.params.Sharpening?.Enabled, true, "neutral switches sharpening off");
+        assert.notEqual(st.params.Sharpening?.Enabled, true, "neutral switches sharpening off");
         await next((m) => m.type === "frame" && m.seq === s);
     }
     // the built-in profiles replaced much of the state: start from the sidecar again

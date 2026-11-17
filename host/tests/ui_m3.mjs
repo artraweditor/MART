@@ -85,7 +85,7 @@ try {
 
     // ---- the Look sheet -----------------------------------------------------------------------------------
     await js(`document.getElementById("look").click()`);
-    await until("profiles listed", () => js(`document.querySelectorAll(".looks .row-btn").length > 3`));
+    await until("profiles listed", () => js(`document.querySelectorAll(".looks .row-btn").length > 1`));
     await shot("m3-4-look.png");
     await click(".looks .row-btn", "Sharpening");
     await until("profile applied", async () => (await params()).Sharpening?.Enabled === true);

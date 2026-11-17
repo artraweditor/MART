@@ -31,9 +31,28 @@ halation; film simulation with a LUT (a folder of the server's, or a file from t
 their parameters); crop with ratios,
 quarter turns, flips and straightening), an Other tab that lists, read-only, the tools of the profile that have no
 controls here (they are kept on Save), undo/redo, Save (the standard `.arp`
-sidecar), a **Look** sheet to apply ART's built-in Neutral or Default profile, or a saved one (bundled, yours, or from the device), and a **⋯** menu
+sidecar), **profiles** (the **Look** sheet), and a **⋯** menu
 with **Export** (JPEG, PNG or TIFF at full size or resized to 1920, 2560 or 3840 px, then a download), the image information and metadata, and opening
 another image. Opening another image never drops unsaved edits silently.
+
+## Profiles
+
+MART has its own profiles (partial `.arp` files), kept in one folder, `~/.config/MART/profiles` (or
+`$XDG_CONFIG_HOME/MART/profiles`; `--profiles DIR` changes it). ART's own profiles are not offered. The **Look** sheet:
+
+- applies a profile (undo takes all of it away), or the built-in *Neutral* (every tool at its default), or a profile
+  file from the device; "add to my local adjustments" keeps the image's local tools instead of replacing them;
+- **saves the current settings** as a profile, with a checkbox for each section of the interface (exposure, haze
+  removal, tone curve, tone equalizer, white balance, saturation, channel mixer, soft light, film simulation, lens
+  correction with the flat field, capture sharpening, film grain, halation, crop and rotation). A section stands for
+  the parameters that it edits, which do not always follow ART's groups (the flat field is a few keys of the raw
+  group; the halation is a region of the smoothing tool, which is added to the image's own regions when the profile
+  is applied). White balance and crop are not checked at first, since they belong to the picture;
+- **renames** and **deletes** the profiles of the folder (the **⋯** of a row; a delete is asked again);
+- marks one profile with a **star**: it is applied when a picture is opened that has no sidecar (not for one that
+  has). Such a picture starts from the neutral profile, not from what ART would load for it (its default or dynamic
+  profile), and then gets the starred profile. This is where the history starts: it cannot be undone and is not an
+  unsaved edit. There are no rules and no difference between raw and other files.
 
 On a phone (or any narrow screen) the tool panel floats over the picture at about 80% opacity; tap the picture, or the open tab, to fold it away.
 
@@ -66,6 +85,8 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/ui_overflow.mjs http://localhost:8080 /tmp        # no sideways scrolling on phone widths
     node host/tests/ui_srgb.mjs http://localhost:8080 /tmp            # the preview stays sRGB whatever the profiles say (fresh host)
     node host/tests/srgb_e2e.mjs http://localhost:8080 /path/copy.arw   # exports are sRGB (a COPY: it rewrites its sidecar)
+    node host/tests/profiles_e2e.mjs http://localhost:8080 /path/copy.arw DIR   # saving, applying, the default (host with --profiles DIR)
+    node host/tests/ui_profiles.mjs http://localhost:8080 /tmp        # the Look sheet and the Save dialog (fresh host, own --profiles DIR)
     node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone
     node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back

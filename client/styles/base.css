@@ -225,3 +225,15 @@ body.busy #sheet { pointer-events: auto; }
     #bar button { min-width: 40px; padding: 0 6px; }
     .dot { margin-left: 2px; }
 }
+
+/* profiles: a row with a star, and the sections of the Save dialog */
+.look-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); }
+.look-row .row-btn { flex: 1; border-bottom: 0; }
+.star, .more { width: var(--tap); border: 0; background: transparent; font-size: 1.4rem; color: var(--muted); cursor: pointer; }
+.star[aria-pressed="true"] { color: var(--accent); }
+.sections .chip { margin-bottom: 6px; }
+.look-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 4px 12px; border-bottom: 1px solid var(--line); }
+.look-actions input[type="text"] { flex: 1; min-width: 8rem; margin-bottom: 0; }
+.look-actions .look-message { flex-basis: 100%; margin: 0; }
+.chip.danger { background: #3a2226; border-color: #5a2d33; color: #ffb4b4; }
+.more { font-size: 1.2rem; color: var(--fg); }

@@ -55,6 +55,8 @@ public:
     json exportImage(const std::vector<std::string> &exportArgs);   // runs `export ...` (blocks: seconds to minutes)
     json exportFormats();
     void applyProfile(const std::string &id, bool append);
+    json profileSections();                           // [{id, label, default}]: the checkboxes of the Save dialog
+    json saveProfile(const std::string &name, const std::vector<std::string> &sections, bool overwrite);
     bool dirty() const { return dirty_; }
     bool isOpen() const { return !file_.empty(); }
     int fullWidth() const { return info_.value("full_width", 0); }
@@ -64,7 +66,10 @@ private:
     json command(const std::vector<std::string> &argv);  // "result" of a JSON reply
     std::string confine(const std::string &path) const;  // realpath under a root
     void refreshInfo();
-    void applyOpeningDefaults();                                  // the size changes with coarse rotation
+    void applyOpeningDefaults();
+    // apply the profile file (a MART profile can hold the halation, which is not a plain group); with a merge key it is
+    // one history entry
+    void applyProfileFile(const std::string &path, bool append, const std::string &mergeKey);                                  // the size changes with coarse rotation
 
     EngineOptions opts_;
     std::unique_ptr<Engine> engine_;
@@ -73,6 +78,7 @@ private:
     std::string file_;
     json info_;
     bool dirty_ = false;
+    int lookSeq_ = 0;  // keys that merge the history entries of one applied profile
     int base_ = 0;  // the first history entry the user can go back to (1 after a default that MART applied on opening)
     Profiles profiles_;
     Luts luts_;

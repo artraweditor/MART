@@ -111,6 +111,38 @@ json state(const std::string &profileText)
     return r;
 }
 
+bool present(const std::string &profileText)
+{
+    return ourRegion(smoothing(profileText)) != 0;
+}
+
+std::string profileText(const std::string &paramsText)
+{
+    if (!present(paramsText)) return "";
+    json s = state(paramsText);
+    // the tool is on when the profile is applied; the region says whether halation is
+    return std::string("[Smoothing]\nEnabled=true\nMode_1=7\nChannel_1=2\nMaskName_1=") + REGION_NAME +
+           "\nMaskEnabled_1=" + (s["Enabled"].get<bool>() ? "true" : "false") + "\nHalationSize_1=" +
+           num(s["Strength"].get<double>()) + "\nHalationColor_1=" + num(s["Tint"].get<double>()) + "\n";
+}
+
+std::string withoutSmoothing(const std::string &profileText)
+{
+    std::string out;
+    bool skip = false;
+    size_t i = 0;
+    while (i < profileText.size()) {
+        size_t j = profileText.find('\n', i);
+        const size_t end = j == std::string::npos ? profileText.size() : j + 1;
+        std::string line = profileText.substr(i, end - i);
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+        if (!line.empty() && line[0] == '[') skip = (line == "[Smoothing]");
+        if (!skip) out += profileText.substr(i, end - i);
+        i = end;
+    }
+    return out;
+}
+
 std::string rewrite(const std::string &profileText, const json &change)
 {
     if (!change.is_object()) throw std::invalid_argument("Halation: expected an object");

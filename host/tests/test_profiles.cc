@@ -1,0 +1,150 @@
+// Unit tests of the folder of profiles. SPDX-License-Identifier: GPL-3.0-or-later
+#include "../src/profiles.h"
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <sys/stat.h>
+#include <unistd.h>
+
+using namespace mart;
+
+static int failures = 0;
+#define CHECK(c) do { if (!(c)) { ++failures; std::cerr << __FILE__ << ":" << __LINE__ << ": CHECK failed: " #c "\n"; } } while (0)
+
+static std::string read(const std::string &p) { std::ifstream f(p); std::stringstream s; s << f.rdbuf(); return s.str(); }
+static bool exists(const std::string &p) { struct stat st; return stat(p.c_str(), &st) == 0; }
+
+int main()
+{
+    char tmpl[] = "/tmp/mart-test-XXXXXX";
+    const std::string d = mkdtemp(tmpl);
+    mkdir((d + "/up").c_str(), 0700);
+    const std::string dir = d + "/config/MART/profiles";  // not there yet: made by the first save
+
+    Profiles p({{"mine", dir}}, d + "/up");
+    auto list = p.list();
+    CHECK(list.size() == 1 && list[0]["id"] == ":neutral" && list[0]["source"] == "builtin");  // only what is built in
+
+    // saving: the name is made safe, the folder is made
+    auto e = p.save("../My Look.arp", "[Saturation]\nEnabled=true\n", false);
+    CHECK(e["name"] == "_My Look" && e["id"] == "d0:_My Look.arp");  // no path, nothing hidden
+    CHECK(exists(dir + "/_My Look.arp"));
+    CHECK(read(dir + "/_My Look.arp") == "[Saturation]\nEnabled=true\n");
+    CHECK(e["source"] == "mine" && e["default"] == false);
+    auto f = p.save("warm", "[Exposure]\nEnabled=true\n", false);
+    CHECK(f["name"] == "warm" && f["id"] == "d0:warm.arp");
+    list = p.list();
+    CHECK(list.size() == 3 && list[1]["source"] == "mine");
+
+    // the same name: refused, unless it is to be replaced
+    bool exists409 = false;
+    try { p.save("warm", "[Exposure]\nEnabled=false\n", false); } catch (const ProfileExists &) { exists409 = true; }
+    CHECK(exists409);
+    CHECK(read(dir + "/warm.arp") == "[Exposure]\nEnabled=true\n");
+    p.save("warm", "[Exposure]\nEnabled=false\n", true);
+    CHECK(read(dir + "/warm.arp") == "[Exposure]\nEnabled=false\n");
+
+    // nothing usable
+    for (auto &bad : {std::string(""), std::string("..."), std::string("  ")}) {
+        bool r = false;
+        try { p.save(bad, "[A]\nb=1\n", false); } catch (const std::invalid_argument &) { r = true; }
+        CHECK(r);
+    }
+    bool nothing = false;
+    try { p.save("empty", "", false); } catch (const std::invalid_argument &) { nothing = true; }
+    CHECK(nothing && !exists(dir + "/empty.arp"));
+    CHECK(Profiles::sanitizeName("a/b\\c") == "a_b_c");
+    CHECK(Profiles::sanitizeName("x.arp") == "x");
+    CHECK(Profiles::sanitizeName(std::string(300, 'a')).size() <= 80);
+
+    // the default
+    CHECK(p.defaultPath().empty());
+    p.setDefault("d0:warm.arp");
+    CHECK(p.defaultPath() == dir + "/warm.arp");
+    list = p.list();
+    int stars = 0;
+    for (auto &x : list) if (x["default"] == true) { ++stars; CHECK(x["id"] == "d0:warm.arp"); }
+    CHECK(stars == 1);
+    CHECK(!exists(dir + "/.default.arp"));
+    // the file that keeps it is not a profile
+    for (auto &x : p.list()) CHECK(x["name"] != ".default");
+    // only a profile of the folder
+    for (auto &bad : {std::string(":neutral"), std::string("u1"), std::string("d0:nope.arp"), std::string("d0:../x.arp"), std::string("d1:warm.arp")}) {
+        bool r = false;
+        try { p.setDefault(bad); } catch (const std::invalid_argument &) { r = true; }
+        CHECK(r);
+    }
+    CHECK(p.defaultPath() == dir + "/warm.arp");  // unchanged by the refusals
+    // a default that is gone is no default
+    std::remove((dir + "/warm.arp").c_str());
+    CHECK(p.defaultPath().empty());
+    p.setDefault("d0:_My Look.arp");
+    CHECK(!p.defaultPath().empty());
+    p.setDefault("");
+    CHECK(p.defaultPath().empty());
+
+    // renaming: the file moves, the default follows it, a clash is refused
+    p.save("cool", "[Saturation]\nEnabled=true\n", false);
+    p.setDefault("d0:cool.arp");
+    auto rn = p.rename("d0:cool.arp", "../Cool Look");
+    CHECK(rn["id"] == "d0:_Cool Look.arp" && rn["name"] == "_Cool Look" && rn["default"] == true);
+    CHECK(!exists(dir + "/cool.arp") && read(dir + "/_Cool Look.arp") == "[Saturation]\nEnabled=true\n");
+    CHECK(p.defaultPath() == dir + "/_Cool Look.arp");
+    bool clash = false;
+    try { p.rename("d0:_Cool Look.arp", "_My Look"); } catch (const ProfileExists &) { clash = true; }
+    CHECK(clash && exists(dir + "/_Cool Look.arp"));
+    auto same = p.rename("d0:_Cool Look.arp", "_Cool Look");   // the same name: nothing to do
+    CHECK(same["id"] == "d0:_Cool Look.arp");
+    p.rename("d0:_Cool Look.arp", "_cool look");               // only the case
+    CHECK(exists(dir + "/_cool look.arp"));
+    for (auto &bad : {std::string(""), std::string("..."), std::string("  ")}) {
+        bool r = false;
+        try { p.rename("d0:_cool look.arp", bad); } catch (const std::invalid_argument &) { r = true; }
+        CHECK(r);
+    }
+    for (auto &bad : {std::string(":neutral"), std::string("u1"), std::string("d1:x.arp"), std::string("d0:../x.arp")}) {
+        bool r = false;
+        try { p.rename(bad, "x"); } catch (const std::exception &) { r = true; }
+        CHECK(r);
+    }
+    bool gone = false;
+    try { p.rename("d0:missing.arp", "x"); } catch (const std::out_of_range &) { gone = true; }
+    CHECK(gone);
+
+    // deleting: the file goes, and the default with it
+    p.remove("d0:_cool look.arp");
+    CHECK(!exists(dir + "/_cool look.arp") && !exists(dir + "/.default"));
+    CHECK(p.defaultPath().empty());
+    bool again = false;
+    try { p.remove("d0:_cool look.arp"); } catch (const std::out_of_range &) { again = true; }
+    CHECK(again);
+    for (auto &bad : {std::string(":neutral"), std::string("u1"), std::string("d0:../x.arp")}) {
+        bool r = false;
+        try { p.remove(bad); } catch (const std::exception &) { r = true; }
+        CHECK(r);
+    }
+    // a profile that is not the default can be deleted and the default stays
+    p.save("keep", "[A]\nb=1\n", false);
+    p.save("drop", "[A]\nb=1\n", false);
+    p.setDefault("d0:keep.arp");
+    p.remove("d0:drop.arp");
+    CHECK(p.defaultPath() == dir + "/keep.arp");
+    p.setDefault("");
+
+    // uploads are not in the folder and cannot be the default
+    auto up = p.upload("device.arp", "[Saturation]\nEnabled=true\n");
+    CHECK(up["source"] == "uploaded");
+    CHECK(!p.path(up["id"]).empty());
+
+    // no folder at all
+    Profiles none({}, d + "/up");
+    bool r = false;
+    try { none.save("x", "[A]\nb=1\n", false); } catch (const std::invalid_argument &) { r = true; }
+    CHECK(r);
+
+    std::string cmd = "rm -rf " + d;
+    if (std::system(cmd.c_str()) != 0) std::cerr << "cannot remove " << d << "\n";
+    if (failures == 0) std::cout << "profiles: ok\n";
+    return failures ? 1 : 0;
+}

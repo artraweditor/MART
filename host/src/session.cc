@@ -3,6 +3,7 @@
 #include "arp.h"
 #include "halation.h"
 #include "icctag.h"
+#include "sections.h"
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -69,6 +70,7 @@ Session::~Session()
     unlink((tmpdir_ + "/preview.jpg").c_str());
     unlink((tmpdir_ + "/patch.arp").c_str());
     unlink((tmpdir_ + "/defaults.arp").c_str());
+    unlink((tmpdir_ + "/profile.arp").c_str());
     unlink((tmpdir_ + "/export.arp").c_str());
     if (DIR *d = opendir((tmpdir_ + "/uploads").c_str())) {
         while (dirent *e = readdir(d))
@@ -126,26 +128,48 @@ json Session::status() const
     return s;
 }
 
-// A DNG made by a phone can carry a flat field (gain maps) that corrects its vignetting: using it is on by default,
-// unless the sidecar says otherwise. Other raws have none to use, so nothing is written for them.
+// What is applied when an image is opened, as the start of its history (not as edits: they cannot be undone and the
+// image is not "unsaved"):
+// - a picture that has no sidecar starts from the neutral profile, not from what ART would load for it (its default
+//   or dynamic profile): MART has its own profiles;
+// - a DNG made by a phone can carry a flat field (gain maps) that corrects its vignetting: using it is on by default,
+//   unless the sidecar says otherwise. Other raws have none to use, so nothing is written for them;
+// - the default profile, if one was chosen, for a picture that has no sidecar.
+// In this order: the neutral profile resets everything, and the default profile can say otherwise about the flat field.
 void Session::applyOpeningDefaults()
 {
     base_ = 0;
+    struct stat st;
+    const bool hasSidecar = stat((file_ + ".arp").c_str(), &st) == 0;
+    if (!hasSidecar) command({"apply", ":neutral"});
     std::string lower = file_;
     for (auto &c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (!info_.value("is_raw", false) || lower.size() < 4 || lower.compare(lower.size() - 4, 4, ".dng") != 0) return;
-    std::ifstream side(file_ + ".arp", std::ios::binary);
-    std::stringstream text;
-    text << side.rdbuf();
-    if (text.str().find("FlatFieldUseEmbedded") != std::string::npos) return;  // a choice of the user
-    const std::string path = tmpdir_ + "/defaults.arp";
-    {
-        std::ofstream f(path, std::ios::binary | std::ios::trunc);
-        f << "[RAW]\nFlatFieldEnabled=true\nFlatFieldUseEmbedded=true\n";
-        if (!f) throw ApiError(500, "cannot write " + path);
+    if (info_.value("is_raw", false) && lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".dng") == 0) {
+        std::ifstream side(file_ + ".arp", std::ios::binary);
+        std::stringstream text;
+        text << side.rdbuf();
+        if (text.str().find("FlatFieldUseEmbedded") == std::string::npos) {  // else: a choice of the user
+            const std::string path = tmpdir_ + "/defaults.arp";
+            {
+                std::ofstream f(path, std::ios::binary | std::ios::trunc);
+                f << "[RAW]\nFlatFieldEnabled=true\nFlatFieldUseEmbedded=true\n";
+                if (!f) throw ApiError(500, "cannot write " + path);
+            }
+            command({"apply", path});
+        }
     }
-    command({"apply", path});
-    base_ = 1;  // an entry of the history to start from, not an edit: it cannot be undone and is not "unsaved"
+    if (!hasSidecar) {
+        const std::string profile = profiles_.defaultPath();
+        if (!profile.empty()) {
+            try {
+                applyProfileFile(profile, false, "default#1");
+            } catch (const ApiError &) {
+                // a profile that ART does not accept must not keep the image from opening
+            }
+        }
+    }
+    // the first entry of the history that the user can go back to: where the defaults left it
+    base_ = command({"get-history"}).value("selected", 0);
 }
 
 json Session::open(const std::string &path, bool discard)
@@ -364,12 +388,74 @@ void Session::applyProfile(const std::string &id, bool append)
     if (file_.empty()) throw ApiError(409, "no image is open");
     const std::string p = profiles_.path(id);
     if (p.empty()) throw ApiError(404, "no such profile");
-    std::vector<std::string> a = {"apply"};
-    if (append && !Profiles::isBuiltin(id)) a.push_back("--append");
-    a.push_back(p);
-    command(a);
+    if (Profiles::isBuiltin(id)) {
+        command({"apply", p});  // ":neutral": a name of ART's, not a file
+    } else {
+        applyProfileFile(p, append, "look#" + std::to_string(++lookSeq_));
+    }
     dirty_ = true;
     refreshInfo();
+}
+
+void Session::applyProfileFile(const std::string &path, bool append, const std::string &mergeKey)
+{
+    auto apply = [&](const std::string &file) {
+        std::vector<std::string> a = {"apply"};
+        if (append) a.push_back("--append");
+        if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
+        a.push_back(file);
+        command(a);
+    };
+    const std::string text = slurp(path);
+    if (!halation::present(text)) {
+        apply(path);
+        return;
+    }
+    // The halation is a region of the smoothing tool, added after the regions that the image has: the profile's
+    // Smoothing group is not applied as it is (it would replace them), but through the same path as the slider.
+    const std::string rest = halation::withoutSmoothing(text);
+    if (rest.find('[') != std::string::npos) {
+        const std::string file = tmpdir_ + "/profile.arp";
+        {
+            std::ofstream f(file, std::ios::binary | std::ios::trunc);
+            f << rest;
+            if (!f) throw ApiError(500, "cannot write " + file);
+        }
+        apply(file);
+    }
+    json st = halation::state(text);
+    json change = {{"Enabled", st["Enabled"]}, {"Strength", st["Strength"]}, {"Tint", st["Tint"]}};
+    const std::string patch = tmpdir_ + "/patch.arp";
+    {
+        std::ofstream f(patch, std::ios::binary | std::ios::trunc);
+        f << halation::rewrite(command({"get-params"}).value("params", ""), change);
+        if (!f) throw ApiError(500, "cannot write " + patch);
+    }
+    std::vector<std::string> a = {"apply"};
+    if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
+    a.push_back(patch);
+    command(a);
+}
+
+json Session::profileSections()
+{
+    json r = json::array();
+    for (auto &s : sections::list()) r.push_back({{"id", s.id}, {"label", s.label}, {"default", s.byDefault}});
+    return r;
+}
+
+json Session::saveProfile(const std::string &name, const std::vector<std::string> &ids, bool overwrite)
+{
+    if (file_.empty()) throw ApiError(409, "no image is open");
+    std::string text;
+    try {
+        text = sections::build(command({"get-params"}).value("params", ""), ids);
+        return profiles_.save(name, text, overwrite);
+    } catch (const ProfileExists &e) {
+        throw ApiError(409, e.what());
+    } catch (const std::invalid_argument &e) {
+        throw ApiError(400, e.what());
+    }
 }
 
 } // namespace mart

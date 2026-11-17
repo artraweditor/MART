@@ -100,7 +100,9 @@ export async function getMetadata(makernotes: boolean, edits: boolean): Promise<
 export interface ProfileEntry {
     id: string;
     name: string;
-    source: string; // "bundled", "user", "folder", "uploaded"
+    source: string; // "builtin", "mine" (MART's folder), "uploaded"
+    /** the profile applied to images that are opened without a sidecar */
+    default?: boolean;
 }
 
 export async function listProfiles(): Promise<ProfileEntry[]> {
@@ -227,4 +229,55 @@ export interface ClutInfo {
 export async function lutParams(id?: string): Promise<ClutInfo> {
     const q = id ? `?id=${encodeURIComponent(id)}` : "";
     return (await request(`/api/lut/params${q}`, { cache: "no-store" })).json();
+}
+
+/** a section of the parameters, as the Save dialog offers it */
+export interface ProfileSection {
+    id: string;
+    label: string;
+    default: boolean;
+}
+
+export async function profileSections(): Promise<ProfileSection[]> {
+    return (await request("/api/profile-sections", { cache: "no-store" })).json();
+}
+
+/** Save the current parameters of these sections as a profile of MART. ApiError 409: the name is taken (use `overwrite`). */
+export async function saveProfile(name: string, sections: string[], overwrite = false): Promise<ProfileEntry> {
+    const res = await request("/api/profiles/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, sections, overwrite }),
+    });
+    return res.json();
+}
+
+/** Choose the profile for images without a sidecar (an id of a profile of MART), or none (null). Resolves with the new list. */
+export async function setDefaultProfile(id: string | null): Promise<ProfileEntry[]> {
+    const res = await request("/api/profiles/default", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+    });
+    return res.json();
+}
+
+/** Rename a profile of MART. ApiError 409: another profile has that name. Resolves with the renamed one. */
+export async function renameProfile(id: string, name: string): Promise<ProfileEntry> {
+    const res = await request("/api/profiles/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, name }),
+    });
+    return res.json();
+}
+
+/** Delete a profile of MART. Resolves with the new list. */
+export async function deleteProfile(id: string): Promise<ProfileEntry[]> {
+    const res = await request("/api/profiles/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+    });
+    return res.json();
 }
