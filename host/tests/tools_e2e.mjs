@@ -28,8 +28,20 @@ const params = async () => (await (await fetch(base + "/api/params")).json()).pa
 const edit = async (patch) => { const s = send({ type: "edit", patch }); await next((m) => m.frame && m.seq === s); return params(); };
 const refused = async (patch) => { const s = send({ type: "edit", patch }); const m = await next((x) => x.type === "error" && x.seq === s); return m.message; };
 
+// the preview is tagged as sRGB (ART renders it in sRGB but writes no profile)
+{
+    const jpeg = Buffer.from(await (await fetch(base + "/api/preview?out_w=300")).arrayBuffer());
+    assert.equal(jpeg[0], 0xff); assert.equal(jpeg[1], 0xd8);
+    const at = jpeg.indexOf("ICC_PROFILE\0");
+    assert.ok(at > 0 && at < 64, "the profile is in the header, at " + at);
+    assert.ok(jpeg.includes("sRGB (ICC V2)"), "it is the sRGB profile");
+    assert.equal(jpeg.indexOf("ICC_PROFILE\0", at + 1), -1, "once");
+    console.log("preview tagged as sRGB: ok");
+}
+
 send({ type: "sync" });
-await next((m) => m.type === "state");
+const first = await next((m) => m.type === "state");
+void first;
 
 // tone curve
 let p = await edit({ ToneCurve: { Enabled: true, CurveMode: "Neutral", CurveMode2: "Neutral", Curve: [1, 0, 0, 0.5, 0.6, 1, 1] } });

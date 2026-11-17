@@ -9,7 +9,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function launch({ window = process.env.WINDOW ?? "1180,820", out = tmpdir(), port = 9333 } = {}) {
     const chrome = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     const proc = spawn(chrome, ["--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "mart-chrome-"))}`,
-        `--window-size=${window}`, "--disable-gpu", "--no-first-run", "about:blank"], { stdio: "ignore" });
+        `--window-size=${window}`, "--disable-gpu", "--no-first-run", ...(process.env.CHROME_ARGS ? process.env.CHROME_ARGS.split(" ") : []), "about:blank"], { stdio: "ignore" });
     let target;
     for (let i = 0; i < 50 && !target; i++) {
         try { target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" })).json(); } catch { await sleep(200); }

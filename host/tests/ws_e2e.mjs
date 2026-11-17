@@ -42,6 +42,7 @@ const st0 = await next((m) => m.type === "state");
 const fr0 = await next((m) => m.type === "frame");
 assert.equal(fr0.w, 600);
 assert.equal(fr0.jpeg[0], 0xff); // JPEG magic
+assert.ok(Buffer.from(fr0.jpeg.subarray(0, 64)).includes("ICC_PROFILE\0"), "the frames are tagged with a profile (sRGB)");
 const n0 = st0.history.count;
 console.log("initial", st0.history, "exposure", st0.params.Exposure.Compensation);
 

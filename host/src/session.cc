@@ -2,6 +2,7 @@
 #include "session.h"
 #include "arp.h"
 #include "halation.h"
+#include "icctag.h"
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -67,6 +68,7 @@ Session::~Session()
     engine_.reset();
     unlink((tmpdir_ + "/preview.jpg").c_str());
     unlink((tmpdir_ + "/patch.arp").c_str());
+    unlink((tmpdir_ + "/export.arp").c_str());
     if (DIR *d = opendir((tmpdir_ + "/uploads").c_str())) {
         while (dirent *e = readdir(d))
             if (e->d_name[0] != '.') unlink((tmpdir_ + "/uploads/" + e->d_name).c_str());
@@ -169,6 +171,10 @@ PreviewFrame Session::preview(const PreviewRequest &rq)
     f.x = x, f.y = y, f.w = w, f.h = h;
     f.jpeg = slurp(file);
     if (f.jpeg.empty()) throw ApiError(502, "ART wrote no preview");
+    // `preview` always renders in sRGB (whatever the output, working or monitor profile) but embeds no profile: say
+    // so, so that a browser or a screen with another profile (a wide gamut one) converts the colours instead of
+    // showing them raw. This needs an ART in which the preview is always sRGB (see the README).
+    f.jpeg = tagAsSRGB(f.jpeg);
     return f;
 }
 
@@ -296,7 +302,18 @@ std::string Session::fileStem() const
 json Session::exportImage(const std::vector<std::string> &args)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
-    return command(args);
+    // Exports are always sRGB, like the preview (and what a phone expects), whatever the output profile of the
+    // image is. `--profile` overrides the settings for this export only: the image, its history and its sidecar
+    // are not touched. The intent and black point compensation are those of the preview.
+    const std::string path = tmpdir_ + "/export.arp";
+    {
+        std::ofstream f(path, std::ios::binary | std::ios::trunc);
+        f << "[Color Management]\nOutputBPC=true\nOutputProfile=RTv2_sRGB\nOutputProfileIntent=Relative\n";
+        if (!f) throw ApiError(500, "cannot write " + path);
+    }
+    std::vector<std::string> a = args;
+    a.insert(a.end(), {"--profile", path});
+    return command(a);
 }
 
 json Session::exportFormats()

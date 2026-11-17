@@ -62,6 +62,8 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/ui_tools.mjs http://localhost:8080 /tmp           # curve editor and the new tools (use a freshly started host)
     node host/tests/ui_extras.mjs http://localhost:8080 /tmp          # grain, halation, film simulation, Other tab (fresh host)
     node host/tests/ui_overflow.mjs http://localhost:8080 /tmp        # no sideways scrolling on phone widths
+    node host/tests/ui_srgb.mjs http://localhost:8080 /tmp            # the preview stays sRGB whatever the profiles say (fresh host)
+    node host/tests/srgb_e2e.mjs http://localhost:8080 /path/copy.arw   # exports are sRGB (a COPY: it rewrites its sidecar)
     node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone
     node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back
@@ -70,10 +72,15 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
 Halation is a region of ART's Smoothing tool in halation mode, without a mask, named `MART halation` and added after
 the regions that the sidecar already has; in desktop ART it appears as an ordinary smoothing region.
 
-## Needs ART's `apply --merge` and `get-clut-params`
+## Needs ART's `apply --merge`, `get-clut-params`, an sRGB `preview` and `export --profile`
 
 One history entry per slider drag needs the `apply --merge KEY` option of ART's server mode
 (see `doc/server_mode.md` in ART). Without it every step of a drag is an undo step.
+The `preview` command must always render in sRGB (as it does in current ART: whatever the output, working or monitor
+profile); the host tags the frames as sRGB, so that colours are right on wide-gamut screens. With an older ART the
+preview is in the monitor or working profile and the colours are wrong. Exports are always sRGB too, whatever the
+output profile of the image says: the host gives every export a small profile with `export --profile`, which overrides
+the output profile for that export only (the image, its history and its sidecar are not touched).
 The parameters of a CTL script, with their labels translated, are read with ART's `get-clut-params FILE` command (see
 the same document); without it a LUT can still be chosen but its parameters are not shown. LUTs are offered from `DATA/luts`, `DATA/ctlscripts`,
 ART's user `luts` folder and `--luts DIR`.
