@@ -155,7 +155,11 @@ function toggle(def: ToggleDef, host: ControlHost): Control {
 function heading(def: HeadingDef): Control {
     const el = document.createElement("h3");
     el.className = "tool-heading";
-    el.textContent = def.label;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tool-toggle";
+    b.textContent = def.label;
+    el.appendChild(b);
     return { el, sync() {} };
 }
 

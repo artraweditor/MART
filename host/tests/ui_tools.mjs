@@ -26,6 +26,8 @@ try {
     // the image may come with a curve: reset it first
     await js(`document.querySelector(".curve-ctl .reset").click()`);
     await until("curve reset", async () => (await params()).ToneCurve.Curve === "0;");
+    await js(`(() => { const h = [...document.querySelectorAll(".tool-heading")].find(h => h.textContent === "Contrast and curve"); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); })()`);
+    await sleep(200);
     const at = async (x, y) => js(`(() => { const r = document.querySelector("canvas.curve").getBoundingClientRect(), s = r.width, pad = 12; return { x: r.left + pad + ${x} * (s - 2 * pad), y: r.top + s - pad - ${y} * (s - 2 * pad) }; })()`);
     const a = await at(0.5, 0.5), a2 = await at(0.5, 0.7);
     await b.drag(a.x, a.y, a2.x, a2.y);
@@ -74,7 +76,7 @@ try {
 
     // ---- channel mixer ----------------------------------------------------------------------------------------
     await tab("Color");
-    await js(`[...document.querySelectorAll(".tool-heading")].find(h => h.textContent.startsWith("Channel mixer")).scrollIntoView()`);
+    await js(`(() => { const h = [...document.querySelectorAll(".tool-heading")].find(h => h.textContent.startsWith("Primaries correction")); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); h.scrollIntoView(); })()`);
     const l = await sliders();
     assert.deepEqual(l.filter((x) => /hue|saturation/.test(x)).length, 6, "the six primaries sliders: " + l);
     assert.ok(!l.some((x) => /from/.test(x)), "no matrix");
@@ -84,6 +86,7 @@ try {
     console.log("channel mixer: ok");
 
     // ---- soft light (also on the Color tab) ----------------------------------------------------------------
+    await js(`(() => { const h = [...document.querySelectorAll(".tool-heading")].find(h => h.textContent === "Soft light"); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); })()`);
     await chip("Enabled");
     await until("soft light on", async () => (await params()).SoftLight.Enabled === true);
     await setSlider("Strength", 55);
@@ -120,6 +123,7 @@ try {
     await setSlider("Amount", 60);
     await setSlider("Contrast threshold", 35);
     await until("amount, contrast", async () => { const s = (await params()).Sharpening; return s.DeconvAmount === 60 && s.Contrast === 35; });
+    await js(`(() => { const h = [...document.querySelectorAll(".tool-heading")].find(h => h.textContent === "Capture sharpening"); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); })()`);
     await chip("Enabled");  // the switch, now on
     await until("sharpening off", async () => (await params()).Sharpening.Enabled === false);
     await shot("tools-3-detail.png");

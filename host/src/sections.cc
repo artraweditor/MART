@@ -28,7 +28,7 @@ const std::vector<Def> &table()
         {{"toneeq", "Tone equalizer", true}, {{"ToneEqualizer", {}}}},
         {{"wb", "White balance", false}, {{"White Balance", {}}}},
         {{"saturation", "Saturation and vibrance", true}, {{"Saturation", {}}}},
-        {{"mixer", "Channel mixer", true}, {{"Channel Mixer", {}}}},
+        {{"mixer", "Primaries correction", true}, {{"Channel Mixer", {}}}},
         {{"softlight", "Soft light", true}, {{"SoftLight", {}}}},
         {{"film", "Film simulation", true}, {{"Film Simulation", {}}}},
         // the flat field of the raw file is a few keys of the RAW group, which also has the dark frame, the hot pixels...

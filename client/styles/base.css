@@ -205,7 +205,13 @@ body.busy #sheet { pointer-events: auto; }
 
 /* tool headings and the curve editor */
 .tool-heading { margin: 18px 0 2px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-#tools section > .tool-heading:first-child { border-top: 0; margin-top: 6px; }
+.tool-group:first-child > .tool-heading { border-top: 0; margin-top: 6px; }
+.tool-heading { padding-top: 0; }
+.tool-toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: var(--tap); cursor: pointer; text-transform: inherit; letter-spacing: inherit; }
+.tool-toggle::after { content: "▸"; transition: transform 0.15s; }
+.tool-group.open > .tool-heading .tool-toggle::after { transform: rotate(90deg); }
+.tool-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tool-group:not(.open) > .tool-body { display: none; }
 .curve-ctl canvas { display: block; width: min(100%, 280px); aspect-ratio: 1; margin: 4px auto 8px; touch-action: none; background: var(--field); border-radius: 8px; }
 .curve-ctl .remove { min-height: 36px; }
 .curve-ctl .note { flex: 1; }

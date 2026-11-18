@@ -14,7 +14,8 @@ const section = `#tools section:not([hidden])`;
 const setSlider = (label, v, after) => js(`(() => { let all = [...document.querySelectorAll("${section} .ctl, ${section} .tool-heading")]; const at = ${JSON.stringify(after ?? "")}; if (at) all = all.slice(all.findIndex(e => e.classList.contains("tool-heading") && e.textContent === at)); const c = all.find(c => c.querySelector?.("label")?.textContent === ${JSON.stringify(label)} && !c.hidden); if (!c) throw new Error("no slider " + ${JSON.stringify(label)}); const i = c.querySelector("input"); i.value = ${v}; i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true })); })()`);
 const labels = () => js(`[...document.querySelectorAll("${section} .ctl")].filter(c => !c.hidden && c.querySelector("input[type=range]")).map(c => c.querySelector("label").textContent)`);
 const chip = (text) => js(`[...document.querySelectorAll("${section} .chip")].find(c => c.textContent.trim() === ${JSON.stringify(text)} && c.offsetParent !== null).click()`);
-const scrollTo = (text) => js(`[...document.querySelectorAll("${section} .tool-heading")].find(h => h.textContent === ${JSON.stringify(text)}).scrollIntoView()`);
+// open the group of that heading (the others fold away) and bring it into view
+const scrollTo = (text) => js(`(() => { const h = [...document.querySelectorAll("${section} .tool-heading")].find(h => h.textContent === ${JSON.stringify(text)}); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); h.scrollIntoView(); })()`);
 try {
     await b.goto(base);
     await until("loaded", () => js(`document.getElementById("overlay").hidden && window.__mart?.size().w > 0`));

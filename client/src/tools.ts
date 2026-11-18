@@ -158,6 +158,7 @@ export const TOOLS: Tool[] = [
         id: "tone",
         label: "Tone",
         controls: [
+            { kind: "heading", label: "Exposure and haze", group: "Exposure" },
             { kind: "slider", label: "Exposure", group: "Exposure", key: "Compensation", min: -4, max: 4, step: 0.01, def: 0, digits: 2 },
             { kind: "slider", label: "Black point", group: "Exposure", key: "Black", min: -2, max: 2, step: 0.01, def: 0, digits: 2 },
             {
@@ -207,6 +208,7 @@ export const TOOLS: Tool[] = [
         id: "color",
         label: "Color",
         controls: [
+            { kind: "heading", label: "White balance", group: "White Balance" },
             {
                 kind: "slider",
                 label: "Temperature",
@@ -248,9 +250,10 @@ export const TOOLS: Tool[] = [
                     { value: "Auto", label: "Auto" },
                 ],
             },
+            { kind: "heading", label: "Saturation", group: "Saturation" },
             { kind: "slider", label: "Saturation", group: "Saturation", key: "Saturation", min: -100, max: 100, step: 1, def: 0, digits: 0 },
             { kind: "slider", label: "Vibrance", group: "Saturation", key: "Vibrance", min: -100, max: 100, step: 1, def: 0, digits: 0 },
-            { kind: "heading", label: "Channel mixer (primaries)", group: "Channel Mixer" },
+            { kind: "heading", label: "Primaries correction", group: "Channel Mixer" },
             ...primarySliders("HueTweak", "hue"),
             ...primarySliders("SatTweak", "saturation"),
             { kind: "heading", label: "Soft light", group: "SoftLight" },

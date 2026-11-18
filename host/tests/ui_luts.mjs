@@ -29,7 +29,7 @@ try {
     await b.goto(base);
     await until("loaded", () => js(`document.getElementById("overlay").hidden && window.__mart?.size().w > 0`));
     await js(`[...document.querySelectorAll("#tabs button")].find(x => x.textContent === "Color").click()`);
-    await js(`[...document.querySelectorAll("${section} .tool-heading")].find(h => h.textContent === "Film simulation").scrollIntoView()`);
+    await js(`(() => { const h = [...document.querySelectorAll("${section} .tool-heading")].find(h => h.textContent === "Film simulation"); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); h.scrollIntoView(); })()`);
     await until("LUTs listed", () => js(`${sel}.options.length > 1`));
     assert.deepEqual(await options(), ["None", "sigmoid.ctl"]);
     const manage = `[...document.querySelectorAll("${section} .clut .chip")].find(c => c.textContent === "Manage LUTs…")`;

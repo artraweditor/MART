@@ -334,11 +334,35 @@ function buildPanel(): void {
         const sec = document.createElement("section");
         sec.setAttribute("role", "tabpanel");
         if (tool.id === "crop") sec.appendChild(cropTab.el);
-        if (tool.id === "color") sec.appendChild(pickButton());
+        // each heading starts a collapsible group; one group of a tab is open at a time
+        const groups: { group: HTMLElement; toggle: HTMLButtonElement }[] = [];
+        let body: HTMLElement | null = null;
         for (const def of tool.controls) {
             const c = makeControl(def, host);
             controls.push(c);
-            sec.appendChild(c.el);
+            if (def.kind === "heading") {
+                const group = document.createElement("div");
+                group.className = "tool-group";
+                body = document.createElement("div");
+                body.className = "tool-body";
+                group.append(c.el, body);
+                sec.appendChild(group);
+                groups.push({ group, toggle: c.el.querySelector("button")! });
+            } else (body ?? sec).appendChild(c.el);
+        }
+        // the picker belongs to the white balance group, the first of the Color tab
+        if (tool.id === "color") groups[0]!.group.querySelector(".tool-body")!.prepend(pickButton());
+        if (groups.length) {
+            const open = (n: number): void => {
+                groups.forEach((g, k) => {
+                    g.group.classList.toggle("open", k === n);
+                    g.toggle.setAttribute("aria-expanded", String(k === n));
+                });
+                store("mart.group." + tool.id, String(n));
+            };
+            groups.forEach((g, k) => g.toggle.addEventListener("click", () => open(g.group.classList.contains("open") ? -1 : k)));
+            const savedGroup = Number(store("mart.group." + tool.id) ?? 0);
+            open(Number.isInteger(savedGroup) && savedGroup < groups.length ? savedGroup : 0);
         }
         tools.appendChild(sec);
         sections.push(sec);
