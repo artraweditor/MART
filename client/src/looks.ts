@@ -1,18 +1,59 @@
-// The "Look" sheet: apply a profile (a partial .arp) to the image, save the current settings as a profile of MART,
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// The "Look" sheet: apply a profile (a partial .arp) to the image, save the
+// current settings as a profile of MART,
 // and choose the profile for images that have no sidecar.
 
-import { ApiError, deleteProfile, importProfile, listProfiles, profileSections, renameProfile, saveProfile, setDefaultProfile } from "./api.js";
+import {
+    ApiError,
+    deleteProfile,
+    importProfile,
+    listProfiles,
+    profileSections,
+    renameProfile,
+    saveProfile,
+    setDefaultProfile,
+} from "./api.js";
 import type { ProfileEntry } from "./api.js";
 import { showImport } from "./importdialog.js";
 import { rowMenu } from "./rowmenu.js";
 import { el, openSheet } from "./sheet.js";
 
-const SOURCES: Record<string, string> = { builtin: "Reset", mine: "My profiles" };
+const SOURCES: Record<string, string> = {
+    builtin: "Reset",
+    mine: "My profiles",
+};
 
-/** profiles whose name contains every word of `filter`, grouped by source in the order of `SOURCES` */
-export function groupProfiles(list: ProfileEntry[], filter: string): [string, ProfileEntry[]][] {
+/**
+ * profiles whose name contains every word of `filter`, grouped by source in the
+ * order of `SOURCES`
+ */
+export function groupProfiles(
+    list: ProfileEntry[],
+    filter: string,
+): [string, ProfileEntry[]][] {
     const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
-    const shown = list.filter((p) => words.every((w) => p.name.toLowerCase().includes(w)));
+    const shown = list.filter((p) =>
+        words.every((w) => p.name.toLowerCase().includes(w)),
+    );
     const groups: [string, ProfileEntry[]][] = [];
     for (const src of Object.keys(SOURCES)) {
         const g = shown.filter((p) => p.source === src);
@@ -34,17 +75,38 @@ export async function showLooks(host: LooksHost): Promise<void> {
     const sheet = openSheet("Profiles");
     const note = el("p", {
         class: "muted",
-        text: "A profile replaces the settings it contains and leaves the others. Undo restores the image. The star marks the profile that is applied to a picture when it is opened without a sidecar.",
+        text:
+            "A profile replaces the settings it contains and leaves the " +
+            "others. Undo restores the image. The star marks the profile " +
+            "that " +
+            "is applied to a picture when it is opened without a sidecar.",
     });
-    const filter = el("input", { type: "search", placeholder: "Search profiles" });
+    const filter = el("input", {
+        type: "search",
+        placeholder: "Search profiles",
+    });
     filter.setAttribute("aria-label", "Search profiles");
-    const appendBtn = el("button", { class: "chip wide", text: "Add to my local adjustments instead of replacing them" });
+    const appendBtn = el("button", {
+        class: "chip wide",
+        text: "Add to my local adjustments instead of replacing them",
+    });
     appendBtn.setAttribute("role", "switch");
     appendBtn.setAttribute("aria-checked", "false");
-    appendBtn.addEventListener("click", () => appendBtn.setAttribute("aria-checked", String(appendBtn.getAttribute("aria-checked") !== "true")));
-    const saveBtn = el("button", { class: "action", text: "Save the current settings as a profile…" });
+    appendBtn.addEventListener("click", () =>
+        appendBtn.setAttribute(
+            "aria-checked",
+            String(appendBtn.getAttribute("aria-checked") !== "true"),
+        ),
+    );
+    const saveBtn = el("button", {
+        class: "action",
+        text: "Save the current settings as a profile…",
+    });
     saveBtn.addEventListener("click", () => void showSaveProfile(host));
-    const importBtn = el("button", { class: "action secondary", text: "Import a profile…" });
+    const importBtn = el("button", {
+        class: "action secondary",
+        text: "Import a profile…",
+    });
     importBtn.addEventListener("click", () =>
         showImport<ProfileEntry>({
             title: "Import a profile",
@@ -52,7 +114,10 @@ export async function showLooks(host: LooksHost): Promise<void> {
             accept: ".arp,text/plain",
             proposedName: (f) => f.name.replace(/\.arp$/i, ""),
             store: async (name, f) => {
-                if (f.size > 1 << 20) throw new Error("That file is too large for a profile (1 MiB at most).");
+                if (f.size > 1 << 20)
+                    throw new Error(
+                        "That file is too large for a profile (1 MiB at most).",
+                    );
                 return importProfile(name, await f.text());
             },
             done: (p) => host.imported(p.name),
@@ -60,10 +125,19 @@ export async function showLooks(host: LooksHost): Promise<void> {
     );
     const status = el("p", { class: "muted" });
     const list = el("div", { class: "looks" });
-    sheet.body.append(note, saveBtn, importBtn, filter, appendBtn, status, list);
+    sheet.body.append(
+        note,
+        saveBtn,
+        importBtn,
+        filter,
+        appendBtn,
+        status,
+        list,
+    );
 
     let profiles: ProfileEntry[] = [];
-    const append = (): boolean => appendBtn.getAttribute("aria-checked") === "true";
+    const append = (): boolean =>
+        appendBtn.getAttribute("aria-checked") === "true";
     const apply = (p: ProfileEntry): void => {
         host.apply(p.id, p.name, append());
         sheet.close();
@@ -79,30 +153,51 @@ export async function showLooks(host: LooksHost): Promise<void> {
                 b.addEventListener("click", () => apply(p));
                 row.append(b);
                 if (p.source === "mine") {
-                    // the default for pictures opened without a sidecar: at most one
-                    const star = el("button", { class: "star", text: p.default ? "★" : "☆" });
+                    // the default for pictures opened without a sidecar: at
+                    // most one
+                    const star = el("button", {
+                        class: "star",
+                        text: p.default ? "★" : "☆",
+                    });
                     star.type = "button";
-                    star.setAttribute("aria-pressed", String(p.default === true));
-                    star.setAttribute("aria-label", `Use ${p.name} for pictures opened without a sidecar`);
-                    star.title = p.default ? "The profile for new pictures: tap to remove" : "Use for pictures opened without a sidecar";
+                    star.setAttribute(
+                        "aria-pressed",
+                        String(p.default === true),
+                    );
+                    star.setAttribute(
+                        "aria-label",
+                        `Use ${p.name} for pictures opened without a sidecar`,
+                    );
+                    star.title = p.default
+                        ? "The profile for new pictures: tap to remove"
+                        : "Use for pictures opened without a sidecar";
                     star.addEventListener("click", async () => {
                         try {
-                            profiles = await setDefaultProfile(p.default ? null : p.id);
+                            profiles = await setDefaultProfile(
+                                p.default ? null : p.id,
+                            );
                             render();
                         } catch (e) {
-                            status.textContent = e instanceof Error ? e.message : String(e);
+                            status.textContent =
+                                e instanceof Error ? e.message : String(e);
                         }
                     });
                     const more = el("button", { class: "more", text: "⋯" });
                     more.type = "button";
                     more.setAttribute("aria-expanded", "false");
-                    more.setAttribute("aria-label", `Rename or delete ${p.name}`);
+                    more.setAttribute(
+                        "aria-label",
+                        `Rename or delete ${p.name}`,
+                    );
                     row.append(star, more);
                     const actions = el("div", { class: "look-actions" });
                     actions.hidden = true;
                     more.addEventListener("click", () => {
                         actions.hidden = !actions.hidden;
-                        more.setAttribute("aria-expanded", String(!actions.hidden));
+                        more.setAttribute(
+                            "aria-expanded",
+                            String(!actions.hidden),
+                        );
                         if (!actions.hidden) showActions(p, actions);
                     });
                     list.append(row, actions);
@@ -111,9 +206,14 @@ export async function showLooks(host: LooksHost): Promise<void> {
                 list.append(row);
             }
         }
-        status.textContent = groups.length ? "" : profiles.length ? "No profile matches." : "No profiles yet.";
+        status.textContent = groups.length
+            ? ""
+            : profiles.length
+              ? "No profile matches."
+              : "No profiles yet.";
     };
-    // what can be done with a profile of MART: rename it, delete it (asked again before it is done)
+    // what can be done with a profile of MART: rename it, delete it (asked
+    // again before it is done)
     const showActions = (p: ProfileEntry, box: HTMLElement): void =>
         rowMenu(box, {
             initialName: p.name,
@@ -141,10 +241,16 @@ export async function showLooks(host: LooksHost): Promise<void> {
     }
 }
 
-/** Save the current settings: a name, and which sections of the interface to keep. */
+/**
+ * Save the current settings: a name, and which sections of the interface to
+ * keep.
+ */
 export async function showSaveProfile(host: LooksHost): Promise<void> {
     const sheet = openSheet("Save a profile");
-    const name = el("input", { type: "text", placeholder: "Name of the profile" });
+    const name = el("input", {
+        type: "text",
+        placeholder: "Name of the profile",
+    });
     name.setAttribute("aria-label", "Name of the profile");
     name.autocapitalize = "off";
     name.spellcheck = false;
@@ -152,8 +258,18 @@ export async function showSaveProfile(host: LooksHost): Promise<void> {
     const boxes = el("div", { class: "sections" });
     const go = el("button", { class: "action", text: "Save" });
     sheet.body.append(
-        el("p", { class: "muted", text: "Choose what the profile keeps: the settings of the checked sections, as they are now." }),
-        el("div", { class: "ctl" }, el("div", { class: "row" }, el("label", { text: "Name" })), name),
+        el("p", {
+            class: "muted",
+            text:
+                "Choose what the profile keeps: the settings of the checked " +
+                "sections, as they are now.",
+        }),
+        el(
+            "div",
+            { class: "ctl" },
+            el("div", { class: "row" }, el("label", { text: "Name" })),
+            name,
+        ),
         boxes,
         status,
         go,
@@ -166,7 +282,12 @@ export async function showSaveProfile(host: LooksHost): Promise<void> {
             b.type = "button";
             b.setAttribute("role", "checkbox");
             b.setAttribute("aria-checked", String(s.default));
-            b.addEventListener("click", () => b.setAttribute("aria-checked", String(b.getAttribute("aria-checked") !== "true")));
+            b.addEventListener("click", () =>
+                b.setAttribute(
+                    "aria-checked",
+                    String(b.getAttribute("aria-checked") !== "true"),
+                ),
+            );
             checked.set(s.id, b);
             boxes.append(b);
         }
@@ -174,9 +295,13 @@ export async function showSaveProfile(host: LooksHost): Promise<void> {
         status.textContent = e instanceof Error ? e.message : String(e);
         return;
     }
-    const chosen = (): string[] => [...checked].filter(([, b]) => b.getAttribute("aria-checked") === "true").map(([id]) => id);
+    const chosen = (): string[] =>
+        [...checked]
+            .filter(([, b]) => b.getAttribute("aria-checked") === "true")
+            .map(([id]) => id);
 
-    let replace = false; // the name is taken: the next tap on the button replaces that profile
+    // the name is taken: the next tap on the button replaces that profile
+    let replace = false;
     name.addEventListener("input", () => {
         replace = false;
         go.textContent = "Save";

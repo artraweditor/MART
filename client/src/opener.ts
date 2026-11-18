@@ -1,4 +1,25 @@
-// Open another image, by its path on the machine running MART. Unsaved edits are never dropped silently.
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// Open another image, by its path on the machine running MART. Unsaved edits
+// are never dropped silently.
 
 import { ApiError, openImage } from "./api.js";
 import type { ImageInfo } from "./api.js";
@@ -12,8 +33,14 @@ export interface OpenHost {
 
 export function showOpen(host: OpenHost): void {
     const sheet = openSheet("Open an image");
-    const text = el("p", { class: "muted", text: "Type the path of a raw file on the machine running MART." });
-    const input = el("input", { type: "text", placeholder: "/path/to/photo.arw" });
+    const text = el("p", {
+        class: "muted",
+        text: "Type the path of a raw file on the machine running MART.",
+    });
+    const input = el("input", {
+        type: "text",
+        placeholder: "/path/to/photo.arw",
+    });
     input.setAttribute("aria-label", "Path of the image on the server");
     input.autocapitalize = "off";
     input.spellcheck = false;
@@ -30,18 +57,31 @@ export function showOpen(host: OpenHost): void {
             host.opened(info);
         } catch (e) {
             if (e instanceof ApiError && e.status === 409) {
-                const saveOpen = el("button", { class: "action", text: "Save, then open" });
-                const discardOpen = el("button", { class: "action danger", text: "Discard the edits and open" });
+                const saveOpen = el("button", {
+                    class: "action",
+                    text: "Save, then open",
+                });
+                const discardOpen = el("button", {
+                    class: "action danger",
+                    text: "Discard the edits and open",
+                });
                 saveOpen.addEventListener("click", async () => {
                     try {
                         await host.save();
                         await doOpen(false);
                     } catch (err) {
-                        text.textContent = err instanceof Error ? err.message : String(err);
+                        text.textContent =
+                            err instanceof Error ? err.message : String(err);
                     }
                 });
                 discardOpen.addEventListener("click", () => void doOpen(true));
-                choice.append(el("p", { text: "The current image has edits that are not saved." }), saveOpen, discardOpen);
+                choice.append(
+                    el("p", {
+                        text: "The current image has edits that are not saved.",
+                    }),
+                    saveOpen,
+                    discardOpen,
+                );
             } else {
                 text.textContent = e instanceof Error ? e.message : String(e);
             }

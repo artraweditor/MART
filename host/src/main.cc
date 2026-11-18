@@ -1,5 +1,24 @@
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // MART host: serves the web UI and drives ART through libART.
-// SPDX-License-Identifier: GPL-3.0-or-later
 #include "editor.h"
 #include "exporter.h"
 #include "session.h"
@@ -26,21 +45,30 @@ namespace {
 
 void usage()
 {
-    std::fputs(
-        "usage: mart [options] [IMAGE]\n"
-        "  --root DIR       directory images may be opened from (repeatable; default: IMAGE's folder)\n"
-        "  --listen ADDR    address to bind (default 127.0.0.1; anything else requires the token)\n"
-        "  --port N         port (default 8080)\n"
-        "  --www DIR        the built client (default: ../client/dist next to the binary)\n"
-        "  --socket PATH    use a running `ART-cli --server` instead of the in-process engine\n"
-        "  --data DIR       ART's data directory (in-process engine)\n"
-        "  --luts DIR       the folder of MART's LUTs and CTL scripts for the film simulation, where they are imported\n"
-        "                   (default: ~/.config/MART/luts)\n"
-        "  --profiles DIR   the folder of MART's profiles, where they are saved (default: ~/.config/MART/profiles)\n"
-        "  --gpu MODE       auto|off|force (in-process engine)\n"
-        "  --library PATH   libART (default: $ART_LIBRARY, next to the binary)\n"
-        "  --export-dir DIR keep exported files in DIR (default: a temporary folder, for downloading only)\n"
-        "  --token TOKEN    access token for non-loopback listening (default: random)\n", stderr);
+    std::fputs("usage: mart [options] [IMAGE]\n"
+               "  --root DIR       directory images may be opened from "
+               "(repeatable; default: IMAGE's folder)\n"
+               "  --listen ADDR    address to bind (default 127.0.0.1; "
+               "anything else requires the token)\n"
+               "  --port N         port (default 8080)\n"
+               "  --www DIR        the built client (default: ../client/dist "
+               "next to the binary)\n"
+               "  --socket PATH    use a running `ART-cli --server` instead of "
+               "the in-process engine\n"
+               "  --data DIR       ART's data directory (in-process engine)\n"
+               "  --luts DIR       the folder of MART's LUTs and CTL scripts "
+               "for the film simulation, where they are imported\n"
+               "                   (default: ~/.config/MART/luts)\n"
+               "  --profiles DIR   the folder of MART's profiles, where they "
+               "are saved (default: ~/.config/MART/profiles)\n"
+               "  --gpu MODE       auto|off|force (in-process engine)\n"
+               "  --library PATH   libART (default: $ART_LIBRARY, next to the "
+               "binary)\n"
+               "  --export-dir DIR keep exported files in DIR (default: a "
+               "temporary folder, for downloading only)\n"
+               "  --token TOKEN    access token for non-loopback listening "
+               "(default: random)\n",
+               stderr);
 }
 
 std::string randomToken()
@@ -52,7 +80,10 @@ std::string randomToken()
     return t;
 }
 
-bool isLoopback(const std::string &a) { return a == "127.0.0.1" || a == "localhost" || a == "::1"; }
+bool isLoopback(const std::string &a)
+{
+    return a == "127.0.0.1" || a == "localhost" || a == "::1";
+}
 
 void sendJson(httplib::Response &res, const json &j, int status = 200)
 {
@@ -88,12 +119,13 @@ std::string exeDir(const char *argv0)
     return s == std::string::npos ? "." : p.substr(0, s);
 }
 
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv)
 {
-    // SIGINT and SIGTERM stop the server cleanly (so that the temporary folders are removed): they are blocked in
-    // every thread, and one thread waits for them
+    // SIGINT and SIGTERM stop the server cleanly (so that the temporary folders
+    // are removed): they are blocked in every thread, and one thread waits for
+    // them
     sigset_t stopSignals;
     sigemptyset(&stopSignals);
     sigaddset(&stopSignals, SIGINT);
@@ -111,29 +143,56 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         auto val = [&]() -> std::string {
-            if (i + 1 >= argc) { usage(); std::exit(2); }
+            if (i + 1 >= argc) {
+                usage();
+                std::exit(2);
+            }
             return argv[++i];
         };
-        if (a == "--root") roots.push_back(val());
-        else if (a == "--listen") listen = val();
-        else if (a == "--port") port = std::atoi(val().c_str());
-        else if (a == "--www") www = val();
-        else if (a == "--socket") { eo.socket = val(); remote = true; }
-        else if (a == "--data") eo.data_dir = val();
-        else if (a == "--export-dir") exportDir = val();
-        else if (a == "--profiles") { profileDirs.clear(); profileDirs.push_back({"mine", val()}); userProfiles = false; }
-        else if (a == "--luts") { lutDir = val(); userLuts = false; }
-        else if (a == "--gpu") eo.gpu = val();
-        else if (a == "--library") eo.library = val();
-        else if (a == "--token") token = val();
-        else if (a == "-h" || a == "--help") { usage(); return 0; }
-        else if (a[0] == '-') { usage(); return 2; }
-        else image = a;
+        if (a == "--root")
+            roots.push_back(val());
+        else if (a == "--listen")
+            listen = val();
+        else if (a == "--port")
+            port = std::atoi(val().c_str());
+        else if (a == "--www")
+            www = val();
+        else if (a == "--socket") {
+            eo.socket = val();
+            remote = true;
+        } else if (a == "--data")
+            eo.data_dir = val();
+        else if (a == "--export-dir")
+            exportDir = val();
+        else if (a == "--profiles") {
+            profileDirs.clear();
+            profileDirs.push_back({"mine", val()});
+            userProfiles = false;
+        } else if (a == "--luts") {
+            lutDir = val();
+            userLuts = false;
+        } else if (a == "--gpu")
+            eo.gpu = val();
+        else if (a == "--library")
+            eo.library = val();
+        else if (a == "--token")
+            token = val();
+        else if (a == "-h" || a == "--help") {
+            usage();
+            return 0;
+        } else if (a[0] == '-') {
+            usage();
+            return 2;
+        } else
+            image = a;
     }
     eo.inprocess = !remote;
     if (!image.empty() && roots.empty()) {
         char *rp = realpath(image.c_str(), nullptr);
-        if (!rp) { std::fprintf(stderr, "mart: no such file: %s\n", image.c_str()); return 1; }
+        if (!rp) {
+            std::fprintf(stderr, "mart: no such file: %s\n", image.c_str());
+            return 1;
+        }
         image = rp;
         free(rp);
         roots.push_back(image.substr(0, image.rfind('/')));
@@ -143,23 +202,38 @@ int main(int argc, char **argv)
     if (needToken && token.empty()) token = randomToken();
 
     if (userProfiles) {
-        // MART's own profiles: one folder of the user's (made when the first profile is saved), not ART's
-        const char *xdg = std::getenv("XDG_CONFIG_HOME"), *home = std::getenv("HOME");
-        if (xdg && *xdg) profileDirs.push_back({"mine", std::string(xdg) + "/MART/profiles"});
-        else if (home) profileDirs.push_back({"mine", std::string(home) + "/.config/MART/profiles"});
+        // MART's own profiles: one folder of the user's (made when the first
+        // profile is saved), not ART's
+        const char *xdg = std::getenv("XDG_CONFIG_HOME"),
+                   *home = std::getenv("HOME");
+        if (xdg && *xdg)
+            profileDirs.push_back(
+                {"mine", std::string(xdg) + "/MART/profiles"});
+        else if (home)
+            profileDirs.push_back(
+                {"mine", std::string(home) + "/.config/MART/profiles"});
     }
 
     if (userLuts) {
-        // MART's own LUTs: one folder of the user's (made when the first one is imported), not ART's
-        const char *xdg = std::getenv("XDG_CONFIG_HOME"), *home = std::getenv("HOME");
-        if (xdg && *xdg) lutDir = std::string(xdg) + "/MART/luts";
-        else if (home) lutDir = std::string(home) + "/.config/MART/luts";
+        // MART's own LUTs: one folder of the user's (made when the first one is
+        // imported), not ART's
+        const char *xdg = std::getenv("XDG_CONFIG_HOME"),
+                   *home = std::getenv("HOME");
+        if (xdg && *xdg)
+            lutDir = std::string(xdg) + "/MART/luts";
+        else if (home)
+            lutDir = std::string(home) + "/.config/MART/luts";
     }
 
     Worker worker;
     std::unique_ptr<Session> session;
     try {
-        worker.submit([&] { session = std::make_unique<Session>(eo, roots, profileDirs, lutDir); }).get();
+        worker
+            .submit([&] {
+                session =
+                    std::make_unique<Session>(eo, roots, profileDirs, lutDir);
+            })
+            .get();
         if (!image.empty()) worker.submit([&] { session->open(image); }).get();
     } catch (const std::exception &e) {
         std::fprintf(stderr, "mart: %s\n", e.what());
@@ -167,34 +241,49 @@ int main(int argc, char **argv)
     }
 
     httplib::Server svr;
-    // only SO_REUSEADDR (to restart at once): with SO_REUSEPORT, which the library sets by default, two copies of
-    // MART could share the port and a browser would talk to either of them
+    // only SO_REUSEADDR (to restart at once): with SO_REUSEPORT, which the
+    // library sets by default, two copies of MART could share the port and a
+    // browser would talk to either of them
     svr.set_socket_options([](socket_t sock) {
         int yes = 1;
-        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&yes), sizeof(yes));
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                   reinterpret_cast<const char *>(&yes), sizeof(yes));
     });
-    svr.set_payload_max_length(Luts::MAX_IMPORT + (1u << 20));  // only an uploaded LUT is large: see the pre-routing handler
-    svr.set_file_extension_and_mimetype_mapping("webmanifest", "application/manifest+json");  // the largest body is an uploaded profile (1 MiB)
+    svr.set_payload_max_length(
+        Luts::MAX_IMPORT +
+        (1u
+         << 20));  // only an uploaded LUT is large: see the pre-routing handler
+    svr.set_file_extension_and_mimetype_mapping(
+        "webmanifest",
+        "application/manifest+json");  // the largest body is an uploaded
+                                       // profile (1 MiB)
     if (!svr.set_mount_point("/", www))
-        std::fprintf(stderr, "mart: warning: client directory not found: %s\n", www.c_str());
+        std::fprintf(stderr, "mart: warning: client directory not found: %s\n",
+                     www.c_str());
 
-    svr.set_pre_routing_handler([needToken, token](const httplib::Request &req, httplib::Response &res) {
-        // everything but an uploaded LUT is small (the largest other body is a profile of 1 MiB)
-        if (req.method == "POST" && req.path != "/api/luts" && req.body.size() > (2u << 20)) {
+    svr.set_pre_routing_handler([needToken, token](const httplib::Request &req,
+                                                   httplib::Response &res) {
+        // everything but an uploaded LUT is small (the largest other body is a
+        // profile of 1 MiB)
+        if (req.method == "POST" && req.path != "/api/luts" &&
+            req.body.size() > (2u << 20)) {
             sendJson(res, {{"error", "request too large"}}, 413);
             return httplib::Server::HandlerResponse::Handled;
         }
-        // a web page of another origin must not drive the API (CSRF, DNS rebinding)
+        // a web page of another origin must not drive the API (CSRF, DNS
+        // rebinding)
         if (req.path.compare(0, 5, "/api/") == 0 && req.has_header("Origin")) {
             std::string o = req.get_header_value("Origin");
             auto p = o.find("://");
-            if (p == std::string::npos || o.substr(p + 3) != req.get_header_value("Host")) {
+            if (p == std::string::npos ||
+                o.substr(p + 3) != req.get_header_value("Host")) {
                 sendJson(res, {{"error", "cross-origin request refused"}}, 403);
                 return httplib::Server::HandlerResponse::Handled;
             }
         }
         if (!needToken) return httplib::Server::HandlerResponse::Unhandled;
-        bool ok = req.has_param("token") && req.get_param_value("token") == token;
+        bool ok =
+            req.has_param("token") && req.get_param_value("token") == token;
         if (!ok) {
             auto c = req.get_header_value("Cookie");
             ok = c.find("mart_token=" + token) != std::string::npos;
@@ -204,113 +293,159 @@ int main(int argc, char **argv)
             return httplib::Server::HandlerResponse::Handled;
         }
         if (req.has_param("token"))
-            res.set_header("Set-Cookie", "mart_token=" + token + "; Path=/; HttpOnly; SameSite=Strict");
+            res.set_header("Set-Cookie",
+                           "mart_token=" + token +
+                               "; Path=/; HttpOnly; SameSite=Strict");
         return httplib::Server::HandlerResponse::Unhandled;
     });
 
     Editor editor(worker, *session);
-    svr.WebSocket("/api/ws", [&](const httplib::Request &, httplib::ws::WebSocket &ws) {
-        auto conn = std::make_shared<Conn>(&ws);
-        editor.attach(conn);
-        std::string msg;
-        for (;;) {
-            auto r = ws.read(msg);
-            if (r == httplib::ws::Fail) break;
-            if (r == httplib::ws::Text) editor.message(conn, msg);
-        }
-        editor.detach(conn);
-    });
+    svr.WebSocket("/api/ws",
+                  [&](const httplib::Request &, httplib::ws::WebSocket &ws) {
+                      auto conn = std::make_shared<Conn>(&ws);
+                      editor.attach(conn);
+                      std::string msg;
+                      for (;;) {
+                          auto r = ws.read(msg);
+                          if (r == httplib::ws::Fail) break;
+                          if (r == httplib::ws::Text) editor.message(conn, msg);
+                      }
+                      editor.detach(conn);
+                  });
 
     std::unique_ptr<Exporter> exporter;
     try {
-        exporter = std::make_unique<Exporter>(worker, *session, exportDir, [&](bool b) { editor.setBusy(b); });
+        exporter = std::make_unique<Exporter>(
+            worker, *session, exportDir, [&](bool b) { editor.setBusy(b); });
     } catch (const std::exception &e) {
         std::fprintf(stderr, "mart: %s\n", e.what());
         return 1;
     }
 
-    // The status must not wait for the engine: during an export it is answered from the last one computed.
+    // The status must not wait for the engine: during an export it is answered
+    // from the last one computed.
     std::mutex statusMutex;
     json lastStatus;
-    svr.Get("/api/status", [&](const httplib::Request &, httplib::Response &res) {
+    svr.Get(
+        "/api/status", [&](const httplib::Request &, httplib::Response &res) {
+            serve(worker, res, [&](Worker &w) {
+                json s;
+                if (exporter->busy()) {
+                    std::lock_guard<std::mutex> g(statusMutex);
+                    s = lastStatus.is_object() ? lastStatus : json::object();
+                    s["busy"] = "exporting";
+                } else {
+                    s = w.submit([&] { return session->status(); }).get();
+                    std::lock_guard<std::mutex> g(statusMutex);
+                    lastStatus = s;
+                }
+                sendJson(res, s);
+            });
+        });
+    svr.Get("/api/export/formats", [&](const httplib::Request &,
+                                       httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
-            json s;
-            if (exporter->busy()) {
-                std::lock_guard<std::mutex> g(statusMutex);
-                s = lastStatus.is_object() ? lastStatus : json::object();
-                s["busy"] = "exporting";
-            } else {
-                s = w.submit([&] { return session->status(); }).get();
-                std::lock_guard<std::mutex> g(statusMutex);
-                lastStatus = s;
-            }
-            sendJson(res, s);
+            sendJson(res,
+                     w.submit([&] { return session->exportFormats(); }).get());
         });
     });
-    svr.Get("/api/export/formats", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->exportFormats(); }).get()); });
-    });
-    svr.Post("/api/export", [&](const httplib::Request &req, httplib::Response &res) {
-        serve(worker, res, [&](Worker &) {
-            json body = json::parse(req.body.empty() ? "{}" : req.body, nullptr, false);
-            if (body.is_discarded()) throw ApiError(400, "expected a JSON object");
-            sendJson(res, exporter->start(body), 202);
-        });
-    });
-    svr.Get(R"(/api/export/(\w+)/file)", [&](const httplib::Request &req, httplib::Response &res) {
-        serve(worker, res, [&](Worker &) {
-            std::string path, name, mime;
-            if (!exporter->file(req.matches[1], path, name, mime)) throw ApiError(404, "no such finished export");
-            res.set_header("Content-Disposition", "attachment; filename=\"" + name + "\"");
-            res.set_header("Cache-Control", "no-store");
-            struct stat st;
-            if (stat(path.c_str(), &st) != 0) throw ApiError(404, "the exported file is gone");
-            res.set_file_content(path, mime);
-        });
-    });
-    svr.Get(R"(/api/export/(\w+))", [&](const httplib::Request &req, httplib::Response &res) {
-        serve(worker, res, [&](Worker &) { sendJson(res, exporter->status(req.matches[1])); });
-    });
-    svr.Post("/api/open", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/api/export",
+             [&](const httplib::Request &req, httplib::Response &res) {
+                 serve(worker, res, [&](Worker &) {
+                     json body = json::parse(req.body.empty() ? "{}" : req.body,
+                                             nullptr, false);
+                     if (body.is_discarded())
+                         throw ApiError(400, "expected a JSON object");
+                     sendJson(res, exporter->start(body), 202);
+                 });
+             });
+    svr.Get(R"(/api/export/(\w+)/file)",
+            [&](const httplib::Request &req, httplib::Response &res) {
+                serve(worker, res, [&](Worker &) {
+                    std::string path, name, mime;
+                    if (!exporter->file(req.matches[1], path, name, mime))
+                        throw ApiError(404, "no such finished export");
+                    res.set_header("Content-Disposition",
+                                   "attachment; filename=\"" + name + "\"");
+                    res.set_header("Cache-Control", "no-store");
+                    struct stat st;
+                    if (stat(path.c_str(), &st) != 0)
+                        throw ApiError(404, "the exported file is gone");
+                    res.set_file_content(path, mime);
+                });
+            });
+    svr.Get(R"(/api/export/(\w+))",
+            [&](const httplib::Request &req, httplib::Response &res) {
+                serve(worker, res, [&](Worker &) {
+                    sendJson(res, exporter->status(req.matches[1]));
+                });
+            });
+    svr.Post("/api/open", [&](const httplib::Request &req,
+                              httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json body = json::parse(req.body, nullptr, false);
-            if (!body.is_object() || !body.contains("path") || !body["path"].is_string())
+            if (!body.is_object() || !body.contains("path") ||
+                !body["path"].is_string())
                 throw ApiError(400, "expected {\"path\": \"...\"}");
             std::string p = body["path"];
-            const bool discard = body.contains("discard") && body["discard"].is_boolean() && body["discard"].get<bool>();
-            sendJson(res, w.submit([&] { return session->open(p, discard); }).get());
+            const bool discard = body.contains("discard") &&
+                                 body["discard"].is_boolean() &&
+                                 body["discard"].get<bool>();
+            sendJson(res,
+                     w.submit([&] { return session->open(p, discard); }).get());
         });
     });
     svr.Get("/api/info", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->info(); }).get()); });
-    });
-    svr.Get("/api/metadata", [&](const httplib::Request &req, httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
-            const bool mn = req.get_param_value("makernotes") == "1";
-            const bool edits = req.get_param_value("edits") != "0";
-            sendJson(res, w.submit([&] { return session->metadata(mn, edits); }).get());
+            sendJson(res, w.submit([&] { return session->info(); }).get());
         });
     });
-    svr.Post("/api/wb/spot", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Get("/api/metadata",
+            [&](const httplib::Request &req, httplib::Response &res) {
+                serve(worker, res, [&](Worker &w) {
+                    const bool mn = req.get_param_value("makernotes") == "1";
+                    const bool edits = req.get_param_value("edits") != "0";
+                    sendJson(res, w.submit([&] {
+                                       return session->metadata(mn, edits);
+                                   }).get());
+                });
+            });
+    svr.Post("/api/wb/spot", [&](const httplib::Request &req,
+                                 httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
             auto num = [&](const char *k) {
-                if (!b.is_object() || !b.contains(k) || !b[k].is_number_integer()) throw ApiError(400, "expected x, y, w, h");
+                if (!b.is_object() || !b.contains(k) ||
+                    !b[k].is_number_integer())
+                    throw ApiError(400, "expected x, y, w, h");
                 return b[k].get<int>();
             };
             int x = num("x"), y = num("y"), ww = num("w"), hh = num("h");
-            sendJson(res, w.submit([&] { return session->spotWB(x, y, ww, hh); }).get());
+            sendJson(res, w.submit([&] {
+                               return session->spotWB(x, y, ww, hh);
+                           }).get());
         });
     });
-    svr.Get("/api/profiles", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->profiles().list(); }).get()); });
-    });
-    // import: a profile from a file of the user's is stored in MART's folder (under the name given)
-    svr.Post("/api/profiles", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Get("/api/profiles",
+            [&](const httplib::Request &, httplib::Response &res) {
+                serve(worker, res, [&](Worker &w) {
+                    sendJson(res, w.submit([&] {
+                                       return session->profiles().list();
+                                   }).get());
+                });
+            });
+    // import: a profile from a file of the user's is stored in MART's folder
+    // (under the name given)
+    svr.Post("/api/profiles", [&](const httplib::Request &req,
+                                  httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             std::string name = req.get_param_value("name"), text = req.body;
             try {
-                sendJson(res, w.submit([&] { return session->profiles().import(name, text); }).get(), 201);
+                sendJson(res,
+                         w.submit([&] {
+                              return session->profiles().import(name, text);
+                          }).get(),
+                         201);
             } catch (const ProfileExists &e) {
                 throw ApiError(409, e.what());
             } catch (const std::invalid_argument &e) {
@@ -318,32 +453,51 @@ int main(int argc, char **argv)
             }
         });
     });
-    svr.Get("/api/profile-sections", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->profileSections(); }).get()); });
-    });
-    svr.Post("/api/profiles/save", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Get("/api/profile-sections",
+            [&](const httplib::Request &, httplib::Response &res) {
+                serve(worker, res, [&](Worker &w) {
+                    sendJson(res, w.submit([&] {
+                                       return session->profileSections();
+                                   }).get());
+                });
+            });
+    svr.Post("/api/profiles/save", [&](const httplib::Request &req,
+                                       httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
-            if (!b.is_object() || !b.contains("name") || !b["name"].is_string() || !b.contains("sections") || !b["sections"].is_array())
+            if (!b.is_object() || !b.contains("name") ||
+                !b["name"].is_string() || !b.contains("sections") ||
+                !b["sections"].is_array())
                 throw ApiError(400, "expected {name, sections[, overwrite]}");
             std::vector<std::string> ids;
             for (auto &x : b["sections"]) {
-                if (!x.is_string()) throw ApiError(400, "sections must be strings");
+                if (!x.is_string())
+                    throw ApiError(400, "sections must be strings");
                 ids.push_back(x);
             }
-            const bool overwrite = b.contains("overwrite") && b["overwrite"].is_boolean() && b["overwrite"].get<bool>();
+            const bool overwrite = b.contains("overwrite") &&
+                                   b["overwrite"].is_boolean() &&
+                                   b["overwrite"].get<bool>();
             const std::string name = b["name"];
-            sendJson(res, w.submit([&] { return session->saveProfile(name, ids, overwrite); }).get(), 201);
+            sendJson(res,
+                     w.submit([&] {
+                          return session->saveProfile(name, ids, overwrite);
+                      }).get(),
+                     201);
         });
     });
-    svr.Post("/api/profiles/rename", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/api/profiles/rename", [&](const httplib::Request &req,
+                                         httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
-            if (!b.is_object() || !b.contains("id") || !b["id"].is_string() || !b.contains("name") || !b["name"].is_string())
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string() ||
+                !b.contains("name") || !b["name"].is_string())
                 throw ApiError(400, "expected {id, name}");
             const std::string id = b["id"], name = b["name"];
             try {
-                sendJson(res, w.submit([&] { return session->profiles().rename(id, name); }).get());
+                sendJson(res, w.submit([&] {
+                                   return session->profiles().rename(id, name);
+                               }).get());
             } catch (const ProfileExists &e) {
                 throw ApiError(409, e.what());
             } catch (const std::out_of_range &e) {
@@ -353,10 +507,12 @@ int main(int argc, char **argv)
             }
         });
     });
-    svr.Post("/api/profiles/delete", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/api/profiles/delete", [&](const httplib::Request &req,
+                                         httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
-            if (!b.is_object() || !b.contains("id") || !b["id"].is_string()) throw ApiError(400, "expected {id}");
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string())
+                throw ApiError(400, "expected {id}");
             const std::string id = b["id"];
             try {
                 w.submit([&] { session->profiles().remove(id); }).get();
@@ -365,46 +521,66 @@ int main(int argc, char **argv)
             } catch (const std::invalid_argument &e) {
                 throw ApiError(400, e.what());
             }
-            sendJson(res, w.submit([&] { return session->profiles().list(); }).get());
+            sendJson(res, w.submit([&] {
+                               return session->profiles().list();
+                           }).get());
         });
     });
-    svr.Post("/api/profiles/default", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/api/profiles/default", [&](const httplib::Request &req,
+                                          httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
-            if (!b.is_object() || !b.contains("id") || !(b["id"].is_string() || b["id"].is_null()))
-                throw ApiError(400, "expected {id: a profile id, or null for none}");
-            const std::string id = b["id"].is_null() ? "" : b["id"].get<std::string>();
+            if (!b.is_object() || !b.contains("id") ||
+                !(b["id"].is_string() || b["id"].is_null()))
+                throw ApiError(400,
+                               "expected {id: a profile id, or null for none}");
+            const std::string id =
+                b["id"].is_null() ? "" : b["id"].get<std::string>();
             try {
                 w.submit([&] { session->profiles().setDefault(id); }).get();
             } catch (const std::invalid_argument &e) {
                 throw ApiError(400, e.what());
             }
-            sendJson(res, w.submit([&] { return session->profiles().list(); }).get());
+            sendJson(res, w.submit([&] {
+                               return session->profiles().list();
+                           }).get());
         });
     });
     svr.Get("/api/luts", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->luts().list(); }).get()); });
-    });
-    svr.Post("/api/luts", [&](const httplib::Request &req, httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
-            std::string name = req.get_param_value("name");
-            try {
-                sendJson(res, w.submit([&] { return session->luts().import(name, req.body); }).get(), 201);
-            } catch (const ProfileExists &e) {
-                throw ApiError(409, e.what());
-            } catch (const std::invalid_argument &e) {
-                throw ApiError(400, e.what());
-            }
+            sendJson(res,
+                     w.submit([&] { return session->luts().list(); }).get());
         });
     });
-    svr.Post("/api/luts/rename", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post(
+        "/api/luts", [&](const httplib::Request &req, httplib::Response &res) {
+            serve(worker, res, [&](Worker &w) {
+                std::string name = req.get_param_value("name");
+                try {
+                    sendJson(res,
+                             w.submit([&] {
+                                  return session->luts().import(name, req.body);
+                              }).get(),
+                             201);
+                } catch (const ProfileExists &e) {
+                    throw ApiError(409, e.what());
+                } catch (const std::invalid_argument &e) {
+                    throw ApiError(400, e.what());
+                }
+            });
+        });
+    svr.Post("/api/luts/rename", [&](const httplib::Request &req,
+                                     httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
-            if (!b.is_object() || !b.contains("id") || !b["id"].is_string() || !b.contains("name") || !b["name"].is_string())
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string() ||
+                !b.contains("name") || !b["name"].is_string())
                 throw ApiError(400, "expected {id, name}");
             const std::string id = b["id"], name = b["name"];
             try {
-                sendJson(res, w.submit([&] { return session->luts().rename(id, name); }).get());
+                sendJson(res, w.submit([&] {
+                                   return session->luts().rename(id, name);
+                               }).get());
             } catch (const ProfileExists &e) {
                 throw ApiError(409, e.what());
             } catch (const std::out_of_range &e) {
@@ -414,41 +590,56 @@ int main(int argc, char **argv)
             }
         });
     });
-    svr.Post("/api/luts/delete", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post("/api/luts/delete", [&](const httplib::Request &req,
+                                     httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             json b = json::parse(req.body, nullptr, false);
-            if (!b.is_object() || !b.contains("id") || !b["id"].is_string()) throw ApiError(400, "expected {id}");
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string())
+                throw ApiError(400, "expected {id}");
             const std::string id = b["id"];
             try {
                 w.submit([&] { session->luts().remove(id); }).get();
             } catch (const std::out_of_range &e) {
                 throw ApiError(404, e.what());
             }
-            sendJson(res, w.submit([&] { return session->luts().list(); }).get());
+            sendJson(res,
+                     w.submit([&] { return session->luts().list(); }).get());
         });
     });
-    svr.Get("/api/lut/params", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Get("/api/lut/params", [&](const httplib::Request &req,
+                                   httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             std::string id = req.get_param_value("id");
-            sendJson(res, w.submit([&] { return session->lutParams(id); }).get());
+            sendJson(res,
+                     w.submit([&] { return session->lutParams(id); }).get());
         });
     });
-    svr.Get("/api/params", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->params(); }).get()); });
+    svr.Get("/api/params", [&](const httplib::Request &,
+                               httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            sendJson(res, w.submit([&] { return session->params(); }).get());
+        });
     });
-    svr.Post("/api/save", [&](const httplib::Request &, httplib::Response &res) {
-        serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->save(); }).get()); });
-    });
-    svr.Get("/api/preview", [&](const httplib::Request &req, httplib::Response &res) {
+    svr.Post(
+        "/api/save", [&](const httplib::Request &, httplib::Response &res) {
+            serve(worker, res, [&](Worker &w) {
+                sendJson(res, w.submit([&] { return session->save(); }).get());
+            });
+        });
+    svr.Get("/api/preview", [&](const httplib::Request &req,
+                                httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             PreviewRequest pr;
-            pr.scale = req.has_param("scale") ? std::atof(req.get_param_value("scale").c_str()) : 0;
+            pr.scale = req.has_param("scale")
+                           ? std::atof(req.get_param_value("scale").c_str())
+                           : 0;
             pr.out_w = toInt(req, "out_w", 0);
             pr.x = toInt(req, "x", 0);
             pr.y = toInt(req, "y", 0);
             pr.w = toInt(req, "w", 0);
             pr.h = toInt(req, "h", 0);
-            PreviewFrame f = w.submit([&] { return session->preview(pr); }).get();
+            PreviewFrame f =
+                w.submit([&] { return session->preview(pr); }).get();
             res.set_header("X-Frame-Width", std::to_string(f.width));
             res.set_header("X-Frame-Height", std::to_string(f.height));
             res.set_header("Cache-Control", "no-store");
@@ -472,7 +663,8 @@ int main(int argc, char **argv)
     if (!stoppedByUser) pthread_kill(signalThread.native_handle(), SIGTERM);
     signalThread.join();
     if (!listened && !stoppedByUser) {
-        std::fprintf(stderr, "mart: cannot listen on %s:%d\n", listen.c_str(), port);
+        std::fprintf(stderr, "mart: cannot listen on %s:%d\n", listen.c_str(),
+                     port);
         return 1;
     }
     return 0;

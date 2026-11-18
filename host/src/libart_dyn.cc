@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "libart_dyn.h"
 #include <cstdlib>
 #include <mutex>
@@ -85,7 +104,9 @@ void load(const std::string &explicit_path)
         if (lib) break;
         last = dlerror();
     }
-    if (!lib) throw ArtError(8, "cannot load libART (use --library or ART_LIBRARY): " + last);
+    if (!lib)
+        throw ArtError(
+            8, "cannot load libART (use --library or ART_LIBRARY): " + last);
     sym(lib, "ART_options_new", api.options_new);
     sym(lib, "ART_options_free", api.options_free);
     sym(lib, "ART_options_set_remote", api.set_remote);
@@ -111,22 +132,28 @@ void load(const std::string &explicit_path)
 
 constexpr int ART_ERR_COMMAND = 1;
 
-} // namespace
+}  // namespace
 
 std::unique_ptr<Engine> Engine::create(const EngineOptions &o)
 {
     load(o.library);
     void *opt = api.options_new();
     if (!opt) throw ArtError(9, "out of memory");
-    struct Guard { void *p; ~Guard() { api.options_free(p); } } guard{opt};
+    struct Guard {
+        void *p;
+        ~Guard() { api.options_free(p); }
+    } guard{opt};
     auto check = [&](int rc) {
         if (rc != 0) throw ArtError(rc, api.strerror(rc));
     };
     if (o.inprocess) {
-        check(api.set_inprocess(opt, o.data_dir.empty() ? nullptr : o.data_dir.c_str(), nullptr, nullptr));
+        check(api.set_inprocess(
+            opt, o.data_dir.empty() ? nullptr : o.data_dir.c_str(), nullptr,
+            nullptr));
         if (!o.gpu.empty()) check(api.set_gpu(opt, o.gpu.c_str()));
     } else {
-        check(api.set_remote(opt, o.socket.empty() ? nullptr : o.socket.c_str()));
+        check(
+            api.set_remote(opt, o.socket.empty() ? nullptr : o.socket.c_str()));
         check(api.set_timeout(opt, o.timeout_ms));
     }
     void *h = api.engine_create(opt);
@@ -169,4 +196,4 @@ Result Engine::run(const std::vector<std::string> &args)
 std::string Engine::version() { return loaded ? api.version() : ""; }
 bool Engine::hasInprocess() { return loaded && api.has_backend(1) == 1; }
 
-} // namespace mart
+}  // namespace mart

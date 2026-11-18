@@ -1,3 +1,23 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // The preview canvas: shows the last frame from the server, pinch/pan/zoom
 // with instant feedback (the frame is just redrawn with the new transform),
 // and tells its owner when the view has settled, so that a sharp frame of the
@@ -14,15 +34,22 @@ interface Frame {
 
 const MAX_ZOOM = 4; // CSS pixels per image pixel
 const SETTLE_MS = 90;
-const PAD = 16; // CSS px of margin around the image when it is fitted: room for the crop handles
+// CSS px of margin around the image when it is fitted: room for the crop
+// handles
+const PAD = 16;
 
-/** painting on the picture (the retouch brush): a drag with one finger or the mouse paints instead of panning */
+/**
+ * painting on the picture (the retouch brush): a drag with one finger or the
+ * mouse paints instead of panning
+ */
 export interface BrushHandler {
     /** positions are in pixels of the image */
     start(x: number, y: number): void;
     move(x: number, y: number): void;
     end(): void;
-    /** a second finger came down: the stroke is dropped, the gesture is a pinch */
+    /**
+     * a second finger came down: the stroke is dropped, the gesture is a pinch
+     */
     cancel(): void;
 }
 
@@ -31,7 +58,8 @@ export class PreviewView {
     private ctx: CanvasRenderingContext2D;
     private onSettled: () => void;
 
-    // the part of the image shown (the whole image, or the crop): its origin and size
+    // the part of the image shown (the whole image, or the crop): its origin
+    // and size
     private bx = 0;
     private by = 0;
     private iw = 0;
@@ -40,7 +68,8 @@ export class PreviewView {
     private tx = 0; // screen = image * zoom + t (CSS pixels)
     private ty = 0;
     private frame: Frame | null = null;
-    private fitted = true; // the image is fitted to the view (and follows its size)
+    // the image is fitted to the view (and follows its size)
+    private fitted = true;
 
     private settleTimer = 0;
     private drawQueued = false;
@@ -58,8 +87,11 @@ export class PreviewView {
     /** if set, drags paint (see BrushHandler) */
     brush: BrushHandler | null = null;
     private painting = false;
-    /** drawn over the frame after each draw, in canvas pixels (the retouch mask) */
-    drawOverlay: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
+    /**
+     * drawn over the frame after each draw, in canvas pixels (the retouch mask)
+     */
+    drawOverlay: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null =
+        null;
     /** ask for a redraw (the overlay changed) */
     redraw(): void {
         this.queueDraw();
@@ -74,11 +106,16 @@ export class PreviewView {
         canvas.addEventListener("pointermove", (e) => this.move(e));
         canvas.addEventListener("pointerup", (e) => this.up(e));
         canvas.addEventListener("pointercancel", (e) => this.up(e));
-        canvas.addEventListener("wheel", (e) => this.wheel(e), { passive: false });
+        canvas.addEventListener("wheel", (e) => this.wheel(e), {
+            passive: false,
+        });
         this.resize();
     }
 
-    /** A new image (or a new size of it): reset to fit. The owner then asks for a frame. */
+    /**
+     * A new image (or a new size of it): reset to fit. The owner then asks for
+     * a frame.
+     */
     setImage(w: number, h: number): void {
         this.bx = this.by = 0;
         this.iw = w;
@@ -89,10 +126,19 @@ export class PreviewView {
         this.queueDraw();
     }
 
-    /** Show only this part of the image (the cropped view); null: the whole image. The owner is told to refresh. */
+    /**
+     * Show only this part of the image (the cropped view); null: the whole
+     * image. The owner is told to refresh.
+     */
     setBounds(r: Region | null, full: { w: number; h: number }): void {
         const n = r ?? { x: 0, y: 0, w: full.w, h: full.h };
-        if (n.x === this.bx && n.y === this.by && n.w === this.iw && n.h === this.ih) return;
+        if (
+            n.x === this.bx &&
+            n.y === this.by &&
+            n.w === this.iw &&
+            n.h === this.ih
+        )
+            return;
         this.bx = n.x;
         this.by = n.y;
         this.iw = n.w;
@@ -103,14 +149,32 @@ export class PreviewView {
 
     /** image coordinates -> CSS pixels of the canvas, and back */
     toScreen(x: number, y: number): { x: number; y: number } {
-        return { x: (x - this.bx) * this.zoom + this.tx, y: (y - this.by) * this.zoom + this.ty };
+        return {
+            x: (x - this.bx) * this.zoom + this.tx,
+            y: (y - this.by) * this.zoom + this.ty,
+        };
     }
     toImage(px: number, py: number): { x: number; y: number } {
-        return { x: (px - this.tx) / this.zoom + this.bx, y: (py - this.ty) / this.zoom + this.by };
+        return {
+            x: (px - this.tx) / this.zoom + this.bx,
+            y: (py - this.ty) / this.zoom + this.by,
+        };
     }
     /** the layout, for the browser tests */
-    layout(): { zoom: number; fitZoom: number; fitted: boolean; cssW: number; cssH: number } {
-        return { zoom: this.zoom, fitZoom: this.fitZoom, fitted: this.fitted, cssW: this.cssW, cssH: this.cssH };
+    layout(): {
+        zoom: number;
+        fitZoom: number;
+        fitted: boolean;
+        cssW: number;
+        cssH: number;
+    } {
+        return {
+            zoom: this.zoom,
+            fitZoom: this.fitZoom,
+            fitted: this.fitted,
+            cssW: this.cssW,
+            cssH: this.cssH,
+        };
     }
     /** the part of the image shown */
     getBounds(): Region {
@@ -138,7 +202,10 @@ export class PreviewView {
         if (!region) return null;
         const dpr = window.devicePixelRatio || 1;
         const full = Math.min(region.w, region.w * this.zoom * dpr);
-        return { ...region, out_w: Math.max(1, Math.round(draft ? full / 2 : full)) };
+        return {
+            ...region,
+            out_w: Math.max(1, Math.round(draft ? full / 2 : full)),
+        };
     }
 
     private get cssW(): number {
@@ -148,7 +215,12 @@ export class PreviewView {
         return this.canvas.clientHeight;
     }
     private get fitZoom(): number {
-        return this.iw && this.ih ? Math.min((this.cssW - 2 * PAD) / this.iw, (this.cssH - 2 * PAD) / this.ih) : 1;
+        return this.iw && this.ih
+            ? Math.min(
+                  (this.cssW - 2 * PAD) / this.iw,
+                  (this.cssH - 2 * PAD) / this.ih,
+              )
+            : 1;
     }
 
     private resize(): void {
@@ -156,7 +228,8 @@ export class PreviewView {
         this.canvas.width = Math.max(1, Math.round(this.cssW * dpr));
         this.canvas.height = Math.max(1, Math.round(this.cssH * dpr));
         if (this.iw) {
-            // a fitted image follows the size of the view (judged by the flag: the old zoom is for the old size)
+            // a fitted image follows the size of the view (judged by the flag:
+            // the old zoom is for the old size)
             if (this.fitted) this.fit();
             else this.clamp();
             this.changed();
@@ -176,14 +249,23 @@ export class PreviewView {
         this.zoom = Math.min(Math.max(this.zoom, min), Math.max(MAX_ZOOM, min));
         const sw = this.iw * this.zoom;
         const sh = this.ih * this.zoom;
-        this.tx = sw <= this.cssW ? (this.cssW - sw) / 2 : Math.min(0, Math.max(this.cssW - sw, this.tx));
-        this.ty = sh <= this.cssH ? (this.cssH - sh) / 2 : Math.min(0, Math.max(this.cssH - sh, this.ty));
+        this.tx =
+            sw <= this.cssW
+                ? (this.cssW - sw) / 2
+                : Math.min(0, Math.max(this.cssW - sw, this.tx));
+        this.ty =
+            sh <= this.cssH
+                ? (this.cssH - sh) / 2
+                : Math.min(0, Math.max(this.cssH - sh, this.ty));
         // zoomed out as far as it goes: that is the fitted view again
         if (this.zoom <= min * 1.0001) this.fit();
     }
 
     private zoomAt(factor: number, cx: number, cy: number): void {
-        const z = Math.min(Math.max(this.zoom * factor, this.fitZoom), Math.max(MAX_ZOOM, this.fitZoom));
+        const z = Math.min(
+            Math.max(this.zoom * factor, this.fitZoom),
+            Math.max(MAX_ZOOM, this.fitZoom),
+        );
         const f = z / this.zoom;
         this.tx = cx - (cx - this.tx) * f;
         this.ty = cy - (cy - this.ty) * f;
@@ -243,7 +325,9 @@ export class PreviewView {
             this.ty += now.y - old.y;
             this.clamp();
         } else if (this.pointers.size === 2) {
-            const other = [...this.pointers.entries()].find(([id]) => id !== e.pointerId)![1];
+            const other = [...this.pointers.entries()].find(
+                ([id]) => id !== e.pointerId,
+            )![1];
             const d0 = Math.hypot(old.x - other.x, old.y - other.y);
             const d1 = Math.hypot(now.x - other.x, now.y - other.y);
             const c0 = { x: (old.x + other.x) / 2, y: (old.y + other.y) / 2 };
@@ -299,8 +383,14 @@ export class PreviewView {
         if (!this.iw) return null;
         const x0 = Math.max(0, Math.floor(-this.tx / this.zoom));
         const y0 = Math.max(0, Math.floor(-this.ty / this.zoom));
-        const x1 = Math.min(this.iw, Math.ceil((this.cssW - this.tx) / this.zoom));
-        const y1 = Math.min(this.ih, Math.ceil((this.cssH - this.ty) / this.zoom));
+        const x1 = Math.min(
+            this.iw,
+            Math.ceil((this.cssW - this.tx) / this.zoom),
+        );
+        const y1 = Math.min(
+            this.ih,
+            Math.ceil((this.cssH - this.ty) / this.zoom),
+        );
         if (x1 <= x0 || y1 <= y0) return null;
         return { x: this.bx + x0, y: this.by + y0, w: x1 - x0, h: y1 - y0 };
     }

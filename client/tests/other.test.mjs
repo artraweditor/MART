@@ -1,3 +1,23 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { summarize } from "../dist/app/other.js";
@@ -17,20 +37,58 @@ test("tools with controls are not listed, disabled ones neither", () => {
 });
 
 test("other tools: their keys, without Enabled", () => {
-    const items = summarize({ Denoise: { Enabled: true, Chrominance: 2.7, Aggressive: false }, "HSL Equalizer": { Enabled: true, SCurve: "1;0;0.5;" } });
-    assert.deepEqual(items.map((i) => i.name), ["Color equalizer", "Noise reduction"]);
-    assert.deepEqual(items[1].rows, [["Chrominance", "2.7"], ["Aggressive", "false"]]);
+    const items = summarize({
+        Denoise: { Enabled: true, Chrominance: 2.7, Aggressive: false },
+        "HSL Equalizer": { Enabled: true, SCurve: "1;0;0.5;" },
+    });
+    assert.deepEqual(
+        items.map((i) => i.name),
+        ["Color equalizer", "Noise reduction"],
+    );
+    assert.deepEqual(items[1].rows, [
+        ["Chrominance", "2.7"],
+        ["Aggressive", "false"],
+    ]);
 });
 
 test("smoothing: its regions, but not the halation of the Detail tab", () => {
-    const g = { Enabled: true, Mode_1: 3, Channel_1: 1, MaskName_1: "", MaskEnabled_1: true, Mode_2: 7, MaskName_2: "MART halation", MaskEnabled_2: true, Mode_3: 0, Channel_3: 0, MaskEnabled_3: false };
+    const g = {
+        Enabled: true,
+        Mode_1: 3,
+        Channel_1: 1,
+        MaskName_1: "",
+        MaskEnabled_1: true,
+        Mode_2: 7,
+        MaskName_2: "MART halation",
+        MaskEnabled_2: true,
+        Mode_3: 0,
+        Channel_3: 0,
+        MaskEnabled_3: false,
+    };
     const [s] = summarize({ Smoothing: g });
     assert.equal(s.summary, "2 regions");
-    assert.deepEqual(s.rows, [["Region 1", "Non-local means, chrominance"], ["Region 3", "Guided, luminance (off)"]]);
+    assert.deepEqual(s.rows, [
+        ["Region 1", "Non-local means, chrominance"],
+        ["Region 3", "Guided, luminance (off)"],
+    ]);
     // only the halation: nothing to tell
-    assert.deepEqual(summarize({ Smoothing: { Enabled: true, Mode_1: 7, MaskName_1: "MART halation" } }), []);
+    assert.deepEqual(
+        summarize({
+            Smoothing: {
+                Enabled: true,
+                Mode_1: 7,
+                MaskName_1: "MART halation",
+            },
+        }),
+        [],
+    );
     // a halation made in ART (another name) is listed
-    assert.equal(summarize({ Smoothing: { Enabled: true, Mode_1: 7, MaskName_1: "" } })[0].rows[0][1], "Halation");
+    assert.equal(
+        summarize({
+            Smoothing: { Enabled: true, Mode_1: 7, MaskName_1: "" },
+        })[0].rows[0][1],
+        "Halation",
+    );
 });
 
 test("region tools: how many regions", () => {
@@ -39,15 +97,36 @@ test("region tools: how many regions", () => {
         "Local Contrast": { Enabled: true, Contrast: 10, Contrast_1: 5 },
         TextureBoost: { Enabled: true, Strength: 5 },
     });
-    assert.deepEqual(items.map((i) => [i.name, i.summary]), [["Color/tone correction", "2 regions"], ["Local contrast", "2 regions"], ["Texture boost", "1 region"]]);
-    assert.deepEqual(items[0].rows, [["Region 1", "Jzazbz"], ["Region 2", "HSL"]]);
+    assert.deepEqual(
+        items.map((i) => [i.name, i.summary]),
+        [
+            ["Color/tone correction", "2 regions"],
+            ["Local contrast", "2 regions"],
+            ["Texture boost", "1 region"],
+        ],
+    );
+    assert.deepEqual(items[0].rows, [
+        ["Region 1", "Jzazbz"],
+        ["Region 2", "HSL"],
+    ]);
 });
 
 test("long values are cut", () => {
-    const [i] = summarize({ "RGB Curves": { Enabled: true, rCurve: "1;" + "0.123456;".repeat(30) } });
+    const [i] = summarize({
+        "RGB Curves": { Enabled: true, rCurve: "1;" + "0.123456;".repeat(30) },
+    });
     assert.ok(i.rows[0][1].length <= 90 && i.rows[0][1].endsWith("…"));
 });
 
 test("dehaze has a control: not listed", () => {
-    assert.deepEqual(summarize({ Dehaze: { Enabled: true, Strength: "1;0;0.75;0;0;1;0.75;0;0;", Depth: 25 } }), []);
+    assert.deepEqual(
+        summarize({
+            Dehaze: {
+                Enabled: true,
+                Strength: "1;0;0.75;0;0;1;0.75;0;0;",
+                Depth: 25,
+            },
+        }),
+        [],
+    );
 });

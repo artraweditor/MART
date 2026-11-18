@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "retouch.h"
 #include <algorithm>
 #include <cmath>
@@ -10,7 +29,8 @@
 #include <utility>
 #include <vector>
 
-namespace mart { namespace retouch {
+namespace mart {
+namespace retouch {
 
 const char *const NAME_PREFIX = "MART retouch ";
 
@@ -46,7 +66,8 @@ struct Region {
     {
         auto n = find("MaskName");
         const size_t L = std::strlen(NAME_PREFIX);
-        if (!n || n->compare(0, L, NAME_PREFIX) != 0 || n->size() == L) return 0;
+        if (!n || n->compare(0, L, NAME_PREFIX) != 0 || n->size() == L)
+            return 0;
         for (size_t i = L; i < n->size(); ++i)
             if ((*n)[i] < '0' || (*n)[i] > '9') return 0;
         if (n->size() - L > 6) return 0;
@@ -55,7 +76,7 @@ struct Region {
 };
 
 struct Group {
-    Lines head;                // the keys of the tool itself (Enabled, ...)
+    Lines head;  // the keys of the tool itself (Enabled, ...)
     std::vector<Region> regions;
     bool toolOn() const
     {
@@ -120,7 +141,9 @@ std::string serialize(const Group &g)
     std::string out = "[ColorCorrection]\n";
     for (auto &p : g.head) out += p.first + "=" + p.second + "\n";
     for (size_t k = 0; k < g.regions.size(); ++k)
-        for (auto &p : g.regions[k].kv) out += p.first + "_" + std::to_string(k + 1) + "=" + p.second + "\n";
+        for (auto &p : g.regions[k].kv)
+            out +=
+                p.first + "_" + std::to_string(k + 1) + "=" + p.second + "\n";
     return out + "\n";
 }
 
@@ -137,7 +160,7 @@ double number(const Region &r, const std::string &k, double dflt)
     return v && !v->empty() ? std::atof(v->c_str()) : dflt;
 }
 
-// ---- half floats and base64 ---------------------------------------------------------------------------------------
+// ---- half floats and base64 -------------------------------------------------
 
 uint16_t toHalf(float f)
 {
@@ -146,9 +169,10 @@ uint16_t toHalf(float f)
     const uint32_t sign = (x >> 16) & 0x8000;
     int32_t e = (int32_t)((x >> 23) & 0xff) - 127 + 15;
     uint32_t m = x & 0x7fffff;
-    if (((x >> 23) & 0xff) == 0xff) return (uint16_t)(sign | 0x7c00 | (m ? 0x200 : 0));  // inf, nan
-    if (e >= 31) return (uint16_t)(sign | 0x7c00);                                          // too large
-    if (e <= 0) {                                                                            // subnormal or zero
+    if (((x >> 23) & 0xff) == 0xff)
+        return (uint16_t)(sign | 0x7c00 | (m ? 0x200 : 0));  // inf, nan
+    if (e >= 31) return (uint16_t)(sign | 0x7c00);           // too large
+    if (e <= 0) {  // subnormal or zero
         if (e < -10) return (uint16_t)sign;
         m |= 0x800000;
         const int shift = 14 - e;
@@ -159,7 +183,8 @@ uint16_t toHalf(float f)
     }
     uint32_t h = ((uint32_t)e << 10) | (m >> 13);
     const uint32_t rem = m & 0x1fff;
-    if (rem > 0x1000 || (rem == 0x1000 && (h & 1))) ++h;  // may carry into the exponent: right
+    if (rem > 0x1000 || (rem == 0x1000 && (h & 1)))
+        ++h;  // may carry into the exponent: right
     return (uint16_t)(sign | h);
 }
 
@@ -189,7 +214,8 @@ float fromHalf(uint16_t h)
     return f;
 }
 
-const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const char B64[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 std::string b64encode(const std::vector<uint8_t> &d)
 {
@@ -224,26 +250,34 @@ bool b64decode(const std::string &s, std::vector<uint8_t> &out)
     return true;
 }
 
-} // namespace
+}  // namespace
 
-// the list ART stores: repeated [n, radius, paint, hardness, x1, y1, ... xn, yn]
+// the list ART stores: repeated [n, radius, paint, hardness, x1, y1, ... xn,
+// yn]
 std::string packStrokes(const json &groups)
 {
-    if (!groups.is_array()) throw std::invalid_argument("Strokes: expected a list");
+    if (!groups.is_array())
+        throw std::invalid_argument("Strokes: expected a list");
     std::vector<float> list;
     size_t total = 0;
     for (auto &g : groups) {
-        if (!g.is_array() || g.size() < 5 || (g.size() - 3) % 2 != 0) throw std::invalid_argument("Strokes: bad group");
+        if (!g.is_array() || g.size() < 5 || (g.size() - 3) % 2 != 0)
+            throw std::invalid_argument("Strokes: bad group");
         for (auto &v : g)
-            if (!v.is_number() || !std::isfinite(v.get<double>())) throw std::invalid_argument("Strokes: not a number");
+            if (!v.is_number() || !std::isfinite(v.get<double>()))
+                throw std::invalid_argument("Strokes: not a number");
         const double radius = g[0], paint = g[1], hard = g[2];
-        if (radius < 0 || radius > 1 || (paint != 0 && paint != 1) || hard < 0 || hard > 1)
-            throw std::invalid_argument("Strokes: bad radius, paint or hardness");
+        if (radius < 0 || radius > 1 || (paint != 0 && paint != 1) ||
+            hard < 0 || hard > 1)
+            throw std::invalid_argument(
+                "Strokes: bad radius, paint or hardness");
         const size_t n = (g.size() - 3) / 2;
         total += n;
         if (total > 200000) throw std::invalid_argument("Strokes: too many");
         for (size_t at = 0; at < n; at += 2048) {
-            const size_t c = std::min<size_t>(2048, n - at);  // 2048 is the largest count a half float holds exactly
+            const size_t c =
+                std::min<size_t>(2048, n - at);  // 2048 is the largest count a
+                                                 // half float holds exactly
             list.push_back((float)c);
             list.push_back((float)radius);
             list.push_back((float)paint);
@@ -251,7 +285,9 @@ std::string packStrokes(const json &groups)
             for (size_t i = at; i < at + c; ++i)
                 for (int k = 0; k < 2; ++k) {
                     const double v = g[3 + 2 * i + k];
-                    if (v < -0.5 || v > 1.5) throw std::invalid_argument("Strokes: position out of the image");
+                    if (v < -0.5 || v > 1.5)
+                        throw std::invalid_argument(
+                            "Strokes: position out of the image");
                     list.push_back((float)v);
                 }
         }
@@ -271,7 +307,8 @@ json unpackStrokes(const std::string &packed)
     std::vector<uint8_t> bytes;
     if (packed.empty() || !b64decode(packed, bytes)) return out;
     std::vector<float> v;
-    for (size_t i = 0; i + 1 < bytes.size(); i += 2) v.push_back(fromHalf((uint16_t)(bytes[i] | (bytes[i + 1] << 8))));
+    for (size_t i = 0; i + 1 < bytes.size(); i += 2)
+        v.push_back(fromHalf((uint16_t)(bytes[i] | (bytes[i + 1] << 8))));
     size_t i = 0;
     while (i + 4 <= v.size()) {
         const size_t n = (size_t)std::lround(v[i]);
@@ -303,8 +340,10 @@ json regionState(const Region &r, bool toolOn)
     auto b = r.find("DrawnMaskEnabled");
     j["BrushEnabled"] = b && *b == "true";
     j["BrushFeather"] = number(r, "DrawnMaskFeather", 0);
-    j["BrushOpacity"] = std::round(number(r, "DrawnMaskOpacity", 1) * 1000) / 10;
-    j["BrushSmoothness"] = std::round(number(r, "DrawnMaskSmoothness", 0) * 1000) / 10;
+    j["BrushOpacity"] =
+        std::round(number(r, "DrawnMaskOpacity", 1) * 1000) / 10;
+    j["BrushSmoothness"] =
+        std::round(number(r, "DrawnMaskSmoothness", 0) * 1000) / 10;
     auto s = r.find("DrawnMaskStrokes");
     j["Strokes"] = unpackStrokes(s ? *s : "");
     return j;
@@ -317,7 +356,9 @@ Region newRegion(int id)
     r.set("MaskName", NAME_PREFIX + std::to_string(id));
     r.set("MaskEnabled", "true");
     for (const char *k : {"Slope", "Pivot"}) r.set(k, "1");
-    for (const char *k : {"Offset", "Compression", "HueShift", "OutSaturation", "InSaturation", "A", "B"}) r.set(k, "0");
+    for (const char *k : {"Offset", "Compression", "HueShift", "OutSaturation",
+                          "InSaturation", "A", "B"})
+        r.set(k, "0");
     r.set("Power", "1");
     r.set("DrawnMaskEnabled", "false");
     r.set("DrawnMaskMode", "0");  // intersect: the brush is the only mask
@@ -333,11 +374,16 @@ struct Range {
     double lo, hi, scale;  // the key is the field's value times `scale`
 };
 const Range RANGES[] = {
-    {"HueShift", "HueShift", -180, 180, 1},   {"OutSaturation", "OutSaturation", -100, 100, 1},
-    {"Slope", "Slope", 0.01, 32, 1},          {"Offset", "Offset", -0.15, 0.15, 1},
-    {"Power", "Power", 0.1, 4, 1},            {"Pivot", "Pivot", 0.001, 2, 1},
-    {"Compression", "Compression", 0, 1, 1}, {"DrawnMaskFeather", "BrushFeather", 0, 100, 1},
-    {"DrawnMaskOpacity", "BrushOpacity", 0, 100, 0.01}, {"DrawnMaskSmoothness", "BrushSmoothness", 0, 100, 0.01},
+    {"HueShift", "HueShift", -180, 180, 1},
+    {"OutSaturation", "OutSaturation", -100, 100, 1},
+    {"Slope", "Slope", 0.01, 32, 1},
+    {"Offset", "Offset", -0.15, 0.15, 1},
+    {"Power", "Power", 0.1, 4, 1},
+    {"Pivot", "Pivot", 0.001, 2, 1},
+    {"Compression", "Compression", 0, 1, 1},
+    {"DrawnMaskFeather", "BrushFeather", 0, 100, 1},
+    {"DrawnMaskOpacity", "BrushOpacity", 0, 100, 0.01},
+    {"DrawnMaskSmoothness", "BrushSmoothness", 0, 100, 0.01},
 };
 
 bool validId(const std::string &s, int &id)
@@ -349,7 +395,7 @@ bool validId(const std::string &s, int &id)
     return id >= 1;
 }
 
-} // namespace
+}  // namespace
 
 json state(const std::string &profileText)
 {
@@ -370,25 +416,34 @@ bool present(const std::string &profileText)
 
 std::string rewrite(const std::string &profileText, const json &change)
 {
-    if (!change.is_object()) throw std::invalid_argument("Retouch: expected an object");
+    if (!change.is_object())
+        throw std::invalid_argument("Retouch: expected an object");
     // check everything first: nothing is changed by a bad request
     for (auto &[ids, v] : change.items()) {
         int id;
-        if (!validId(ids, id)) throw std::invalid_argument("Retouch: bad region id " + ids);
+        if (!validId(ids, id))
+            throw std::invalid_argument("Retouch: bad region id " + ids);
         if (v.is_null()) continue;
-        if (!v.is_object()) throw std::invalid_argument("Retouch " + ids + ": expected an object or null");
+        if (!v.is_object())
+            throw std::invalid_argument("Retouch " + ids +
+                                        ": expected an object or null");
         for (auto &[k, x] : v.items()) {
             if (k == "Enabled" || k == "BrushEnabled") {
-                if (!x.is_boolean()) throw std::invalid_argument("Retouch " + k + ": expected true or false");
+                if (!x.is_boolean())
+                    throw std::invalid_argument("Retouch " + k +
+                                                ": expected true or false");
             } else if (k == "Strokes") {
                 packStrokes(x);
             } else {
                 const Range *r = nullptr;
                 for (auto &c : RANGES)
                     if (k == c.field) r = &c;
-                if (!r) throw std::invalid_argument("Retouch: unknown key " + k);
-                if (!x.is_number() || !std::isfinite(x.get<double>()) || x.get<double>() < r->lo || x.get<double>() > r->hi)
-                    throw std::invalid_argument("Retouch " + k + ": out of range");
+                if (!r)
+                    throw std::invalid_argument("Retouch: unknown key " + k);
+                if (!x.is_number() || !std::isfinite(x.get<double>()) ||
+                    x.get<double>() < r->lo || x.get<double>() > r->hi)
+                    throw std::invalid_argument("Retouch " + k +
+                                                ": out of range");
             }
         }
     }
@@ -400,7 +455,7 @@ std::string rewrite(const std::string &profileText, const json &change)
             if (g.regions[i].id() == id) return (int)i;
         return -1;
     };
-    std::vector<int> enabling;   // ids that are switched on by this change
+    std::vector<int> enabling;  // ids that are switched on by this change
     bool switchedOff = false;
     for (auto &[ids, v] : change.items()) {
         const int id = std::atoi(ids.c_str());
@@ -415,14 +470,17 @@ std::string rewrite(const std::string &profileText, const json &change)
         if (at < 0) {
             g.regions.push_back(newRegion(id));
             at = (int)g.regions.size() - 1;
-            g.regions[at].set("MaskEnabled", "false");  // on only if the change says so
+            g.regions[at].set("MaskEnabled",
+                              "false");  // on only if the change says so
         }
         Region &r = g.regions[at];
         for (auto &[k, x] : v.items()) {
             if (k == "Enabled") {
                 r.set("MaskEnabled", x.get<bool>() ? "true" : "false");
-                if (x.get<bool>()) enabling.push_back(id);
-                else switchedOff = true;
+                if (x.get<bool>())
+                    enabling.push_back(id);
+                else
+                    switchedOff = true;
             } else if (k == "BrushEnabled") {
                 r.set("DrawnMaskEnabled", x.get<bool>() ? "true" : "false");
                 r.set("DrawnMaskMode", "0");
@@ -430,14 +488,18 @@ std::string rewrite(const std::string &profileText, const json &change)
                 r.set("DrawnMaskStrokes", packStrokes(x));
             } else {
                 for (auto &c : RANGES)
-                    if (k == c.field) r.set(c.key, num(x.get<double>() * c.scale));
+                    if (k == c.field)
+                        r.set(c.key, num(x.get<double>() * c.scale));
             }
         }
     }
     if (!enabling.empty()) {
-        if (!toolOn)  // the regions that the image has were off with the tool: they stay off
+        if (!toolOn)  // the regions that the image has were off with the tool:
+                      // they stay off
             for (auto &r : g.regions)
-                if (std::find(enabling.begin(), enabling.end(), r.id()) == enabling.end()) r.set("MaskEnabled", "false");
+                if (std::find(enabling.begin(), enabling.end(), r.id()) ==
+                    enabling.end())
+                    r.set("MaskEnabled", "false");
         g.setTool(true);
     } else if (switchedOff) {
         bool another = false;
@@ -473,15 +535,18 @@ std::string withoutColorCorrection(const std::string &profileText)
         size_t j = profileText.find('\n', i);
         const size_t end = j == std::string::npos ? profileText.size() : j + 1;
         std::string line = profileText.substr(i, end - i);
-        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
-        if (!line.empty() && line[0] == '[') skip = (line == "[ColorCorrection]");
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+            line.pop_back();
+        if (!line.empty() && line[0] == '[')
+            skip = (line == "[ColorCorrection]");
         if (!skip) out += profileText.substr(i, end - i);
         i = end;
     }
     return out;
 }
 
-std::string replace(const std::string &paramsText, const std::string &profileText)
+std::string replace(const std::string &paramsText,
+                    const std::string &profileText)
 {
     Group image = parse(paramsText), prof = parse(profileText);
     const bool toolOn = image.toolOn();
@@ -495,7 +560,8 @@ std::string replace(const std::string &paramsText, const std::string &profileTex
             ours = ours || r.on();
             out.regions.push_back(r);
         }
-    if (ours && !toolOn)  // the regions that the image has were off with the tool: they stay off
+    if (ours && !toolOn)  // the regions that the image has were off with the
+                          // tool: they stay off
         for (auto &r : out.regions)
             if (!r.id()) r.set("MaskEnabled", "false");
     bool any = false;
@@ -504,4 +570,5 @@ std::string replace(const std::string &paramsText, const std::string &profileTex
     return serialize(out);
 }
 
-}} // namespace mart::retouch
+}  // namespace retouch
+}  // namespace mart

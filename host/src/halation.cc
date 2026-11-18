@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "halation.h"
 #include <cmath>
 #include <cstdio>
@@ -7,7 +26,8 @@
 #include <utility>
 #include <vector>
 
-namespace mart { namespace halation {
+namespace mart {
+namespace halation {
 
 const char *const REGION_NAME = "MART halation";
 
@@ -33,7 +53,8 @@ Lines smoothing(const std::string &text)
             continue;
         }
         auto eq = line.find('=');
-        if (in && eq != std::string::npos) out.emplace_back(line.substr(0, eq), line.substr(eq + 1));
+        if (in && eq != std::string::npos)
+            out.emplace_back(line.substr(0, eq), line.substr(eq + 1));
     }
     return out;
 }
@@ -55,7 +76,8 @@ void set(Lines &l, const std::string &key, const std::string &value)
     l.emplace_back(key, value);
 }
 
-// the number after the last '_' of a key of a region ("Mode_3" -> 3), 0 if the key is not one
+// the number after the last '_' of a key of a region ("Mode_3" -> 3), 0 if the
+// key is not one
 int suffix(const std::string &key)
 {
     auto u = key.rfind('_');
@@ -76,7 +98,8 @@ int regionCount(const Lines &l)
 int ourRegion(const Lines &l)
 {
     for (int k = 1; k <= regionCount(l); ++k) {
-        auto n = find(l, "MaskName_" + std::to_string(k)), m = find(l, "Mode_" + std::to_string(k));
+        auto n = find(l, "MaskName_" + std::to_string(k)),
+             m = find(l, "Mode_" + std::to_string(k));
         if (n && *n == REGION_NAME && m && *m == "7") return k;
     }
     return 0;
@@ -95,7 +118,7 @@ double number(const Lines &l, const std::string &key, double dflt)
     return v ? std::atof(v->c_str()) : dflt;
 }
 
-} // namespace
+}  // namespace
 
 json state(const std::string &profileText)
 {
@@ -120,10 +143,14 @@ std::string profileText(const std::string &paramsText)
 {
     if (!present(paramsText)) return "";
     json s = state(paramsText);
-    // the tool is on when the profile is applied; the region says whether halation is
-    return std::string("[Smoothing]\nEnabled=true\nMode_1=7\nChannel_1=2\nMaskName_1=") + REGION_NAME +
-           "\nMaskEnabled_1=" + (s["Enabled"].get<bool>() ? "true" : "false") + "\nHalationSize_1=" +
-           num(s["Strength"].get<double>()) + "\nHalationColor_1=" + num(s["Tint"].get<double>()) + "\n";
+    // the tool is on when the profile is applied; the region says whether
+    // halation is
+    return std::string("[Smoothing]\nEnabled=true\nMode_1=7\nChannel_1="
+                       "2\nMaskName_1=") +
+           REGION_NAME +
+           "\nMaskEnabled_1=" + (s["Enabled"].get<bool>() ? "true" : "false") +
+           "\nHalationSize_1=" + num(s["Strength"].get<double>()) +
+           "\nHalationColor_1=" + num(s["Tint"].get<double>()) + "\n";
 }
 
 std::string withoutSmoothing(const std::string &profileText)
@@ -135,7 +162,8 @@ std::string withoutSmoothing(const std::string &profileText)
         size_t j = profileText.find('\n', i);
         const size_t end = j == std::string::npos ? profileText.size() : j + 1;
         std::string line = profileText.substr(i, end - i);
-        while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+        while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
+            line.pop_back();
         if (!line.empty() && line[0] == '[') skip = (line == "[Smoothing]");
         if (!skip) out += profileText.substr(i, end - i);
         i = end;
@@ -145,13 +173,18 @@ std::string withoutSmoothing(const std::string &profileText)
 
 std::string rewrite(const std::string &profileText, const json &change)
 {
-    if (!change.is_object()) throw std::invalid_argument("Halation: expected an object");
+    if (!change.is_object())
+        throw std::invalid_argument("Halation: expected an object");
     for (auto &[k, v] : change.items()) {
         if (k == "Enabled") {
-            if (!v.is_boolean()) throw std::invalid_argument("Halation Enabled: expected true or false");
+            if (!v.is_boolean())
+                throw std::invalid_argument(
+                    "Halation Enabled: expected true or false");
         } else if (k == "Strength" || k == "Tint") {
-            const double lo = k == "Strength" ? 0.001 : -0.5, hi = k == "Strength" ? 5 : 0.5;
-            if (!v.is_number() || !std::isfinite(v.get<double>()) || v.get<double>() < lo || v.get<double>() > hi)
+            const double lo = k == "Strength" ? 0.001 : -0.5,
+                         hi = k == "Strength" ? 5 : 0.5;
+            if (!v.is_number() || !std::isfinite(v.get<double>()) ||
+                v.get<double>() < lo || v.get<double>() > hi)
                 throw std::invalid_argument("Halation " + k + ": out of range");
         } else {
             throw std::invalid_argument("Halation: unknown key " + k);
@@ -159,11 +192,15 @@ std::string rewrite(const std::string &profileText, const json &change)
     }
 
     Lines l = smoothing(profileText);
-    const bool toolOn = [&] { auto e = find(l, "Enabled"); return e && *e == "true"; }();
+    const bool toolOn = [&] {
+        auto e = find(l, "Enabled");
+        return e && *e == "true";
+    }();
     const int others = regionCount(l);
     int k = ourRegion(l);
     if (!k) {
-        // after all the others; the new region is off until it is told otherwise
+        // after all the others; the new region is off until it is told
+        // otherwise
         k = others + 1;
         const std::string n = std::to_string(k);
         set(l, "Mode_" + n, "7");
@@ -173,14 +210,18 @@ std::string rewrite(const std::string &profileText, const json &change)
         set(l, "HalationColor_" + n, "0");
     }
     const std::string n = std::to_string(k);
-    if (change.contains("Strength")) set(l, "HalationSize_" + n, num(change["Strength"].get<double>()));
-    if (change.contains("Tint")) set(l, "HalationColor_" + n, num(change["Tint"].get<double>()));
+    if (change.contains("Strength"))
+        set(l, "HalationSize_" + n, num(change["Strength"].get<double>()));
+    if (change.contains("Tint"))
+        set(l, "HalationColor_" + n, num(change["Tint"].get<double>()));
     if (change.contains("Enabled")) {
         const bool on = change["Enabled"].get<bool>();
         if (on) {
-            if (!toolOn)  // the regions the sidecar has were off with the tool: they stay off
+            if (!toolOn)  // the regions the sidecar has were off with the tool:
+                          // they stay off
                 for (int j = 1; j <= others; ++j)
-                    if (j != k) set(l, "MaskEnabled_" + std::to_string(j), "false");
+                    if (j != k)
+                        set(l, "MaskEnabled_" + std::to_string(j), "false");
             set(l, "MaskEnabled_" + n, "true");
             set(l, "Enabled", "true");
         } else {
@@ -202,4 +243,5 @@ std::string rewrite(const std::string &profileText, const json &change)
     return out + "\n";
 }
 
-}} // namespace mart::halation
+}  // namespace halation
+}  // namespace mart

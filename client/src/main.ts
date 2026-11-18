@@ -1,6 +1,34 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // MART: the editor screen.
 
-import { ApiError, NetworkError, getInfo, getStatus, openImage, saveImage, spotWB } from "./api.js";
+import {
+    ApiError,
+    NetworkError,
+    getInfo,
+    getStatus,
+    openImage,
+    saveImage,
+    spotWB,
+} from "./api.js";
 import type { ImageInfo } from "./api.js";
 import "./clutpanel.js"; // these register their panels with controls.ts
 import "./other.js";
@@ -9,12 +37,23 @@ import { makeControl } from "./controls.js";
 import type { Control, ControlHost } from "./controls.js";
 import { CropOverlay, clampRect, fitRatio } from "./crop.js";
 import type { Rect } from "./crop.js";
-import { buildCropTab, cropFromParams, cropPatch, ratioFor } from "./croptool.js";
+import {
+    buildCropTab,
+    cropFromParams,
+    cropPatch,
+    ratioFor,
+} from "./croptool.js";
 import type { RatioKey } from "./croptool.js";
 import { showExport } from "./exportsheet.js";
 import { showInfo } from "./info.js";
 import { Live } from "./live.js";
-import type { FrameHeader, HistoryState, Params, Patch, StateMessage } from "./live.js";
+import type {
+    FrameHeader,
+    HistoryState,
+    Params,
+    Patch,
+    StateMessage,
+} from "./live.js";
 import { showLooks } from "./looks.js";
 import { showOpen } from "./opener.js";
 import { el, openSheet } from "./sheet.js";
@@ -23,7 +62,8 @@ import { FrameThrottle, mergePatch } from "./throttle.js";
 import { TOOLS, patchFor } from "./tools.js";
 import type { ControlDef } from "./tools.js";
 
-const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const $ = <T extends HTMLElement>(id: string): T =>
+    document.getElementById(id) as T;
 
 const title = $("title");
 const conn = $("conn");
@@ -43,11 +83,13 @@ const moreBtn = $<HTMLButtonElement>("more");
 let params: Params = {};
 let fileName = "";
 let dragging = false; // a slider is being dragged: render half-size frames
-let imgW = 0; // size of the image as `preview` shows it (changes with a quarter turn)
+// size of the image as `preview` shows it (changes with a quarter turn)
+let imgW = 0;
 let imgH = 0;
 let activeTool = "";
 let picking = false; // the next tap on the image sets the white balance
-let busyWhat: string | null = null; // "exporting": the engine is busy, edits wait
+// "exporting": the engine is busy, edits wait
+let busyWhat: string | null = null;
 
 // ---- small helpers ---------------------------------------------------------
 
@@ -97,10 +139,13 @@ function applySize(w: number, h: number): void {
 }
 
 function setTitle(): void {
-    title.textContent = (fileName || "MART") + (busyWhat ? " \u00b7 exporting\u2026" : "");
+    title.textContent =
+        (fileName || "MART") + (busyWhat ? " \u00b7 exporting\u2026" : "");
 }
 
-/** the engine is busy with an export: the tools are disabled until it is done */
+/**
+ * the engine is busy with an export: the tools are disabled until it is done
+ */
 function setBusy(what: string | null): void {
     busyWhat = what;
     document.body.classList.toggle("busy", what !== null);
@@ -120,19 +165,30 @@ const live = new Live({
     },
     close: (reason) => {
         conn.className = "dot bad";
-        if (wasConnected) showOverlay("Connection lost", `Trying to reconnect to the MART server… (${reason})`);
-        else showOverlay("Cannot reach the MART server", "Is it running, and is this device on the same network? Trying again…");
+        if (wasConnected)
+            showOverlay(
+                "Connection lost",
+                `Trying to reconnect to the MART server… (${reason})`,
+            );
+        else
+            showOverlay(
+                "Cannot reach the MART server",
+                "Is it running, and is this device on the same network? " +
+                    "Trying again…",
+            );
     },
     frame: (h: FrameHeader, jpeg: Blob) => {
         // decode in order, so that an older frame never replaces a newer one
         frameChain = frameChain.then(async () => {
             const bmp = await createImageBitmap(jpeg);
-            const turned = h.size.full_width !== imgW || h.size.full_height !== imgH;
+            const turned =
+                h.size.full_width !== imgW || h.size.full_height !== imgH;
             applySize(h.size.full_width, h.size.full_height);
             preview.setFrame(bmp, h.region);
             setHistory(h.history, h.dirty);
             if (turned) {
-                // the frame shows the whole image: ask for the view the user now has
+                // the frame shows the whole image: ask for the view the user
+                // now has
                 const v = preview.request(false);
                 if (v) live.view(v);
             }
@@ -159,7 +215,7 @@ const throttle = new FrameThrottle((patch, key) => {
     if (v) live.edit(patch, v, key || undefined);
 });
 
-// ---- applying patches from the tools --------------------------------------------
+// ---- applying patches from the tools ----------------------------------------
 
 /** a discrete change (a button, a tap): applied at once */
 function applyPatch(patch: Patch): void {
@@ -169,22 +225,35 @@ function applyPatch(patch: Patch): void {
     syncControls();
 }
 
-// ---- crop ------------------------------------------------------------------------
+// ---- crop -------------------------------------------------------------------
 
-const cropOverlay = new CropOverlay($("crop") as HTMLCanvasElement, preview, $("view"), (rect) => setCrop(rect, cropState().ratio));
+const cropOverlay = new CropOverlay(
+    $("crop") as HTMLCanvasElement,
+    preview,
+    $("view"),
+    (rect) => setCrop(rect, cropState().ratio),
+);
 preview.afterDraw = () => cropOverlay.draw();
 attachRetouch(preview, () => ({ w: imgW, h: imgH }));
 
 const cropState = () => cropFromParams(params, imgW, imgH);
 
-/** show the crop rectangle in the overlay; outside the Crop tab the view shows only the cropped part */
+/**
+ * show the crop rectangle in the overlay; outside the Crop tab the view shows
+ * only the cropped part
+ */
 function syncCrop(): void {
     if (!imgW) return;
     const c = cropState();
     cropOverlay.setRect(c.rect);
-    cropOverlay.setRatio(c.ratio ? ratioFor(c.ratio, imgW, imgH, c.portrait) : null);
+    cropOverlay.setRatio(
+        c.ratio ? ratioFor(c.ratio, imgW, imgH, c.portrait) : null,
+    );
     cropTab.sync(c);
-    preview.setBounds(activeTool !== "crop" && c.enabled ? c.rect : null, { w: imgW, h: imgH });
+    preview.setBounds(activeTool !== "crop" && c.enabled ? c.rect : null, {
+        w: imgW,
+        h: imgH,
+    });
 }
 
 function setCrop(rect: Rect, ratio: RatioKey | null): void {
@@ -194,13 +263,25 @@ function setCrop(rect: Rect, ratio: RatioKey | null): void {
 
 const cropTab = buildCropTab({
     turn(deg) {
-        const rot = (((Number(params["Coarse Transformation"]?.["Rotate"] ?? 0) + deg) % 360) + 360) % 360;
+        const rot =
+            (((Number(params["Coarse Transformation"]?.["Rotate"] ?? 0) + deg) %
+                360) +
+                360) %
+            360;
         // the rectangle means nothing in the turned image: start again
-        applyPatch({ "Coarse Transformation": { Rotate: rot }, Crop: { Enabled: false } });
+        applyPatch({
+            "Coarse Transformation": { Rotate: rot },
+            Crop: { Enabled: false },
+        });
     },
     flip(axis) {
         const key = axis === "h" ? "HorizontalFlip" : "VerticalFlip";
-        applyPatch({ "Coarse Transformation": { [key]: params["Coarse Transformation"]?.[key] !== true }, Crop: { Enabled: false } });
+        applyPatch({
+            "Coarse Transformation": {
+                [key]: params["Coarse Transformation"]?.[key] !== true,
+            },
+            Crop: { Enabled: false },
+        });
     },
     pickRatio(key) {
         const c = cropState();
@@ -217,8 +298,20 @@ const cropTab = buildCropTab({
         const portrait = !(c.rect.h > c.rect.w);
         const cx = c.rect.x + c.rect.w / 2;
         const cy = c.rect.y + c.rect.h / 2;
-        const turned = clampRect({ x: cx - c.rect.h / 2, y: cy - c.rect.w / 2, w: c.rect.h, h: c.rect.w }, imgW, imgH);
-        setCrop(fitRatio(turned, ratioFor(c.ratio, imgW, imgH, portrait)), c.ratio);
+        const turned = clampRect(
+            {
+                x: cx - c.rect.h / 2,
+                y: cy - c.rect.w / 2,
+                w: c.rect.h,
+                h: c.rect.w,
+            },
+            imgW,
+            imgH,
+        );
+        setCrop(
+            fitRatio(turned, ratioFor(c.ratio, imgW, imgH, portrait)),
+            c.ratio,
+        );
     },
     reset() {
         applyPatch({ Crop: { Enabled: false } });
@@ -238,11 +331,13 @@ const host: ControlHost = {
         if (gesture) dragging = true;
         throttle.push(patch, gesture ? `${def.key}#${gesture}` : "");
         if (!gesture) throttle.flush();
-        // a Temperature/Tint change also switches the preset chips, and a mode shows other controls
+        // a Temperature/Tint change also switches the preset chips, and a mode
+        // shows other controls
         if (def.group === "White Balance" || !gesture) syncControls();
     },
     raw(patch, gestureKey) {
-        // the retouch regions: the patch is {Retouch: {id: fields | null}}; keep our copy of them as the host will have them
+        // the retouch regions: the patch is {Retouch: {id: fields | null}};
+        // keep our copy of them as the host will have them
         if (patch["Retouch"]) mergeRetouch(params, patch["Retouch"]);
         if (gestureKey) dragging = true;
         throttle.push(patch, gestureKey);
@@ -254,7 +349,8 @@ const host: ControlHost = {
     gestureEnd() {
         throttle.flush();
         dragging = false;
-        syncControls(); // a drag can switch its tool on: show the "Enabled" switch as it is
+        // a drag can switch its tool on: show the "Enabled" switch as it is
+        syncControls();
         const v = preview.request(false); // the full quality frame
         if (v) live.view(v);
     },
@@ -295,7 +391,8 @@ async function pickWhite(x: number, y: number): Promise<void> {
     const by = Math.min(Math.max(Math.round(y) - r, 0), imgH - 2 * r - 1);
     try {
         const wb = await spotWB(bx, by, 2 * r + 1, 2 * r + 1);
-        const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
+        const clamp = (v: number, lo: number, hi: number): number =>
+            Math.min(Math.max(v, lo), hi);
         applyPatch({
             "White Balance": {
                 Enabled: true,
@@ -311,12 +408,24 @@ async function pickWhite(x: number, y: number): Promise<void> {
 
 /** the icons of the tabs (24x24, drawn with the text colour) */
 const TAB_ICONS: Record<string, string> = {
-    tone: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/>',
-    color: '<path d="M12 3.5C8 8.5 5.5 11.5 5.5 15a6.5 6.5 0 0 0 13 0c0-3.5-2.5-6.5-6.5-11.5z"/>',
-    detail: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="2.5"/>',
-    retouch: '<path d="M18.5 3.5a2 2 0 0 1 2 2c0 1-4.5 6-7 8.5l-3-3c2.5-2.5 7.5-7.5 8-7.5z"/><path d="M10.5 11.5l3 3c-.5 3-3 5-7 5 1.5-1.5 1-3 1.5-4.5.5-1.5 1.5-2.5 2.5-3.5z"/>',
+    tone:
+        '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 ' +
+        '0-17z" fill="currentColor"/>',
+    color:
+        '<path d="M12 3.5C8 8.5 5.5 11.5 5.5 15a6.5 6.5 0 0 0 13 ' +
+        '0c0-3.5-2.5-6.5-6.5-11.5z"/>',
+    detail:
+        '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle ' +
+        'cx="12" cy="12" r="2.5"/>',
+    retouch:
+        '<path d="M18.5 3.5a2 2 0 0 1 2 2c0 1-4.5 6-7 8.5l-3-3c2.5-2.5 ' +
+        '7.5-7.5 8-7.5z"/><path d="M10.5 11.5l3 3c-.5 3-3 5-7 5 1.5-1.5 1-3 ' +
+        '1.5-4.5.5-1.5 1.5-2.5 2.5-3.5z"/>',
     crop: '<path d="M7 2v15h15M2 7h15v15"/>',
-    other: '<circle cx="5.5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor"/>',
+    other:
+        '<circle cx="5.5" cy="12" r="1.6" fill="currentColor"/><circle ' +
+        'cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18.5" ' +
+        'cy="12" r="1.6" fill="currentColor"/>',
 };
 
 function buildPanel(): void {
@@ -325,7 +434,8 @@ function buildPanel(): void {
     const sections: HTMLElement[] = [];
     const tabButtons: HTMLButtonElement[] = [];
     const panel = $("panel");
-    // phone layout: the tools float over the picture and fold away (a tap on the picture, or on the open tab)
+    // phone layout: the tools float over the picture and fold away (a tap on
+    // the picture, or on the open tab)
     const setOpen = (open: boolean): void => {
         panel.classList.toggle("collapsed", !open);
         store("mart.open", open ? "1" : "0");
@@ -334,7 +444,9 @@ function buildPanel(): void {
     preview.onAnyTap = () => setOpen(false);
     const activate = (i: number): void => {
         sections.forEach((s, j) => (s.hidden = j !== i));
-        tabButtons.forEach((b, j) => b.setAttribute("aria-selected", String(j === i)));
+        tabButtons.forEach((b, j) =>
+            b.setAttribute("aria-selected", String(j === i)),
+        );
         store("mart.tab", String(i));
         activeTool = TOOLS[i]!.id;
         cropOverlay.setActive(activeTool === "crop");
@@ -346,7 +458,9 @@ function buildPanel(): void {
         const b = document.createElement("button");
         b.type = "button";
         // an icon; the name stays for screen readers (and as the tooltip)
-        b.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">${TAB_ICONS[tool.id] ?? ""}</svg>`;
+        b.innerHTML =
+            `<svg class="tab-icon" viewBox="0 0 24 24" ` +
+            `aria-hidden="true">${TAB_ICONS[tool.id] ?? ""}</svg>`;
         const name = document.createElement("span");
         name.className = "sr-only";
         name.textContent = tool.label;
@@ -354,7 +468,8 @@ function buildPanel(): void {
         b.title = tool.label;
         b.setAttribute("role", "tab");
         b.addEventListener("click", () => {
-            const same = tabButtons[i]!.getAttribute("aria-selected") === "true";
+            const same =
+                tabButtons[i]!.getAttribute("aria-selected") === "true";
             setOpen(!(same && !panel.classList.contains("collapsed")));
             activate(i);
         });
@@ -363,7 +478,8 @@ function buildPanel(): void {
         const sec = document.createElement("section");
         sec.setAttribute("role", "tabpanel");
         if (tool.id === "crop") sec.appendChild(cropTab.el);
-        // each heading starts a collapsible group; one group of a tab is open at a time
+        // each heading starts a collapsible group; one group of a tab is open
+        // at a time
         const groups: { group: HTMLElement; toggle: HTMLButtonElement }[] = [];
         let body: HTMLElement | null = null;
         for (const def of tool.controls) {
@@ -379,8 +495,10 @@ function buildPanel(): void {
                 groups.push({ group, toggle: c.el.querySelector("button")! });
             } else (body ?? sec).appendChild(c.el);
         }
-        // the picker belongs to the white balance group, the first of the Color tab
-        if (tool.id === "color") groups[0]!.group.querySelector(".tool-body")!.prepend(pickButton());
+        // the picker belongs to the white balance group, the first of the Color
+        // tab
+        if (tool.id === "color")
+            groups[0]!.group.querySelector(".tool-body")!.prepend(pickButton());
         if (groups.length) {
             const open = (n: number): void => {
                 groups.forEach((g, k) => {
@@ -389,15 +507,27 @@ function buildPanel(): void {
                 });
                 store("mart.group." + tool.id, String(n));
             };
-            groups.forEach((g, k) => g.toggle.addEventListener("click", () => open(g.group.classList.contains("open") ? -1 : k)));
+            groups.forEach((g, k) =>
+                g.toggle.addEventListener("click", () =>
+                    open(g.group.classList.contains("open") ? -1 : k),
+                ),
+            );
             const savedGroup = Number(store("mart.group." + tool.id) ?? 0);
-            open(Number.isInteger(savedGroup) && savedGroup < groups.length ? savedGroup : 0);
+            open(
+                Number.isInteger(savedGroup) && savedGroup < groups.length
+                    ? savedGroup
+                    : 0,
+            );
         }
         tools.appendChild(sec);
         sections.push(sec);
     });
     const saved = Number(store("mart.tab"));
-    activate(Number.isInteger(saved) && saved >= 0 && saved < TOOLS.length ? saved : 0);
+    activate(
+        Number.isInteger(saved) && saved >= 0 && saved < TOOLS.length
+            ? saved
+            : 0,
+    );
 }
 
 // ---- image and connection --------------------------------------------------
@@ -406,7 +536,8 @@ function show(info: ImageInfo): void {
     fileName = info.file.split("/").pop() ?? info.file;
     setTitle();
     hideOverlay();
-    imgW = imgH = 0; // a new image: start from scratch even if it has the same size
+    // a new image: start from scratch even if it has the same size
+    imgW = imgH = 0;
     params = {};
     applySize(info.full_width, info.full_height);
     const v = preview.request(false);
@@ -415,12 +546,22 @@ function show(info: ImageInfo): void {
 
 function onError(e: unknown): void {
     if (e instanceof ApiError && e.status === 401) {
-        showOverlay("Access token needed", "Open the address printed by the server, which ends in ?token=…");
+        showOverlay(
+            "Access token needed",
+            "Open the address printed by the server, which ends in ?token=…",
+        );
     } else if (e instanceof NetworkError) {
         conn.className = "dot bad";
-        showOverlay("Cannot reach the MART server", "Is it running, and is this device on the same network? " + e.message);
+        showOverlay(
+            "Cannot reach the MART server",
+            "Is it running, and is this device on the same network? " +
+                e.message,
+        );
     } else {
-        showOverlay("Something went wrong", e instanceof Error ? e.message : String(e));
+        showOverlay(
+            "Something went wrong",
+            e instanceof Error ? e.message : String(e),
+        );
     }
 }
 
@@ -432,7 +573,11 @@ async function start(): Promise<void> {
         setBusy(st.busy);
         if (st.open) show(await getInfo());
         else {
-            showOverlay("Open an image", "Type the path of a raw file on the machine running MART.", true);
+            showOverlay(
+                "Open an image",
+                "Type the path of a raw file on the machine running MART.",
+                true,
+            );
         }
     } catch (e) {
         onError(e);
@@ -447,7 +592,8 @@ ovForm.addEventListener("submit", async (ev) => {
     try {
         show(await openImage(path));
     } catch (e) {
-        if (e instanceof ApiError && e.status !== 401 && e.status !== 503) ovText.textContent = e.message;
+        if (e instanceof ApiError && e.status !== 401 && e.status !== 503)
+            ovText.textContent = e.message;
         else onError(e);
     }
 });
@@ -469,7 +615,13 @@ async function save(): Promise<void> {
     title.classList.remove("dirty");
     toast("Saved " + r.file.split("/").pop());
 }
-saveBtn.addEventListener("click", () => void save().catch((e) => toast(e instanceof Error ? e.message : String(e))));
+saveBtn.addEventListener(
+    "click",
+    () =>
+        void save().catch((e) =>
+            toast(e instanceof Error ? e.message : String(e)),
+        ),
+);
 
 lookBtn.addEventListener("click", () => {
     void showLooks({
@@ -520,7 +672,8 @@ buildPanel();
 setTitle();
 live.connect();
 
-// for the browser tests (host/tests/ui_m3.mjs): where an image point is on the page, and the editor's state
+// for the browser tests (host/tests/ui_m3.mjs): where an image point is on the
+// page, and the editor's state
 (window as unknown as { __mart: unknown }).__mart = {
     toPage(x: number, y: number) {
         const p = preview.toScreen(x, y);
@@ -533,9 +686,13 @@ live.connect();
     layout: () => preview.layout(),
 };
 
-// Keep the application for offline start-up. Only where the browser allows it: a secure context (https, or localhost).
+// Keep the application for offline start-up. Only where the browser allows it:
+// a secure context (https, or localhost).
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {
-        /* not allowed here (plain http on a network): the app just works without being installable */
+        /*
+         * not allowed here (plain http on a network): the app just works
+         * without being installable
+         */
     });
 }

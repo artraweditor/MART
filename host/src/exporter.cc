@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "exporter.h"
 #include <chrono>
 #include <cstdlib>
@@ -13,7 +32,8 @@ namespace {
 long long nowMs()
 {
     using namespace std::chrono;
-    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch())
+        .count();
 }
 
 bool exists(const std::string &p)
@@ -24,18 +44,24 @@ bool exists(const std::string &p)
 
 constexpr size_t KEEP_JOBS = 8;
 
-} // namespace
+}  // namespace
 
-Exporter::Exporter(Worker &w, Session &s, const std::string &dir, std::function<void(bool)> onBusy):
-    worker_(w), session_(s), dir_(dir), persistent_(!dir.empty()), onBusy_(std::move(onBusy))
+Exporter::Exporter(Worker &w, Session &s, const std::string &dir,
+                   std::function<void(bool)> onBusy) :
+    worker_(w), session_(s), dir_(dir), persistent_(!dir.empty()),
+    onBusy_(std::move(onBusy))
 {
     if (persistent_) {
         struct stat st;
-        if (stat(dir_.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) throw std::runtime_error("no such export directory: " + dir_);
-        if (access(dir_.c_str(), W_OK) != 0) throw std::runtime_error("cannot write to the export directory: " + dir_);
+        if (stat(dir_.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))
+            throw std::runtime_error("no such export directory: " + dir_);
+        if (access(dir_.c_str(), W_OK) != 0)
+            throw std::runtime_error("cannot write to the export directory: " +
+                                     dir_);
     } else {
         char tmpl[] = "/tmp/mart-exports-XXXXXX";
-        if (!mkdtemp(tmpl)) throw std::runtime_error("cannot create a temporary directory");
+        if (!mkdtemp(tmpl))
+            throw std::runtime_error("cannot create a temporary directory");
         dir_ = tmpl;
     }
 }
@@ -57,10 +83,12 @@ bool Exporter::busy() const
     return active_;
 }
 
-std::string Exporter::uniquePath(const std::string &stem, const std::string &ext) const
+std::string Exporter::uniquePath(const std::string &stem,
+                                 const std::string &ext) const
 {
     std::string p = dir_ + "/" + stem + "." + ext;
-    for (int i = 1; exists(p) && i < 10000; ++i) p = dir_ + "/" + stem + "-" + std::to_string(i) + "." + ext;
+    for (int i = 1; exists(p) && i < 10000; ++i)
+        p = dir_ + "/" + stem + "-" + std::to_string(i) + "." + ext;
     return p;
 }
 
@@ -77,8 +105,10 @@ json Exporter::start(const json &body)
     };
     ExportRequest req;
     try {
-        // the default name is that of the image, which only the worker thread may ask
-        std::string stem = worker_.submit([this] { return session_.fileStem(); }).get();
+        // the default name is that of the image, which only the worker thread
+        // may ask
+        std::string stem =
+            worker_.submit([this] { return session_.fileStem(); }).get();
         if (stem.empty()) throw ApiError(409, "no image is open");
         req = parseExportRequest(body, stem);
     } catch (const ExportRequestError &e) {
@@ -97,7 +127,9 @@ json Exporter::start(const json &body)
         jobs_[id].mime = exportMimeType(req.format);
         jobs_[id].startedMs = nowMs();
         order_.push_back(id);
-        while (order_.size() > KEEP_JOBS) {  // forget the oldest (and delete its file, unless the user keeps them)
+        while (order_.size() >
+               KEEP_JOBS) {  // forget the oldest (and delete its file, unless
+                             // the user keeps them)
             auto &old = jobs_[order_.front()];
             if (!persistent_ && !old.path.empty()) unlink(old.path.c_str());
             jobs_.erase(order_.front());
@@ -139,7 +171,9 @@ void Exporter::run(const std::string &id, const ExportRequest &req)
                 j.state = "done";
                 j.width = result.value("width", 0);
                 j.height = result.value("height", 0);
-                j.bytes = stat(path.c_str(), &st) == 0 ? static_cast<long long>(st.st_size) : 0;
+                j.bytes = stat(path.c_str(), &st) == 0
+                              ? static_cast<long long>(st.st_size)
+                              : 0;
             } else {
                 j.state = "error";
                 j.error = error;
@@ -158,20 +192,24 @@ json Exporter::status(const std::string &id) const
     auto it = jobs_.find(id);
     if (it == jobs_.end()) throw ApiError(404, "no such export");
     const Job &j = it->second;
-    json r = {{"state", j.state}, {"format", j.format}, {"elapsed_ms", (j.endedMs ? j.endedMs : nowMs()) - j.startedMs}};
+    json r = {{"state", j.state},
+              {"format", j.format},
+              {"elapsed_ms", (j.endedMs ? j.endedMs : nowMs()) - j.startedMs}};
     if (j.state == "done") {
         r["name"] = j.name;
         r["width"] = j.width;
         r["height"] = j.height;
         r["bytes"] = j.bytes;
-        if (persistent_) r["path"] = j.path;  // otherwise the file is only for downloading
+        if (persistent_)
+            r["path"] = j.path;  // otherwise the file is only for downloading
     } else if (j.state == "error") {
         r["error"] = j.error;
     }
     return r;
 }
 
-bool Exporter::file(const std::string &id, std::string &path, std::string &name, std::string &mime) const
+bool Exporter::file(const std::string &id, std::string &path, std::string &name,
+                    std::string &mime) const
 {
     std::lock_guard<std::mutex> g(m_);
     auto it = jobs_.find(id);
@@ -182,4 +220,4 @@ bool Exporter::file(const std::string &id, std::string &path, std::string &name,
     return true;
 }
 
-} // namespace mart
+}  // namespace mart

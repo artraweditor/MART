@@ -1,3 +1,23 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // The Info sheet: a summary of the image, and all its metadata (read-only).
 
 import { getMetadata } from "./api.js";
@@ -17,13 +37,34 @@ export function summaryRows(i: ImageInfo): [string, string][] {
     add("File", i.file.split("/").pop() ?? i.file);
     add("Camera", [i.make, i.model].filter(Boolean).join(" ") || null);
     add("Lens", i.lens || null);
-    add("Size", `${i.full_width} × ${i.full_height}` + (i.is_raw ? "" : " (not a raw file)"));
-    if (i.source_width !== i.full_width || i.source_height !== i.full_height) add("Sensor size", `${i.source_width} × ${i.source_height}`);
+    add(
+        "Size",
+        `${i.full_width} × ${i.full_height}` +
+            (i.is_raw ? "" : " (not a raw file)"),
+    );
+    if (i.source_width !== i.full_width || i.source_height !== i.full_height)
+        add("Sensor size", `${i.source_width} × ${i.source_height}`);
     add("ISO", i.iso != null ? String(i.iso) : null);
     add("Aperture", i.f_number != null ? `f/${+i.f_number.toFixed(1)}` : null);
-    add("Shutter", i.shutter_s != null && i.shutter_s > 0 ? formatShutter(i.shutter_s) : null);
-    add("Focal length", i.focal_length_mm != null ? `${+i.focal_length_mm.toFixed(1)} mm` : null);
-    add("Exposure comp.", i.exposure_compensation != null ? `${i.exposure_compensation > 0 ? "+" : ""}${+i.exposure_compensation.toFixed(2)} EV` : null);
+    add(
+        "Shutter",
+        i.shutter_s != null && i.shutter_s > 0
+            ? formatShutter(i.shutter_s)
+            : null,
+    );
+    add(
+        "Focal length",
+        i.focal_length_mm != null
+            ? `${+i.focal_length_mm.toFixed(1)} mm`
+            : null,
+    );
+    add(
+        "Exposure comp.",
+        i.exposure_compensation != null
+            ? `${i.exposure_compensation > 0 ? "+" : ""}` +
+                  `${+i.exposure_compensation.toFixed(2)} EV`
+            : null,
+    );
     add("Orientation", i.orientation || null);
     return rows;
 }
@@ -33,7 +74,9 @@ export function tagValue(v: Metadata[string]): string {
     return v === null ? "–" : String(v);
 }
 
-/** The tags whose name or value contains every word of `filter`, sorted by name */
+/**
+ * The tags whose name or value contains every word of `filter`, sorted by name
+ */
 export function filterTags(md: Metadata, filter: string): [string, string][] {
     const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
     const out: [string, string][] = [];
@@ -64,8 +107,12 @@ export function showInfo(info: ImageInfo, openOther: () => void): void {
 
     const renderSummary = (): void => {
         const dl = el("dl", { class: "facts" });
-        for (const [k, v] of summaryRows(info)) dl.append(el("dt", { text: k }), el("dd", { text: v }));
-        const open = el("button", { class: "action", text: "Open another image…" });
+        for (const [k, v] of summaryRows(info))
+            dl.append(el("dt", { text: k }), el("dd", { text: v }));
+        const open = el("button", {
+            class: "action",
+            text: "Open another image…",
+        });
         open.addEventListener("click", () => {
             sheet.close();
             openOther();
@@ -77,7 +124,10 @@ export function showInfo(info: ImageInfo, openOther: () => void): void {
         let edits = false;
         let makernotes = false;
         let md: Metadata = {};
-        const filter = el("input", { type: "search", placeholder: "Filter, e.g. lens or gps" });
+        const filter = el("input", {
+            type: "search",
+            placeholder: "Filter, e.g. lens or gps",
+        });
         filter.setAttribute("aria-label", "Filter the tags");
         const editsBtn = el("button", { class: "chip", text: "With my edits" });
         editsBtn.setAttribute("role", "switch");
@@ -94,11 +144,18 @@ export function showInfo(info: ImageInfo, openOther: () => void): void {
         const render = (): void => {
             const rows = filterTags(md, filter.value);
             list.replaceChildren();
-            for (const [k, v] of rows.slice(0, MAX_ROWS)) list.append(el("dt", { text: k }), el("dd", { text: v }));
-            status.textContent = rows.length > MAX_ROWS ? `${rows.length} tags; showing the first ${MAX_ROWS}: refine the filter` : `${rows.length} of ${Object.keys(md).length} tags`;
+            for (const [k, v] of rows.slice(0, MAX_ROWS))
+                list.append(el("dt", { text: k }), el("dd", { text: v }));
+            status.textContent =
+                rows.length > MAX_ROWS
+                    ? `${rows.length} tags; showing the first ${MAX_ROWS}: ` +
+                      `refine the filter`
+                    : `${rows.length} of ${Object.keys(md).length} tags`;
         };
         const load = async (): Promise<void> => {
-            status.textContent = makernotes ? "Reading the maker notes…" : "Reading…";
+            status.textContent = makernotes
+                ? "Reading the maker notes…"
+                : "Reading…";
             try {
                 md = await getMetadata(makernotes, edits);
                 render();
@@ -111,7 +168,8 @@ export function showInfo(info: ImageInfo, openOther: () => void): void {
             window.clearTimeout(timer);
             timer = window.setTimeout(render, 120);
         });
-        const flip = (b: HTMLElement, on: boolean): void => b.setAttribute("aria-checked", String(on));
+        const flip = (b: HTMLElement, on: boolean): void =>
+            b.setAttribute("aria-checked", String(on));
         editsBtn.addEventListener("click", () => {
             edits = !edits;
             flip(editsBtn, edits);

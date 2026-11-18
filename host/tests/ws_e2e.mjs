@@ -1,5 +1,27 @@
-// End-to-end test of the live edit channel. Needs a running host with an image open:
-//   mart --www ../client/dist ... photo.arw     then     node tests/ws_e2e.mjs [http://localhost:8080]
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// End-to-end test of the live edit channel. Needs a running host with an image
+// open:
+//   mart --www ../client/dist ... photo.arw     then     node tests/ws_e2e.mjs
+// [http://localhost:8080]
 import assert from "node:assert/strict";
 
 const base = process.argv[2] ?? "http://localhost:8080";
@@ -42,27 +64,51 @@ const st0 = await next((m) => m.type === "state");
 const fr0 = await next((m) => m.type === "frame");
 assert.equal(fr0.w, 600);
 assert.equal(fr0.jpeg[0], 0xff); // JPEG magic
-assert.ok(Buffer.from(fr0.jpeg.subarray(0, 64)).includes("ICC_PROFILE\0"), "the frames are tagged with a profile (sRGB)");
+assert.ok(
+    Buffer.from(fr0.jpeg.subarray(0, 64)).includes("ICC_PROFILE\0"),
+    "the frames are tagged with a profile (sRGB)",
+);
 const n0 = st0.history.count;
-console.log("initial", st0.history, "exposure", st0.params.Exposure.Compensation);
+console.log(
+    "initial",
+    st0.history,
+    "exposure",
+    st0.params.Exposure.Compensation,
+);
 
 // 30 edits of one gesture, as fast as possible: few frames, one history entry
 const t0 = Date.now();
 for (let i = 1; i <= 30; i++)
-    send({ type: "edit", seq: 100 + i, merge: "exposure#1", patch: { Exposure: { Enabled: true, Compensation: i / 30 } }, view });
-let frames = 0, last;
+    send({
+        type: "edit",
+        seq: 100 + i,
+        merge: "exposure#1",
+        patch: { Exposure: { Enabled: true, Compensation: i / 30 } },
+        view,
+    });
+let frames = 0,
+    last;
 while (!last || last.seq < 130) {
     last = await next((m) => m.type === "frame" || m.type === "error");
     assert.notEqual(last.type, "error", last.message);
     frames++;
 }
-console.log(`30 edits -> ${frames} frames in ${Date.now() - t0} ms, last frame ${last.ms} ms`);
+console.log(
+    `30 edits -> ${frames} frames in ${Date.now() - t0} ms, last frame ` +
+        `${last.ms} ms`,
+);
 assert.ok(frames < 30);
 assert.equal(last.history.count, n0 + 1, "one history entry per gesture");
 assert.equal(last.dirty, true);
 
 // a second gesture is a second entry
-send({ type: "edit", seq: 200, merge: "exposure#2", patch: { Exposure: { Compensation: -0.5 } }, view });
+send({
+    type: "edit",
+    seq: 200,
+    merge: "exposure#2",
+    patch: { Exposure: { Compensation: -0.5 } },
+    view,
+});
 const f2 = await next((m) => m.type === "frame" && m.seq === 200);
 assert.equal(f2.history.count, n0 + 2);
 
@@ -70,20 +116,36 @@ assert.equal(f2.history.count, n0 + 2);
 send({ type: "undo", seq: 300, view });
 const s3 = await next((m) => m.type === "state" && m.seq === 300);
 assert.equal(s3.history.count, n0 + 2);
-assert.ok(Math.abs(s3.params.Exposure.Compensation - 1) < 1e-6, "undo restores the end of gesture 1");
+assert.ok(
+    Math.abs(s3.params.Exposure.Compensation - 1) < 1e-6,
+    "undo restores the end of gesture 1",
+);
 await next((m) => m.type === "frame" && m.seq === 300);
 send({ type: "redo", seq: 301, view });
 const s4 = await next((m) => m.type === "state" && m.seq === 301);
 assert.ok(Math.abs(s4.params.Exposure.Compensation + 0.5) < 1e-6);
 
 // bad patches are refused with an error, not applied
-for (const patch of [{ Nope: { A: 1 } }, { Exposure: { Compensation: 99 } }, { Exposure: { Nope: 1 } }, { "White Balance": { Setting: "x\n[Crop]" } }]) {
+for (const patch of [
+    { Nope: { A: 1 } },
+    { Exposure: { Compensation: 99 } },
+    { Exposure: { Nope: 1 } },
+    { "White Balance": { Setting: "x\n[Crop]" } },
+]) {
     send({ type: "edit", seq: 400, patch, view });
     const e = await next((m) => m.type === "error" && m.seq === 400);
     console.log("refused:", e.message);
 }
 // white balance: set a temperature, expect the engine to take it
-send({ type: "edit", seq: 500, merge: "wb#1", patch: { "White Balance": { Setting: "CustomTemp", Temperature: 4000, Green: 1 } }, view });
+send({
+    type: "edit",
+    seq: 500,
+    merge: "wb#1",
+    patch: {
+        "White Balance": { Setting: "CustomTemp", Temperature: 4000, Green: 1 },
+    },
+    view,
+});
 await next((m) => m.type === "frame" && m.seq === 500);
 send({ type: "sync", seq: 501, view });
 const s5 = await next((m) => m.type === "state" && m.seq === 501);

@@ -1,6 +1,26 @@
-// The profiles (.arp files) that can be applied: MART's own, kept in one folder of the user's, and uploaded ones.
-// One of them can be the default for images that have no sidecar.
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// The profiles (.arp files) that can be applied: MART's own, kept in one folder
+// of the user's, and uploaded ones. One of them can be the default for images
+// that have no sidecar.
 #pragma once
 #include "third_party/json.hpp"
 #include <stdexcept>
@@ -10,44 +30,54 @@
 namespace mart {
 
 struct ProfileDir {
-    std::string tag;   // "mine" ... shown in the list
+    std::string tag;  // "mine" ... shown in the list
     std::string path;
 };
 
 /** a profile of that name is already there */
-struct ProfileExists: std::runtime_error {
+struct ProfileExists : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
 class Profiles {
 public:
-    /** `dirs[0]` is where profiles are saved (it is made when needed) and where the default is kept */
+    /** `dirs[0]` is where profiles are saved (it is made when needed) and where
+     * the default is kept */
     explicit Profiles(std::vector<ProfileDir> dirs);
 
-    // [{"id","name","source","default"}]: ids are opaque to the client ("d0:<relative path>")
+    // [{"id","name","source","default"}]: ids are opaque to the client
+    // ("d0:<relative path>")
     nlohmann::json list();
-    // store a profile that comes from a file (the text of an .arp) in the folder; returns its entry. Throws
-    // std::invalid_argument (not a profile, too large, no usable name) and ProfileExists
+    // store a profile that comes from a file (the text of an .arp) in the
+    // folder; returns its entry. Throws std::invalid_argument (not a profile,
+    // too large, no usable name) and ProfileExists
     nlohmann::json import(const std::string &name, const std::string &text);
-    // save a profile in the folder: `<name>.arp` (the name is made safe). Throws std::invalid_argument (no usable name,
-    // nothing to save, no folder) and ProfileExists unless `overwrite`
-    nlohmann::json save(const std::string &name, const std::string &text, bool overwrite);
-    // rename a profile of the folder (the name is made safe; ProfileExists if another profile has it); returns its
-    // entry. The default stays the default. Throws std::invalid_argument for a bad name or an id that is not a profile
-    // of the folder, std::out_of_range if there is no such profile
+    // save a profile in the folder: `<name>.arp` (the name is made safe).
+    // Throws std::invalid_argument (no usable name, nothing to save, no folder)
+    // and ProfileExists unless `overwrite`
+    nlohmann::json save(const std::string &name, const std::string &text,
+                        bool overwrite);
+    // rename a profile of the folder (the name is made safe; ProfileExists if
+    // another profile has it); returns its entry. The default stays the
+    // default. Throws std::invalid_argument for a bad name or an id that is not
+    // a profile of the folder, std::out_of_range if there is no such profile
     nlohmann::json rename(const std::string &id, const std::string &newName);
-    // delete a profile of the folder (it is no longer the default, if it was). Same exceptions as `rename`
+    // delete a profile of the folder (it is no longer the default, if it was).
+    // Same exceptions as `rename`
     void remove(const std::string &id);
-    // the default profile for images without a sidecar: the id of a profile of the folder, "" for none (throws
-    // std::invalid_argument for anything else); and its file ("" if none, or if the file is gone)
+    // the default profile for images without a sidecar: the id of a profile of
+    // the folder, "" for none (throws std::invalid_argument for anything else);
+    // and its file ("" if none, or if the file is gone)
     void setDefault(const std::string &id);
     std::string defaultPath() const;
     // the file of an id; empty if unknown. Never a path outside the directories
-    /** ":neutral": the profile that ART builds in (every tool at its default) */
+    /** ":neutral": the profile that ART builds in (every tool at its default)
+     */
     static bool isBuiltin(const std::string &id) { return id == ":neutral"; }
     std::string path(const std::string &id) const;
 
-    /** a file name stem for a profile: letters, digits and a few punctuation marks; "" if nothing is usable */
+    /** a file name stem for a profile: letters, digits and a few punctuation
+     * marks; "" if nothing is usable */
     static std::string sanitizeName(const std::string &name);
 
 private:
@@ -56,4 +86,4 @@ private:
     std::vector<ProfileDir> dirs_;
 };
 
-} // namespace mart
+}  // namespace mart

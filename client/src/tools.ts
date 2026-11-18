@@ -1,3 +1,23 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // The tools of the panel and how their controls map to partial profiles
 // (keys and ranges: ART's tools/mcp/reference).
 
@@ -29,12 +49,18 @@ export interface SliderDef extends Base {
     digits: number;
     /** other keys that must go with this one */
     extra?: (get: Getter) => Record<string, unknown>;
-    /** the key holds a list and the slider is its element `index`; the list is `scale` times the slider's value */
+    /**
+     * the key holds a list and the slider is its element `index`; the list is
+     * `scale` times the slider's value
+     */
     index?: number;
     scale?: number;
     /** the list when the profile has none */
     list?: number[];
-    /** for values that are not a plain key of the group (the parameters of a LUT): where to read it, what to write */
+    /**
+     * for values that are not a plain key of the group (the parameters of a
+     * LUT): where to read it, what to write
+     */
     read?: (params: Params) => unknown;
     write?: (value: unknown, get: Getter) => Record<string, unknown>;
 }
@@ -70,13 +96,17 @@ export interface HeadingDef extends Base {
     kind: "heading";
 }
 
-/** a panel built by another module (see `registerControl` in controls.ts): the film simulation, the list of other tools */
+/**
+ * a panel built by another module (see `registerControl` in controls.ts): the
+ * film simulation, the list of other tools
+ */
 export interface CustomDef extends Base {
     kind: "custom";
     name: "clut" | "info" | "retouch";
 }
 
-export type ControlDef = SliderDef | ChoiceDef | ToggleDef | CurveDef | HeadingDef | CustomDef;
+export type ControlDef =
+    SliderDef | ChoiceDef | ToggleDef | CurveDef | HeadingDef | CustomDef;
 
 export interface Tool {
     id: string;
@@ -86,49 +116,111 @@ export interface Tool {
 
 const num = (v: unknown, d: number): number => (typeof v === "number" ? v : d);
 
-/** the keys to write with a Temperature or Green change: the loader needs both */
+/**
+ * the keys to write with a Temperature or Green change: the loader needs both
+ */
 const customWB = (get: Getter): Record<string, unknown> => ({
     Setting: "CustomTemp",
     Temperature: Math.round(num(get("White Balance", "Temperature"), 6500)),
     Green: num(get("White Balance", "Green"), 1),
 });
 
-/** the settings of the noise reduction presets (Detail tab); "off" just disables the tool */
+/**
+ * the settings of the noise reduction presets (Detail tab); "off" just disables
+ * the tool
+ */
 export const DENOISE_PRESETS: Record<string, Record<string, unknown>> = {
-    low: { ColorSpace: "RGB", Aggressive: false, Gamma: 1.7, Luminance: 0, LuminanceDetail: 0, LuminanceDetailThreshold: 0, ChrominanceMethod: 1, ChrominanceAutoFactor: 0.5, SmoothingEnabled: false, GuidedChromaRadius: 3, NLStrength: 0 },
-    medium: { ColorSpace: "RGB", Aggressive: false, Gamma: 1.7, Luminance: 15, LuminanceDetail: 0, LuminanceDetailThreshold: 0, ChrominanceMethod: 1, ChrominanceAutoFactor: 0.5, SmoothingEnabled: true, GuidedChromaRadius: 3, NLStrength: 0 },
-    high: { ColorSpace: "RGB", Aggressive: false, Gamma: 1.7, Luminance: 30, LuminanceDetail: 0, LuminanceDetailThreshold: 0, ChrominanceMethod: 1, ChrominanceAutoFactor: 0.7, SmoothingEnabled: true, GuidedChromaRadius: 3, NLStrength: 0 },
+    low: {
+        ColorSpace: "RGB",
+        Aggressive: false,
+        Gamma: 1.7,
+        Luminance: 0,
+        LuminanceDetail: 0,
+        LuminanceDetailThreshold: 0,
+        ChrominanceMethod: 1,
+        ChrominanceAutoFactor: 0.5,
+        SmoothingEnabled: false,
+        GuidedChromaRadius: 3,
+        NLStrength: 0,
+    },
+    medium: {
+        ColorSpace: "RGB",
+        Aggressive: false,
+        Gamma: 1.7,
+        Luminance: 15,
+        LuminanceDetail: 0,
+        LuminanceDetailThreshold: 0,
+        ChrominanceMethod: 1,
+        ChrominanceAutoFactor: 0.5,
+        SmoothingEnabled: true,
+        GuidedChromaRadius: 3,
+        NLStrength: 0,
+    },
+    high: {
+        ColorSpace: "RGB",
+        Aggressive: false,
+        Gamma: 1.7,
+        Luminance: 30,
+        LuminanceDetail: 0,
+        LuminanceDetailThreshold: 0,
+        ChrominanceMethod: 1,
+        ChrominanceAutoFactor: 0.7,
+        SmoothingEnabled: true,
+        GuidedChromaRadius: 3,
+        NLStrength: 0,
+    },
 };
 
-/** "off", a preset's name, or "custom" for settings that are none of them (they stay as they are until a preset is chosen) */
+/**
+ * "off", a preset's name, or "custom" for settings that are none of them (they
+ * stay as they are until a preset is chosen)
+ */
 export function denoiseValue(g: Record<string, unknown> | undefined): string {
     if (!g || g["Enabled"] !== true) return "off";
-    const same = (a: unknown, b: unknown): boolean => (typeof b === "number" ? typeof a === "number" && Math.abs(a - b) < 1e-6 : a === b);
+    const same = (a: unknown, b: unknown): boolean =>
+        typeof b === "number"
+            ? typeof a === "number" && Math.abs(a - b) < 1e-6
+            : a === b;
     for (const [name, p] of Object.entries(DENOISE_PRESETS)) {
         if (Object.entries(p).every(([k, v]) => same(g[k], v))) return name;
     }
     return "custom";
 }
 
-/** the groups that have no `Enabled` key: LensProfile is on when its mode is not "none"; RAW has a switch for each feature */
+/**
+ * the groups that have no `Enabled` key: LensProfile is on when its mode is not
+ * "none"; RAW has a switch for each feature
+ */
 const NO_ENABLED = new Set(["LensProfile", "RAW"]);
 
 /**
- * The haze removal slider (-100..100) and the strength curve of ART's Dehaze tool, which MART keeps a straight line:
+ * The haze removal slider (-100..100) and the strength curve of ART's Dehaze
+ * tool, which MART keeps a straight line:
  * its level goes from 0 (adds haze) to 1 (removes it), 0.5 does nothing.
  */
-export const hazeLevel = (v: number): number => Math.round((0.5 + v / 200) * 1e4) / 1e4;
+export const hazeLevel = (v: number): number =>
+    Math.round((0.5 + v / 200) * 1e4) / 1e4;
 
 /**
- * The slider value for the strength of the profile: its curve (`1;0;a;0;0;1;a;0;0;`, the mean level of its points),
- * or the level `a` itself, which is what a patch holds (and what the client's parameters keep until the engine
+ * The slider value for the strength of the profile: its curve
+ * (`1;0;a;0;0;1;a;0;0;`, the mean level of its points),
+ * or the level `a` itself, which is what a patch holds (and what the client's
+ * parameters keep until the engine
  * reports them again).
  */
 export function hazeValue(curve: unknown): number {
-    if (typeof curve === "number") return Number.isFinite(curve) ? Math.round((curve - 0.5) * 200) : 0;
-    const n = typeof curve === "string" ? curve.split(";").filter((x) => x.trim() !== "").map(Number) : [];
+    if (typeof curve === "number")
+        return Number.isFinite(curve) ? Math.round((curve - 0.5) * 200) : 0;
+    const n =
+        typeof curve === "string"
+            ? curve
+                  .split(";")
+                  .filter((x) => x.trim() !== "")
+                  .map(Number)
+            : [];
     const ys: number[] = [];
-    for (let i = 2; i < n.length; i += 4) if (Number.isFinite(n[i])) ys.push(n[i]!);
+    for (let i = 2; i < n.length; i += 4)
+        if (Number.isFinite(n[i])) ys.push(n[i]!);
     if (!ys.length) return 0;
     return Math.round((ys.reduce((a, b) => a + b, 0) / ys.length - 0.5) * 200);
 }
@@ -137,38 +229,51 @@ export function hazeValue(curve: unknown): number {
 export function parseList(v: unknown): number[] | null {
     if (Array.isArray(v)) return v.map(Number);
     if (typeof v !== "string") return null;
-    const l = v.split(";").filter((x) => x.trim() !== "").map(Number);
+    const l = v
+        .split(";")
+        .filter((x) => x.trim() !== "")
+        .map(Number);
     return l.length && l.every(Number.isFinite) ? l : null;
 }
 
-/** the tone curve is always applied in Neutral mode (both curves, as that is what the editor shows) */
-const neutral = (): Record<string, unknown> => ({ CurveMode: "Neutral", CurveMode2: "Neutral" });
+/**
+ * the tone curve is always applied in Neutral mode (both curves, as that is
+ * what the editor shows)
+ */
+const neutral = (): Record<string, unknown> => ({
+    CurveMode: "Neutral",
+    CurveMode2: "Neutral",
+});
 
-/** capture sharpening always uses deconvolution with a radius of its own, never the automatic one */
+/**
+ * capture sharpening always uses deconvolution with a radius of its own, never
+ * the automatic one
+ */
 const rld = (get: Getter): Record<string, unknown> => ({
     Method: "rld",
     DeconvAutoRadius: false,
     DeconvRadius: num(get("Sharpening", "DeconvRadius"), 0.75),
 });
 
-const primarySliders = (key: "HueTweak" | "SatTweak", what: string): ControlDef[] =>
-    ["Red", "Green", "Blue"].map(
-        (p, i): ControlDef => ({
-            kind: "slider",
-            label: `${p} ${what}`,
-            group: "Channel Mixer",
-            key,
-            index: i,
-            scale: 1,
-            list: [0, 0, 0],
-            min: -100,
-            max: 100,
-            step: 1,
-            def: 0,
-            digits: 0,
-            extra: () => ({ Mode: 1 }),
-        }),
-    );
+const primarySliders = (
+    key: "HueTweak" | "SatTweak",
+    what: string,
+): ControlDef[] =>
+    ["Red", "Green", "Blue"].map((p, i): ControlDef => ({
+        kind: "slider",
+        label: `${p} ${what}`,
+        group: "Channel Mixer",
+        key,
+        index: i,
+        scale: 1,
+        list: [0, 0, 0],
+        min: -100,
+        max: 100,
+        step: 1,
+        def: 0,
+        digits: 0,
+        extra: () => ({ Mode: 1 }),
+    }));
 
 export const TOOLS: Tool[] = [
     {
@@ -176,18 +281,42 @@ export const TOOLS: Tool[] = [
         label: "Tone",
         controls: [
             { kind: "heading", label: "Exposure and haze", group: "Exposure" },
-            { kind: "slider", label: "Exposure", group: "Exposure", key: "Compensation", min: -4, max: 4, step: 0.01, def: 0, digits: 2 },
-            { kind: "slider", label: "Black point", group: "Exposure", key: "Black", min: -2, max: 2, step: 0.01, def: 0, digits: 2 },
+            {
+                kind: "slider",
+                label: "Exposure",
+                group: "Exposure",
+                key: "Compensation",
+                min: -4,
+                max: 4,
+                step: 0.01,
+                def: 0,
+                digits: 2,
+            },
+            {
+                kind: "slider",
+                label: "Black point",
+                group: "Exposure",
+                key: "Black",
+                min: -2,
+                max: 2,
+                step: 0.01,
+                def: 0,
+                digits: 2,
+            },
             {
                 kind: "choice",
                 label: "Highlight recovery",
                 group: "Exposure",
                 key: "HLRecovery",
                 def: "Off",
-                options: ["Off", "Blend", "Color", "Balanced"].map((v) => ({ value: v, label: v })),
+                options: ["Off", "Blend", "Color", "Balanced"].map((v) => ({
+                    value: v,
+                    label: v,
+                })),
             },
             {
-                // one slider for the whole Dehaze tool: a straight strength curve, in RGB mode
+                // one slider for the whole Dehaze tool: a straight strength
+                // curve, in RGB mode
                 kind: "slider",
                 label: "Haze removal",
                 group: "Dehaze",
@@ -197,11 +326,33 @@ export const TOOLS: Tool[] = [
                 step: 1,
                 def: 0,
                 digits: 0,
-                read: (params) => (params["Dehaze"]?.["Enabled"] === true ? hazeValue(params["Dehaze"]?.["Strength"]) : 0),
-                write: (v) => ({ Enabled: Number(v) !== 0, Strength: hazeLevel(Number(v)), Luminance: false }),
+                read: (params) =>
+                    params["Dehaze"]?.["Enabled"] === true
+                        ? hazeValue(params["Dehaze"]?.["Strength"])
+                        : 0,
+                write: (v) => ({
+                    Enabled: Number(v) !== 0,
+                    Strength: hazeLevel(Number(v)),
+                    Luminance: false,
+                }),
             },
-            { kind: "heading", label: "Contrast and curve", group: "ToneCurve" },
-            { kind: "slider", label: "Contrast", group: "ToneCurve", key: "Contrast", min: -100, max: 100, step: 1, def: 0, digits: 0, extra: neutral },
+            {
+                kind: "heading",
+                label: "Contrast and curve",
+                group: "ToneCurve",
+            },
+            {
+                kind: "slider",
+                label: "Contrast",
+                group: "ToneCurve",
+                key: "Contrast",
+                min: -100,
+                max: 100,
+                step: 1,
+                def: 0,
+                digits: 0,
+                extra: neutral,
+            },
             {
                 kind: "choice",
                 label: "Base curve",
@@ -209,16 +360,66 @@ export const TOOLS: Tool[] = [
                 key: "BaseCurve",
                 def: "Linear",
                 extra: neutral,
-                options: ["Linear", "Rolloff", "SCurve"].map((v) => ({ value: v, label: v === "SCurve" ? "S-curve" : v })),
+                options: ["Linear", "Rolloff", "SCurve"].map((v) => ({
+                    value: v,
+                    label: v === "SCurve" ? "S-curve" : v,
+                })),
             },
-            { kind: "toggle", label: "Auto-matched curve", group: "ToneCurve", key: "HistogramMatching", def: false, extra: neutral },
-            { kind: "curve", label: "Tone curve", group: "ToneCurve", key: "Curve", extra: neutral },
-            { kind: "heading", label: "Tone equalizer", group: "ToneEqualizer" },
+            {
+                kind: "toggle",
+                label: "Auto-matched curve",
+                group: "ToneCurve",
+                key: "HistogramMatching",
+                def: false,
+                extra: neutral,
+            },
+            {
+                kind: "curve",
+                label: "Tone curve",
+                group: "ToneCurve",
+                key: "Curve",
+                extra: neutral,
+            },
+            {
+                kind: "heading",
+                label: "Tone equalizer",
+                group: "ToneEqualizer",
+            },
             ...["Blacks", "Shadows", "Midtones", "Highlights", "Whites"].map(
-                (label, i): ControlDef => ({ kind: "slider", label, group: "ToneEqualizer", key: `Band${i}`, min: -100, max: 100, step: 1, def: 0, digits: 0 }),
+                (label, i): ControlDef => ({
+                    kind: "slider",
+                    label,
+                    group: "ToneEqualizer",
+                    key: `Band${i}`,
+                    min: -100,
+                    max: 100,
+                    step: 1,
+                    def: 0,
+                    digits: 0,
+                }),
             ),
-            { kind: "slider", label: "Regularization", group: "ToneEqualizer", key: "Regularization", min: 0, max: 4, step: 1, def: 4, digits: 0 },
-            { kind: "slider", label: "Pivot (EV)", group: "ToneEqualizer", key: "Pivot", min: -4, max: 4, step: 0.1, def: 0, digits: 1 },
+            {
+                kind: "slider",
+                label: "Regularization",
+                group: "ToneEqualizer",
+                key: "Regularization",
+                min: 0,
+                max: 4,
+                step: 1,
+                def: 4,
+                digits: 0,
+            },
+            {
+                kind: "slider",
+                label: "Pivot (EV)",
+                group: "ToneEqualizer",
+                key: "Pivot",
+                min: -4,
+                max: 4,
+                step: 0.1,
+                def: 0,
+                digits: 1,
+            },
         ],
     },
     {
@@ -268,16 +469,65 @@ export const TOOLS: Tool[] = [
                 ],
             },
             { kind: "heading", label: "Saturation", group: "Saturation" },
-            { kind: "slider", label: "Saturation", group: "Saturation", key: "Saturation", min: -100, max: 100, step: 1, def: 0, digits: 0 },
-            { kind: "slider", label: "Vibrance", group: "Saturation", key: "Vibrance", min: -100, max: 100, step: 1, def: 0, digits: 0 },
-            { kind: "heading", label: "Primaries correction", group: "Channel Mixer" },
+            {
+                kind: "slider",
+                label: "Saturation",
+                group: "Saturation",
+                key: "Saturation",
+                min: -100,
+                max: 100,
+                step: 1,
+                def: 0,
+                digits: 0,
+            },
+            {
+                kind: "slider",
+                label: "Vibrance",
+                group: "Saturation",
+                key: "Vibrance",
+                min: -100,
+                max: 100,
+                step: 1,
+                def: 0,
+                digits: 0,
+            },
+            {
+                kind: "heading",
+                label: "Primaries correction",
+                group: "Channel Mixer",
+            },
             ...primarySliders("HueTweak", "hue"),
             ...primarySliders("SatTweak", "saturation"),
             { kind: "heading", label: "Soft light", group: "SoftLight" },
-            { kind: "toggle", label: "Enabled", group: "SoftLight", key: "Enabled", def: false },
-            { kind: "slider", label: "Strength", group: "SoftLight", key: "Strength", min: 0, max: 100, step: 1, def: 30, digits: 0 },
-            { kind: "heading", label: "Film simulation", group: "Film Simulation" },
-            { kind: "custom", label: "Film simulation", group: "Film Simulation", name: "clut" },
+            {
+                kind: "toggle",
+                label: "Enabled",
+                group: "SoftLight",
+                key: "Enabled",
+                def: false,
+            },
+            {
+                kind: "slider",
+                label: "Strength",
+                group: "SoftLight",
+                key: "Strength",
+                min: 0,
+                max: 100,
+                step: 1,
+                def: 30,
+                digits: 0,
+            },
+            {
+                kind: "heading",
+                label: "Film simulation",
+                group: "Film Simulation",
+            },
+            {
+                kind: "custom",
+                label: "Film simulation",
+                group: "Film Simulation",
+                name: "clut",
+            },
         ],
     },
     {
@@ -297,23 +547,92 @@ export const TOOLS: Tool[] = [
                     { value: "exif", label: "Embedded" },
                 ],
             },
-            { kind: "toggle", label: "Distortion", group: "LensProfile", key: "UseDistortion", def: true, showWhen: { key: "LcMode", values: ["lfauto", "exif"] } },
-            { kind: "toggle", label: "Vignetting", group: "LensProfile", key: "UseVignette", def: true, showWhen: { key: "LcMode", values: ["lfauto", "exif"] } },
-            { kind: "toggle", label: "Chromatic aberration", group: "LensProfile", key: "UseCA", def: false, showWhen: { key: "LcMode", values: ["lfauto", "exif"] } },
             {
-                // the flat field of the raw file (DNG gain maps, as phones write them); it is used only if the file has one
+                kind: "toggle",
+                label: "Distortion",
+                group: "LensProfile",
+                key: "UseDistortion",
+                def: true,
+                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
+            },
+            {
+                kind: "toggle",
+                label: "Vignetting",
+                group: "LensProfile",
+                key: "UseVignette",
+                def: true,
+                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
+            },
+            {
+                kind: "toggle",
+                label: "Chromatic aberration",
+                group: "LensProfile",
+                key: "UseCA",
+                def: false,
+                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
+            },
+            {
+                // the flat field of the raw file (DNG gain maps, as phones
+                // write them); it is used only if the file has one
                 kind: "toggle",
                 label: "Use the embedded flat field, if any",
                 group: "RAW",
                 key: "FlatFieldUseEmbedded",
                 def: false,
-                write: (v) => (v === true ? { FlatFieldUseEmbedded: true, FlatFieldEnabled: true } : { FlatFieldUseEmbedded: false }),
+                write: (v) =>
+                    v === true
+                        ? { FlatFieldUseEmbedded: true, FlatFieldEnabled: true }
+                        : { FlatFieldUseEmbedded: false },
             },
-            { kind: "heading", label: "Capture sharpening", group: "Sharpening" },
-            { kind: "toggle", label: "Enabled", group: "Sharpening", key: "Enabled", def: false, extra: rld },
-            { kind: "slider", label: "Radius", group: "Sharpening", key: "DeconvRadius", min: 0.4, max: 2.5, step: 0.01, def: 0.75, digits: 2, extra: rld },
-            { kind: "slider", label: "Amount", group: "Sharpening", key: "DeconvAmount", min: 0, max: 100, step: 1, def: 100, digits: 0, extra: rld },
-            { kind: "slider", label: "Contrast threshold", group: "Sharpening", key: "Contrast", min: 0, max: 200, step: 1, def: 20, digits: 0, extra: rld },
+            {
+                kind: "heading",
+                label: "Capture sharpening",
+                group: "Sharpening",
+            },
+            {
+                kind: "toggle",
+                label: "Enabled",
+                group: "Sharpening",
+                key: "Enabled",
+                def: false,
+                extra: rld,
+            },
+            {
+                kind: "slider",
+                label: "Radius",
+                group: "Sharpening",
+                key: "DeconvRadius",
+                min: 0.4,
+                max: 2.5,
+                step: 0.01,
+                def: 0.75,
+                digits: 2,
+                extra: rld,
+            },
+            {
+                kind: "slider",
+                label: "Amount",
+                group: "Sharpening",
+                key: "DeconvAmount",
+                min: 0,
+                max: 100,
+                step: 1,
+                def: 100,
+                digits: 0,
+                extra: rld,
+            },
+            {
+                kind: "slider",
+                label: "Contrast threshold",
+                group: "Sharpening",
+                key: "Contrast",
+                min: 0,
+                max: 200,
+                step: 1,
+                def: 20,
+                digits: 0,
+                extra: rld,
+            },
             { kind: "heading", label: "Noise reduction", group: "Denoise" },
             {
                 kind: "choice",
@@ -321,52 +640,144 @@ export const TOOLS: Tool[] = [
                 group: "Denoise",
                 key: "Enabled",
                 def: "off",
-                options: ["off", "low", "medium", "high"].map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) })),
+                options: ["off", "low", "medium", "high"].map((v) => ({
+                    value: v,
+                    label: v[0]!.toUpperCase() + v.slice(1),
+                })),
                 read: (params) => denoiseValue(params["Denoise"]),
-                write: (v) => (v === "off" ? { Enabled: false } : { Enabled: true, ...DENOISE_PRESETS[String(v)] }),
+                write: (v) =>
+                    v === "off"
+                        ? { Enabled: false }
+                        : { Enabled: true, ...DENOISE_PRESETS[String(v)] },
             },
             { kind: "heading", label: "Film grain", group: "Grain" },
-            { kind: "toggle", label: "Enabled", group: "Grain", key: "Enabled", def: false },
-            { kind: "slider", label: "Strength", group: "Grain", key: "Strength", min: 0, max: 100, step: 1, def: 50, digits: 0 },
-            { kind: "slider", label: "Coarseness (ISO)", group: "Grain", key: "ISO", min: 100, max: 6400, step: 50, def: 400, digits: 0 },
-            { kind: "toggle", label: "Color grain", group: "Grain", key: "Color", def: false },
-            // not a group of the profile: a region of the Smoothing tool, in halation mode (host/src/halation.cc)
+            {
+                kind: "toggle",
+                label: "Enabled",
+                group: "Grain",
+                key: "Enabled",
+                def: false,
+            },
+            {
+                kind: "slider",
+                label: "Strength",
+                group: "Grain",
+                key: "Strength",
+                min: 0,
+                max: 100,
+                step: 1,
+                def: 50,
+                digits: 0,
+            },
+            {
+                kind: "slider",
+                label: "Coarseness (ISO)",
+                group: "Grain",
+                key: "ISO",
+                min: 100,
+                max: 6400,
+                step: 50,
+                def: 400,
+                digits: 0,
+            },
+            {
+                kind: "toggle",
+                label: "Color grain",
+                group: "Grain",
+                key: "Color",
+                def: false,
+            },
+            // not a group of the profile: a region of the Smoothing tool, in
+            // halation mode (host/src/halation.cc)
             { kind: "heading", label: "Halation", group: "Halation" },
-            { kind: "toggle", label: "Enabled", group: "Halation", key: "Enabled", def: false },
-            { kind: "slider", label: "Strength", group: "Halation", key: "Strength", min: 0.01, max: 5, step: 0.01, def: 1, digits: 2 },
-            { kind: "slider", label: "Tint", group: "Halation", key: "Tint", min: -0.5, max: 0.5, step: 0.001, def: 0, digits: 3 },
+            {
+                kind: "toggle",
+                label: "Enabled",
+                group: "Halation",
+                key: "Enabled",
+                def: false,
+            },
+            {
+                kind: "slider",
+                label: "Strength",
+                group: "Halation",
+                key: "Strength",
+                min: 0.01,
+                max: 5,
+                step: 0.01,
+                def: 1,
+                digits: 2,
+            },
+            {
+                kind: "slider",
+                label: "Tint",
+                group: "Halation",
+                key: "Tint",
+                min: -0.5,
+                max: 0.5,
+                step: 0.001,
+                def: 0,
+                digits: 3,
+            },
         ],
     },
     {
-        // regions of ART's color/tone correction tool with a simplified interface (retouch.ts; host/src/retouch.cc)
+        // regions of ART's color/tone correction tool with a simplified
+        // interface (retouch.ts; host/src/retouch.cc)
         id: "retouch",
         label: "Retouch",
-        controls: [{ kind: "custom", label: "Retouching", group: "Retouch", name: "retouch" }],
+        controls: [
+            {
+                kind: "custom",
+                label: "Retouching",
+                group: "Retouch",
+                name: "retouch",
+            },
+        ],
     },
     {
         id: "crop",
         label: "Crop",
-        // the crop itself is in croptool.ts and the overlay; the fine rotation is a slider
+        // the crop itself is in croptool.ts and the overlay; the fine rotation
+        // is a slider
         controls: [
-            { kind: "slider", label: "Straighten", group: "Rotation", key: "Degree", min: -45, max: 45, step: 0.1, def: 0, digits: 1 },
+            {
+                kind: "slider",
+                label: "Straighten",
+                group: "Rotation",
+                key: "Degree",
+                min: -45,
+                max: 45,
+                step: 0.1,
+                def: 0,
+                digits: 1,
+            },
         ],
     },
     {
-        // the tools of the profile that this app has no controls for: information only (other.ts)
+        // the tools of the profile that this app has no controls for:
+        // information only (other.ts)
         id: "other",
         label: "Other",
-        controls: [{ kind: "custom", label: "Other tools", group: "", name: "info" }],
+        controls: [
+            { kind: "custom", label: "Other tools", group: "", name: "info" },
+        ],
     },
 ];
 
 /** the patch for setting a control to `value` */
 export function patchFor(def: ControlDef, value: unknown, get: Getter): Patch {
-    if (def.kind === "heading" || def.kind === "custom") throw new Error("this control has no value");
-    const keys: Record<string, unknown> = NO_ENABLED.has(def.group) ? {} : { Enabled: true };
+    if (def.kind === "heading" || def.kind === "custom")
+        throw new Error("this control has no value");
+    const keys: Record<string, unknown> = NO_ENABLED.has(def.group)
+        ? {}
+        : { Enabled: true };
     if (def.extra) Object.assign(keys, def.extra(get));
     if (def.kind === "slider" && def.index !== undefined) {
         // one element of a list: the whole list goes
-        const list = [...(parseList(get(def.group, def.key)) ?? def.list ?? [])];
+        const list = [
+            ...(parseList(get(def.group, def.key)) ?? def.list ?? []),
+        ];
         list[def.index] = Math.round(Number(value) * (def.scale ?? 1));
         keys[def.key] = list;
     } else if (def.kind !== "curve" && def.write) {
@@ -395,7 +806,10 @@ export function isShown(params: Params, def: ControlDef): boolean {
     const w = def.showWhen;
     if (!w) return true;
     const v = params[def.group]?.[w.key];
-    const first = TOOLS.flatMap((t) => t.controls).find((c) => c.kind === "choice" && c.group === def.group && c.key === w.key);
-    const cur = v === undefined && first && first.kind === "choice" ? first.def : v;
+    const first = TOOLS.flatMap((t) => t.controls).find(
+        (c) => c.kind === "choice" && c.group === def.group && c.key === w.key,
+    );
+    const cur =
+        v === undefined && first && first.kind === "choice" ? first.def : v;
     return w.values.includes(cur);
 }

@@ -1,6 +1,33 @@
-// The Export sheet: export of the image as it is now (full size, or resized), then a download.
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-import { ApiError, NetworkError, exportStatus, exportUrl, startExport } from "./api.js";
+// The Export sheet: export of the image as it is now (full size, or resized),
+// then a download.
+
+import {
+    ApiError,
+    NetworkError,
+    exportStatus,
+    exportUrl,
+    startExport,
+} from "./api.js";
 import type { ExportOptions, ExportStatus } from "./api.js";
 import { el, openSheet } from "./sheet.js";
 
@@ -14,12 +41,22 @@ interface Saved {
     size: 0 | 1920 | 2560 | 3840;
 }
 
-const DEFAULTS: Saved = { format: "jpg", quality: 92, pngBits: 8, tifBits: 16, compression: "none", size: 0 };
+const DEFAULTS: Saved = {
+    format: "jpg",
+    quality: 92,
+    pngBits: 8,
+    tifBits: 16,
+    compression: "none",
+    size: 0,
+};
 const KEY = "mart.export";
 
 function load(): Saved {
     try {
-        return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
+        return {
+            ...DEFAULTS,
+            ...JSON.parse(localStorage.getItem(KEY) ?? "{}"),
+        };
     } catch {
         return { ...DEFAULTS };
     }
@@ -47,7 +84,9 @@ export function toOptions(s: Saved, name: string): ExportOptions {
 }
 
 export function formatBytes(n: number): string {
-    return n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} kB`;
+    return n >= 1e6
+        ? `${(n / 1e6).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(n / 1e3))} kB`;
 }
 
 export function formatElapsed(ms: number): string {
@@ -55,7 +94,8 @@ export function formatElapsed(ms: number): string {
     return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
 }
 
-let activeJob: string | null = null; // an export in progress (the sheet can be closed and reopened)
+// an export in progress (the sheet can be closed and reopened)
+let activeJob: string | null = null;
 
 export function showExport(imageName: string): void {
     const sheet = openSheet("Export");
@@ -68,11 +108,23 @@ export function showExport(imageName: string): void {
     const body = sheet.body;
     const s = load();
 
-    const chips = (label: string, options: [string, string][], current: () => string, set: (v: string) => void): HTMLElement => {
-        const group = el("div", { class: "ctl" }, el("div", { class: "row" }, el("label", { text: label })));
+    const chips = (
+        label: string,
+        options: [string, string][],
+        current: () => string,
+        set: (v: string) => void,
+    ): HTMLElement => {
+        const group = el(
+            "div",
+            { class: "ctl" },
+            el("div", { class: "row" }, el("label", { text: label })),
+        );
         const row = el("div", { class: "chips" });
         const buttons: [string, HTMLButtonElement][] = [];
-        const paint = (): void => buttons.forEach(([v, b]) => b.setAttribute("aria-checked", String(v === current())));
+        const paint = (): void =>
+            buttons.forEach(([v, b]) =>
+                b.setAttribute("aria-checked", String(v === current())),
+            );
         for (const [value, text] of options) {
             const b = el("button", { class: "chip", text });
             b.type = "button";
@@ -98,14 +150,51 @@ export function showExport(imageName: string): void {
     name.spellcheck = false;
     const go = el("button", { class: "action", text: "Export" });
     const progress = el("div", { class: "export-progress" });
-    body.append(options, el("div", { class: "ctl" }, el("div", { class: "row" }, el("label", { text: "File name" })), name), go, progress);
+    body.append(
+        options,
+        el(
+            "div",
+            { class: "ctl" },
+            el("div", { class: "row" }, el("label", { text: "File name" })),
+            name,
+        ),
+        go,
+        progress,
+    );
 
     function renderOptions(): void {
         options.replaceChildren(
-            chips("Format", [["jpg", "JPEG"], ["png", "PNG"], ["tif", "TIFF"]], () => s.format, (v) => (s.format = v as Saved["format"])),
-            chips("Size", [["0", "Full size"], ["1920", "1920 px"], ["2560", "2560 px"], ["3840", "3840 px"]], () => String(s.size), (v) => (s.size = Number(v) as Saved["size"])),
+            chips(
+                "Format",
+                [
+                    ["jpg", "JPEG"],
+                    ["png", "PNG"],
+                    ["tif", "TIFF"],
+                ],
+                () => s.format,
+                (v) => (s.format = v as Saved["format"]),
+            ),
+            chips(
+                "Size",
+                [
+                    ["0", "Full size"],
+                    ["1920", "1920 px"],
+                    ["2560", "2560 px"],
+                    ["3840", "3840 px"],
+                ],
+                () => String(s.size),
+                (v) => (s.size = Number(v) as Saved["size"]),
+            ),
         );
-        if (s.size) options.append(el("p", { class: "muted", text: `The longest edge is at most ${s.size} px. A resized export uses ART's fast export pipeline.` }));
+        if (s.size)
+            options.append(
+                el("p", {
+                    class: "muted",
+                    text:
+                        `The longest edge is at most ${s.size} px. A ` +
+                        `resized export uses ART's fast export pipeline.`,
+                }),
+            );
         if (s.format === "jpg") {
             const q = el("div", { class: "ctl" });
             const out = el("output", { text: String(s.quality) });
@@ -120,14 +209,49 @@ export function showExport(imageName: string): void {
                 out.textContent = input.value;
             });
             input.addEventListener("change", () => save(s));
-            q.append(el("div", { class: "row" }, el("label", { text: "Quality" }), out), input);
+            q.append(
+                el(
+                    "div",
+                    { class: "row" },
+                    el("label", { text: "Quality" }),
+                    out,
+                ),
+                input,
+            );
             options.append(q);
         } else if (s.format === "png") {
-            options.append(chips("Bit depth", [["8", "8 bit"], ["16", "16 bit"]], () => String(s.pngBits), (v) => (s.pngBits = Number(v) as 8 | 16)));
+            options.append(
+                chips(
+                    "Bit depth",
+                    [
+                        ["8", "8 bit"],
+                        ["16", "16 bit"],
+                    ],
+                    () => String(s.pngBits),
+                    (v) => (s.pngBits = Number(v) as 8 | 16),
+                ),
+            );
         } else {
             options.append(
-                chips("Bit depth", [["8", "8 bit"], ["16", "16 bit"], ["32", "32 bit float"]], () => String(s.tifBits), (v) => (s.tifBits = Number(v) as 8 | 16 | 32)),
-                chips("Compression", [["none", "None"], ["zip", "ZIP"]], () => s.compression, (v) => (s.compression = v as Saved["compression"])),
+                chips(
+                    "Bit depth",
+                    [
+                        ["8", "8 bit"],
+                        ["16", "16 bit"],
+                        ["32", "32 bit float"],
+                    ],
+                    () => String(s.tifBits),
+                    (v) => (s.tifBits = Number(v) as 8 | 16 | 32),
+                ),
+                chips(
+                    "Compression",
+                    [
+                        ["none", "None"],
+                        ["zip", "ZIP"],
+                    ],
+                    () => s.compression,
+                    (v) => (s.compression = v as Saved["compression"]),
+                ),
             );
         }
     }
@@ -144,7 +268,16 @@ export function showExport(imageName: string): void {
         showForm(false);
         activeJob = job;
         const status = el("p", { class: "export-status" });
-        progress.replaceChildren(el("div", { class: "spinner", title: "" }), status, el("p", { class: "muted", text: "Editing is paused until the export is finished: it renders the whole image." }));
+        progress.replaceChildren(
+            el("div", { class: "spinner", title: "" }),
+            status,
+            el("p", {
+                class: "muted",
+                text:
+                    "Editing is paused until the export is finished: it " +
+                    "renders the whole image.",
+            }),
+        );
         let misses = 0;
         for (;;) {
             let st: ExportStatus;
@@ -154,11 +287,17 @@ export function showExport(imageName: string): void {
             } catch (e) {
                 if (e instanceof ApiError) {
                     activeJob = null;
-                    finish(`The export is no longer known to the server (${e.message}).`, null);
+                    finish(
+                        `The export is no longer known to the server ` +
+                            `(${e.message}).`,
+                        null,
+                    );
                     return;
                 }
-                // the network or server is away for a moment: keep asking, say so after a while
-                if (e instanceof NetworkError && ++misses > 3) status.textContent = "Waiting for the server…";
+                // the network or server is away for a moment: keep asking, say
+                // so after a while
+                if (e instanceof NetworkError && ++misses > 3)
+                    status.textContent = "Waiting for the server…";
                 await new Promise((r) => setTimeout(r, 1000));
                 if (closed) return;
                 continue;
@@ -175,26 +314,54 @@ export function showExport(imageName: string): void {
             }
             status.textContent = `Exporting… ${formatElapsed(st.elapsed_ms)}`;
             await new Promise((r) => setTimeout(r, 500));
-            if (closed) return; // the export goes on; reopening this sheet picks it up again
+            // the export goes on; reopening this sheet picks it up again
+            if (closed) return;
         }
     };
 
-    const finish = (error: string | null, ok: { job: string; st: ExportStatus } | null): void => {
+    const finish = (
+        error: string | null,
+        ok: { job: string; st: ExportStatus } | null,
+    ): void => {
         progress.replaceChildren();
         if (error || !ok) {
             const again = el("button", { class: "action", text: "Back" });
             again.addEventListener("click", () => showForm(true));
-            progress.append(el("p", { class: "error", text: error ?? "The export failed." }), again);
+            progress.append(
+                el("p", {
+                    class: "error",
+                    text: error ?? "The export failed.",
+                }),
+                again,
+            );
             return;
         }
         const { job, st } = ok;
         const a = el("a", { class: "action", text: `Download ${st.name}` });
         a.href = exportUrl(job);
         a.download = st.name ?? "";
-        const facts = [`${st.width} × ${st.height}`, st.bytes ? formatBytes(st.bytes) : "", `${formatElapsed(st.elapsed_ms)}`].filter(Boolean).join(" · ");
-        progress.append(el("p", { class: "export-done", text: "Exported: " + facts }), a);
-        if (st.path) progress.append(el("p", { class: "muted", text: `Also kept on the server: ${st.path}` }));
-        const again = el("button", { class: "action secondary", text: "Export again" });
+        const facts = [
+            `${st.width} × ${st.height}`,
+            st.bytes ? formatBytes(st.bytes) : "",
+            `${formatElapsed(st.elapsed_ms)}`,
+        ]
+            .filter(Boolean)
+            .join(" · ");
+        progress.append(
+            el("p", { class: "export-done", text: "Exported: " + facts }),
+            a,
+        );
+        if (st.path)
+            progress.append(
+                el("p", {
+                    class: "muted",
+                    text: `Also kept on the server: ${st.path}`,
+                }),
+            );
+        const again = el("button", {
+            class: "action secondary",
+            text: "Export again",
+        });
         again.addEventListener("click", () => showForm(true));
         progress.append(again);
     };

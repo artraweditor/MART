@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "profiles.h"
 #include <algorithm>
 #include <cctype>
@@ -16,11 +35,13 @@ namespace {
 
 bool endsWith(const std::string &s, const std::string &e)
 {
-    return s.size() >= e.size() && s.compare(s.size() - e.size(), e.size(), e) == 0;
+    return s.size() >= e.size() &&
+           s.compare(s.size() - e.size(), e.size(), e) == 0;
 }
 
 // *.arp files below `dir`, relative to it, at most 3 levels deep
-void scan(const std::string &dir, const std::string &rel, int depth, std::vector<std::string> &out)
+void scan(const std::string &dir, const std::string &rel, int depth,
+          std::vector<std::string> &out)
 {
     DIR *d = opendir((rel.empty() ? dir : dir + "/" + rel).c_str());
     if (!d) return;
@@ -29,7 +50,8 @@ void scan(const std::string &dir, const std::string &rel, int depth, std::vector
         if (n.empty() || n[0] == '.') continue;
         std::string r = rel.empty() ? n : rel + "/" + n;
         struct stat st;
-        if (stat((dir + "/" + r).c_str(), &st) != 0) continue;  // follows symlinks, as ART's folder does
+        if (stat((dir + "/" + r).c_str(), &st) != 0)
+            continue;  // follows symlinks, as ART's folder does
         if (S_ISDIR(st.st_mode)) {
             if (depth < 3) scan(dir, r, depth + 1, out);
         } else if (S_ISREG(st.st_mode) && endsWith(n, ".arp")) {
@@ -59,45 +81,62 @@ bool safeRelative(const std::string &rel)
     return true;
 }
 
-} // namespace
+}  // namespace
 
-Profiles::Profiles(std::vector<ProfileDir> dirs): dirs_(std::move(dirs)) {}
+Profiles::Profiles(std::vector<ProfileDir> dirs) : dirs_(std::move(dirs)) {}
 
 nlohmann::json Profiles::list()
 {
     nlohmann::json r = nlohmann::json::array();
-    r.push_back({{"id", ":neutral"}, {"name", "Neutral"}, {"source", "builtin"}, {"default", false}});
+    r.push_back({{"id", ":neutral"},
+                 {"name", "Neutral"},
+                 {"source", "builtin"},
+                 {"default", false}});
     const std::string dflt = defaultRel();
     for (size_t i = 0; i < dirs_.size(); ++i) {
         std::vector<std::string> files;
         scan(dirs_[i].path, "", 0, files);
-        std::sort(files.begin(), files.end(), [](const std::string &a, const std::string &b) {
-            std::string la = a, lb = b;
-            for (auto &c : la) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            for (auto &c : lb) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            return la != lb ? la < lb : a < b;
-        });   // by name, ignoring case
+        std::sort(files.begin(), files.end(),
+                  [](const std::string &a, const std::string &b) {
+                      std::string la = a, lb = b;
+                      for (auto &c : la)
+                          c = static_cast<char>(
+                              std::tolower(static_cast<unsigned char>(c)));
+                      for (auto &c : lb)
+                          c = static_cast<char>(
+                              std::tolower(static_cast<unsigned char>(c)));
+                      return la != lb ? la < lb : a < b;
+                  });  // by name, ignoring case
         for (auto &f : files)
-            r.push_back({{"id", "d" + std::to_string(i) + ":" + f}, {"name", displayName(f)}, {"source", dirs_[i].tag},
+            r.push_back({{"id", "d" + std::to_string(i) + ":" + f},
+                         {"name", displayName(f)},
+                         {"source", dirs_[i].tag},
                          {"default", i == 0 && f == dflt}});
     }
     return r;
 }
 
-nlohmann::json Profiles::import(const std::string &name, const std::string &text)
+nlohmann::json Profiles::import(const std::string &name,
+                                const std::string &text)
 {
-    if (text.empty() || text.size() > (1u << 20)) throw std::invalid_argument("a profile is 1 byte to 1 MiB");
-    if (text.find('\0') != std::string::npos) throw std::invalid_argument("not a text profile");
+    if (text.empty() || text.size() > (1u << 20))
+        throw std::invalid_argument("a profile is 1 byte to 1 MiB");
+    if (text.find('\0') != std::string::npos)
+        throw std::invalid_argument("not a text profile");
     // an .arp is an INI file: it must have at least one [Group] line
     bool group = false;
     size_t i = 0;
     while (i < text.size() && !group) {
         size_t j = text.find('\n', i);
         if (j == std::string::npos) j = text.size();
-        group = j > i + 2 && text[i] == '[' && (text[j - 1] == ']' || (text[j - 1] == '\r' && text[j - 2] == ']'));
+        group =
+            j > i + 2 && text[i] == '[' &&
+            (text[j - 1] == ']' || (text[j - 1] == '\r' && text[j - 2] == ']'));
         i = j + 1;
     }
-    if (!group) throw std::invalid_argument("this does not look like an ART profile (.arp)");
+    if (!group)
+        throw std::invalid_argument(
+            "this does not look like an ART profile (.arp)");
     return save(name, text, false);
 }
 
@@ -117,14 +156,14 @@ std::string Profiles::path(const std::string &id) const
     return stat(p.c_str(), &st) == 0 && S_ISREG(st.st_mode) ? p : "";
 }
 
-
 std::string Profiles::sanitizeName(const std::string &name)
 {
     std::string s = name;
     if (endsWith(s, ".arp")) s.resize(s.size() - 4);
     std::string out;
     for (unsigned char c : s) {
-        const bool ok = std::isalnum(c) || c == '_' || c == '-' || c == '.' || c == ' ' || c == '(' || c == ')' || c >= 0x80;
+        const bool ok = std::isalnum(c) || c == '_' || c == '-' || c == '.' ||
+                        c == ' ' || c == '(' || c == ')' || c >= 0x80;
         out += ok ? static_cast<char>(c) : '_';
         if (out.size() >= 80) break;
     }
@@ -134,67 +173,96 @@ std::string Profiles::sanitizeName(const std::string &name)
     return out.substr(a, b - a + 1);
 }
 
-nlohmann::json Profiles::save(const std::string &name, const std::string &text, bool overwrite)
+nlohmann::json Profiles::save(const std::string &name, const std::string &text,
+                              bool overwrite)
 {
-    if (dirs_.empty()) throw std::invalid_argument("there is no folder for profiles");
+    if (dirs_.empty())
+        throw std::invalid_argument("there is no folder for profiles");
     const std::string stem = sanitizeName(name);
     if (stem.empty()) throw std::invalid_argument("give the profile a name");
-    if (text.empty()) throw std::invalid_argument("there is nothing to save in the selected sections");
+    if (text.empty())
+        throw std::invalid_argument(
+            "there is nothing to save in the selected sections");
     const std::string dir = dirs_[0].path;
-    // the folder (and its parent: ~/.config/MART) is made when the first profile is saved
+    // the folder (and its parent: ~/.config/MART) is made when the first
+    // profile is saved
     for (size_t i = 1; i <= dir.size(); ++i)
-        if (i == dir.size() || dir[i] == '/') mkdir(dir.substr(0, i).c_str(), 0755);
+        if (i == dir.size() || dir[i] == '/')
+            mkdir(dir.substr(0, i).c_str(), 0755);
     struct stat st;
-    if (stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) throw std::invalid_argument("cannot make the folder for profiles");
+    if (stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))
+        throw std::invalid_argument("cannot make the folder for profiles");
     const std::string file = stem + ".arp";
     const std::string path = dir + "/" + file;
-    if (!overwrite && stat(path.c_str(), &st) == 0) throw ProfileExists("a profile named \"" + stem + "\" already exists");
+    if (!overwrite && stat(path.c_str(), &st) == 0)
+        throw ProfileExists("a profile named \"" + stem + "\" already exists");
     std::ofstream f(path, std::ios::binary | std::ios::trunc);
     f << text;
     f.close();
     if (!f) throw std::runtime_error("cannot write the profile");
-    return {{"id", "d0:" + file}, {"name", stem}, {"source", dirs_[0].tag}, {"default", file == defaultRel()}};
+    return {{"id", "d0:" + file},
+            {"name", stem},
+            {"source", dirs_[0].tag},
+            {"default", file == defaultRel()}};
 }
 
 namespace {
 std::string lowerCase(std::string s)
 {
-    for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (auto &c : s)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s;
 }
-} // namespace
+}  // namespace
 
-nlohmann::json Profiles::rename(const std::string &id, const std::string &newName)
+nlohmann::json Profiles::rename(const std::string &id,
+                                const std::string &newName)
 {
     const std::string from = path(id);
-    if (id.compare(0, 3, "d0:") != 0 || dirs_.empty()) throw std::invalid_argument("only a profile of MART's folder can be renamed");
+    if (id.compare(0, 3, "d0:") != 0 || dirs_.empty())
+        throw std::invalid_argument(
+            "only a profile of MART's folder can be renamed");
     if (from.empty()) throw std::out_of_range("no such profile");
     const std::string stem = sanitizeName(newName);
     if (stem.empty()) throw std::invalid_argument("give the profile a name");
-    // the new file is next to the old one (a profile in a subfolder stays there)
+    // the new file is next to the old one (a profile in a subfolder stays
+    // there)
     const std::string oldRel = id.substr(3);
     const auto slash = oldRel.rfind('/');
-    const std::string newRel = (slash == std::string::npos ? "" : oldRel.substr(0, slash + 1)) + stem + ".arp";
+    const std::string newRel =
+        (slash == std::string::npos ? "" : oldRel.substr(0, slash + 1)) + stem +
+        ".arp";
     const std::string to = dirs_[0].path + "/" + newRel;
     struct stat st;
-    // on a file system that ignores case, "warm" -> "Warm" names the same file: that is a rename, not a clash
-    if (newRel != oldRel && lowerCase(newRel) != lowerCase(oldRel) && stat(to.c_str(), &st) == 0)
+    // on a file system that ignores case, "warm" -> "Warm" names the same file:
+    // that is a rename, not a clash
+    if (newRel != oldRel && lowerCase(newRel) != lowerCase(oldRel) &&
+        stat(to.c_str(), &st) == 0)
         throw ProfileExists("a profile named \"" + stem + "\" already exists");
-    if (std::rename(from.c_str(), to.c_str()) != 0) throw std::runtime_error("cannot rename the profile");
+    if (std::rename(from.c_str(), to.c_str()) != 0)
+        throw std::runtime_error("cannot rename the profile");
     if (defaultRel() == oldRel) {
-        std::ofstream f(dirs_[0].path + "/.default", std::ios::binary | std::ios::trunc);
+        std::ofstream f(dirs_[0].path + "/.default",
+                        std::ios::binary | std::ios::trunc);
         f << newRel << "\n";
     }
-    return {{"id", "d0:" + newRel}, {"name", stem}, {"source", dirs_[0].tag}, {"default", defaultRel() == newRel}};
+    return {{"id", "d0:" + newRel},
+            {"name", stem},
+            {"source", dirs_[0].tag},
+            {"default", defaultRel() == newRel}};
 }
 
 void Profiles::remove(const std::string &id)
 {
     const std::string file = path(id);
-    if (id.compare(0, 3, "d0:") != 0 || dirs_.empty()) throw std::invalid_argument("only a profile of MART's folder can be deleted");
+    if (id.compare(0, 3, "d0:") != 0 || dirs_.empty())
+        throw std::invalid_argument(
+            "only a profile of MART's folder can be deleted");
     if (file.empty()) throw std::out_of_range("no such profile");
-    if (defaultRel() == id.substr(3)) unlink((dirs_[0].path + "/.default").c_str());
-    if (unlink(file.c_str()) != 0) throw std::runtime_error("cannot delete the profile");
+    if (defaultRel() == id.substr(3))
+        unlink((dirs_[0].path + "/.default").c_str());
+    if (unlink(file.c_str()) != 0)
+        throw std::runtime_error("cannot delete the profile");
 }
 
 std::string Profiles::defaultRel() const
@@ -203,7 +271,9 @@ std::string Profiles::defaultRel() const
     std::ifstream f(dirs_[0].path + "/.default");
     std::string rel;
     std::getline(f, rel);
-    while (!rel.empty() && (rel.back() == '\r' || rel.back() == '\n' || rel.back() == ' ')) rel.pop_back();
+    while (!rel.empty() &&
+           (rel.back() == '\r' || rel.back() == '\n' || rel.back() == ' '))
+        rel.pop_back();
     return rel;
 }
 
@@ -215,17 +285,20 @@ std::string Profiles::defaultPath() const
 
 void Profiles::setDefault(const std::string &id)
 {
-    if (dirs_.empty()) throw std::invalid_argument("there is no folder for profiles");
+    if (dirs_.empty())
+        throw std::invalid_argument("there is no folder for profiles");
     const std::string file = dirs_[0].path + "/.default";
     if (id.empty()) {
         unlink(file.c_str());
         return;
     }
-    if (id.compare(0, 3, "d0:") != 0 || path(id).empty()) throw std::invalid_argument("only a profile of the folder can be the default");
+    if (id.compare(0, 3, "d0:") != 0 || path(id).empty())
+        throw std::invalid_argument(
+            "only a profile of the folder can be the default");
     std::ofstream f(file, std::ios::binary | std::ios::trunc);
     f << id.substr(3) << "\n";
     f.close();
     if (!f) throw std::runtime_error("cannot write the default");
 }
 
-} // namespace mart
+}  // namespace mart

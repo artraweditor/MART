@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "editor.h"
 #include <chrono>
 
@@ -39,7 +58,8 @@ void Editor::attach(const std::shared_ptr<Conn> &c)
         q_.clear();
         exporting = exporting_;
     }
-    if (exporting) c->sendText(json{{"type", "busy"}, {"what", "exporting"}}.dump());
+    if (exporting)
+        c->sendText(json{{"type", "busy"}, {"what", "exporting"}}.dump());
     if (old) {
         old->sendText(json{{"type", "replaced"}}.dump());
         old->close("replaced by a newer connection");
@@ -65,7 +85,11 @@ void Editor::setBusy(bool exporting)
         exporting_ = exporting;
         c = current_;
     }
-    if (c) c->sendText(json{{"type", "busy"}, {"what", exporting ? json("exporting") : json(nullptr)}}.dump());
+    if (c)
+        c->sendText(
+            json{{"type", "busy"},
+                 {"what", exporting ? json("exporting") : json(nullptr)}}
+                .dump());
 }
 
 void Editor::detach(const std::shared_ptr<Conn> &c)
@@ -89,8 +113,9 @@ bool parseView(const json &j, View &v)
         return true;
     };
     View n;
-    if (!num("x", 0, 1000000, n.x) || !num("y", 0, 1000000, n.y) || !num("w", 0, 1000000, n.w) ||
-        !num("h", 0, 1000000, n.h) || !num("out_w", 1, 4096, n.out_w))
+    if (!num("x", 0, 1000000, n.x) || !num("y", 0, 1000000, n.y) ||
+        !num("w", 0, 1000000, n.w) || !num("h", 0, 1000000, n.h) ||
+        !num("out_w", 1, 4096, n.out_w))
         return false;
     if (n.out_w <= 0 || (n.w > 0) != (n.h > 0)) return false;
     n.valid = true;
@@ -98,18 +123,22 @@ bool parseView(const json &j, View &v)
     return true;
 }
 
-} // namespace
+}  // namespace
 
 void Editor::message(const std::shared_ptr<Conn> &c, const std::string &text)
 {
     json m = json::parse(text, nullptr, false);
-    auto fail = [&](long long seq, const std::string &why) { sendError(*c, seq, why); };
+    auto fail = [&](long long seq, const std::string &why) {
+        sendError(*c, seq, why);
+    };
     if (!m.is_object() || !m.contains("type") || !m["type"].is_string()) {
         fail(0, "bad message");
         return;
     }
     const std::string type = m["type"];
-    const long long seq = m.contains("seq") && m["seq"].is_number_integer() ? m["seq"].get<long long>() : 0;
+    const long long seq = m.contains("seq") && m["seq"].is_number_integer()
+                              ? m["seq"].get<long long>()
+                              : 0;
     {
         std::lock_guard<std::mutex> g(m_);
         if (current_ != c) return;  // replaced
@@ -132,7 +161,8 @@ void Editor::message(const std::shared_ptr<Conn> &c, const std::string &text)
         }
         op.patch = m["patch"];
         if (m.contains("merge")) {
-            if (!m["merge"].is_string() || m["merge"].get<std::string>().size() > 64) {
+            if (!m["merge"].is_string() ||
+                m["merge"].get<std::string>().size() > 64) {
                 fail(seq, "bad merge key");
                 return;
             }
@@ -155,7 +185,8 @@ void Editor::message(const std::shared_ptr<Conn> &c, const std::string &text)
             return;
         }
         op.profileId = m["id"];
-        op.append = m.contains("append") && m["append"].is_boolean() && m["append"].get<bool>();
+        op.append = m.contains("append") && m["append"].is_boolean() &&
+                    m["append"].get<bool>();
     } else if (type == "sync") {
         op.type = Op::Sync;
     } else {
@@ -171,8 +202,10 @@ void Editor::push(Op op)
     {
         std::lock_guard<std::mutex> g(m_);
         Op *b = q_.empty() ? nullptr : &q_.back();
-        if (b && op.type == Op::Edit && b->type == Op::Edit && !op.mergeKey.empty() && b->mergeKey == op.mergeKey) {
-            // the same gesture: keep one apply with the newest value of each key
+        if (b && op.type == Op::Edit && b->type == Op::Edit &&
+            !op.mergeKey.empty() && b->mergeKey == op.mergeKey) {
+            // the same gesture: keep one apply with the newest value of each
+            // key
             for (auto &[grp, keys] : op.patch.items())
                 for (auto &[k, v] : keys.items()) b->patch[grp][k] = v;
             b->seq = op.seq;
@@ -202,7 +235,9 @@ void Editor::sendState(Conn &c, long long seq)
               {"params", p["params"]},
               {"history", session_.history()},
               {"dirty", session_.dirty()},
-              {"size", {{"full_width", session_.fullWidth()}, {"full_height", session_.fullHeight()}}}};
+              {"size",
+               {{"full_width", session_.fullWidth()},
+                {"full_height", session_.fullHeight()}}}};
     c.sendText(s.dump());
 }
 
@@ -217,12 +252,21 @@ void Editor::sendFrame(Conn &c, long long seq, const View &v)
     pr.h = v.h;
     pr.out_w = v.out_w;
     PreviewFrame f = session_.preview(pr);
-    long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - t0).count();
+    long long ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - t0)
+            .count();
     json region = {{"x", f.x}, {"y", f.y}, {"w", f.w}, {"h", f.h}};
-    json hdr = {{"type", "frame"}, {"seq", seq},     {"region", region}, {"w", f.width},
-                {"h", f.height},   {"ms", ms},       {"history", session_.history()},
+    json hdr = {{"type", "frame"},
+                {"seq", seq},
+                {"region", region},
+                {"w", f.width},
+                {"h", f.height},
+                {"ms", ms},
+                {"history", session_.history()},
                 {"dirty", session_.dirty()},
-                {"size", {{"full_width", session_.fullWidth()}, {"full_height", session_.fullHeight()}}}};
+                {"size",
+                 {{"full_width", session_.fullWidth()},
+                  {"full_height", session_.fullHeight()}}}};
     std::string h = hdr.dump();
     std::string msg;
     msg.reserve(4 + h.size() + f.jpeg.size());
@@ -298,7 +342,8 @@ void Editor::drain()
         if (!last) continue;
         try {
             if (needState && session_.isOpen()) sendState(*c, lastSeq);
-            if (needRender && view_.valid && session_.isOpen()) sendFrame(*c, lastSeq, view_);
+            if (needRender && view_.valid && session_.isOpen())
+                sendFrame(*c, lastSeq, view_);
         } catch (const ApiError &e) {
             sendError(*c, lastSeq, e.what());
         } catch (const ArtError &e) {
@@ -310,4 +355,4 @@ void Editor::drain()
     }
 }
 
-} // namespace mart
+}  // namespace mart

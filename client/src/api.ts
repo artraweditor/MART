@@ -1,3 +1,23 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // HTTP access to the MART host.
 
 export interface ImageInfo {
@@ -79,8 +99,14 @@ export async function getInfo(): Promise<ImageInfo> {
     return (await request("/api/info", { cache: "no-store" })).json();
 }
 
-/** Open an image. Without `discard` an image with unsaved edits is refused (ApiError 409). */
-export async function openImage(path: string, discard = false): Promise<ImageInfo> {
+/**
+ * Open an image. Without `discard` an image with unsaved edits is refused
+ * (ApiError 409).
+ */
+export async function openImage(
+    path: string,
+    discard = false,
+): Promise<ImageInfo> {
     const res = await request("/api/open", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,11 +115,23 @@ export async function openImage(path: string, discard = false): Promise<ImageInf
     return res.json();
 }
 
-export type Metadata = Record<string, string | number | boolean | null | (string | number)[]>;
+export type Metadata = Record<
+    string,
+    string | number | boolean | null | (string | number)[]
+>;
 
-/** Every tag of the image: as in the file (`edits` false) or with the edits applied. Maker notes need ExifTool and are slow. */
-export async function getMetadata(makernotes: boolean, edits: boolean): Promise<Metadata> {
-    const q = new URLSearchParams({ makernotes: makernotes ? "1" : "0", edits: edits ? "1" : "0" });
+/**
+ * Every tag of the image: as in the file (`edits` false) or with the edits
+ * applied. Maker notes need ExifTool and are slow.
+ */
+export async function getMetadata(
+    makernotes: boolean,
+    edits: boolean,
+): Promise<Metadata> {
+    const q = new URLSearchParams({
+        makernotes: makernotes ? "1" : "0",
+        edits: edits ? "1" : "0",
+    });
     return (await request(`/api/metadata?${q}`, { cache: "no-store" })).json();
 }
 
@@ -109,13 +147,22 @@ export async function listProfiles(): Promise<ProfileEntry[]> {
     return (await request("/api/profiles", { cache: "no-store" })).json();
 }
 
-/** Store a profile from a file of the user's in MART's folder, under this name (the text of an .arp). ApiError 409: the name is taken. */
-export async function importProfile(name: string, text: string): Promise<ProfileEntry> {
-    const res = await request(`/api/profiles?name=${encodeURIComponent(name)}`, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: text,
-    });
+/**
+ * Store a profile from a file of the user's in MART's folder, under this name
+ * (the text of an .arp). ApiError 409: the name is taken.
+ */
+export async function importProfile(
+    name: string,
+    text: string,
+): Promise<ProfileEntry> {
+    const res = await request(
+        `/api/profiles?name=${encodeURIComponent(name)}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: text,
+        },
+    );
     return res.json();
 }
 
@@ -125,7 +172,12 @@ export interface SpotWB {
 }
 
 /** The white balance that makes this rectangle (image pixels) neutral. */
-export async function spotWB(x: number, y: number, w: number, h: number): Promise<SpotWB> {
+export async function spotWB(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+): Promise<SpotWB> {
     const res = await request("/api/wb/spot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,7 +212,10 @@ export interface ExportStatus {
     error?: string;
 }
 
-/** Start an export (full size, or as large as `size` at most) of the image as it is now (unsaved edits included). Resolves with the job id. */
+/**
+ * Start an export (full size, or as large as `size` at most) of the image as it
+ * is now (unsaved edits included). Resolves with the job id.
+ */
 export async function startExport(o: ExportOptions): Promise<string> {
     const res = await request("/api/export", {
         method: "POST",
@@ -171,7 +226,11 @@ export async function startExport(o: ExportOptions): Promise<string> {
 }
 
 export async function exportStatus(job: string): Promise<ExportStatus> {
-    return (await request(`/api/export/${encodeURIComponent(job)}`, { cache: "no-store" })).json();
+    return (
+        await request(`/api/export/${encodeURIComponent(job)}`, {
+            cache: "no-store",
+        })
+    ).json();
 }
 
 /** The address of the exported file, to download it. */
@@ -190,13 +249,22 @@ export async function listLuts(): Promise<LutEntry[]> {
     return (await request("/api/luts", { cache: "no-store" })).json();
 }
 
-/** Store a LUT, a CTL script or a Hald CLUT image from a file of the user's in MART's folder, under this file name. ApiError 409: the name is taken. */
-export async function importLut(fileName: string, data: Blob): Promise<LutEntry> {
-    const res = await request(`/api/luts?name=${encodeURIComponent(fileName)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: data,
-    });
+/**
+ * Store a LUT, a CTL script or a Hald CLUT image from a file of the user's in
+ * MART's folder, under this file name. ApiError 409: the name is taken.
+ */
+export async function importLut(
+    fileName: string,
+    data: Blob,
+): Promise<LutEntry> {
+    const res = await request(
+        `/api/luts?name=${encodeURIComponent(fileName)}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/octet-stream" },
+            body: data,
+        },
+    );
     return res.json();
 }
 
@@ -223,7 +291,15 @@ export async function deleteLut(id: string): Promise<LutEntry[]> {
 /** one parameter of a CTL script, as the engine describes it */
 export interface ClutParam {
     name: string;
-    type: "int" | "float" | "bool" | "choice" | "curve" | "flatcurve" | "flatcurve_periodic" | "huesat";
+    type:
+        | "int"
+        | "float"
+        | "bool"
+        | "choice"
+        | "curve"
+        | "flatcurve"
+        | "flatcurve_periodic"
+        | "huesat";
     label: string;
     group: string;
     tooltip: string;
@@ -246,7 +322,10 @@ export interface ClutInfo {
     error?: string;
 }
 
-/** The parameters of a LUT: of the one in the profile, or of the one with this id (the host's id from `listLuts`). */
+/**
+ * The parameters of a LUT: of the one in the profile, or of the one with this
+ * id (the host's id from `listLuts`).
+ */
 export async function lutParams(id?: string): Promise<ClutInfo> {
     const q = id ? `?id=${encodeURIComponent(id)}` : "";
     return (await request(`/api/lut/params${q}`, { cache: "no-store" })).json();
@@ -260,11 +339,20 @@ export interface ProfileSection {
 }
 
 export async function profileSections(): Promise<ProfileSection[]> {
-    return (await request("/api/profile-sections", { cache: "no-store" })).json();
+    return (
+        await request("/api/profile-sections", { cache: "no-store" })
+    ).json();
 }
 
-/** Save the current parameters of these sections as a profile of MART. ApiError 409: the name is taken (use `overwrite`). */
-export async function saveProfile(name: string, sections: string[], overwrite = false): Promise<ProfileEntry> {
+/**
+ * Save the current parameters of these sections as a profile of MART. ApiError
+ * 409: the name is taken (use `overwrite`).
+ */
+export async function saveProfile(
+    name: string,
+    sections: string[],
+    overwrite = false,
+): Promise<ProfileEntry> {
     const res = await request("/api/profiles/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -273,8 +361,13 @@ export async function saveProfile(name: string, sections: string[], overwrite = 
     return res.json();
 }
 
-/** Choose the profile for images without a sidecar (an id of a profile of MART), or none (null). Resolves with the new list. */
-export async function setDefaultProfile(id: string | null): Promise<ProfileEntry[]> {
+/**
+ * Choose the profile for images without a sidecar (an id of a profile of MART),
+ * or none (null). Resolves with the new list.
+ */
+export async function setDefaultProfile(
+    id: string | null,
+): Promise<ProfileEntry[]> {
     const res = await request("/api/profiles/default", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -283,8 +376,14 @@ export async function setDefaultProfile(id: string | null): Promise<ProfileEntry
     return res.json();
 }
 
-/** Rename a profile of MART. ApiError 409: another profile has that name. Resolves with the renamed one. */
-export async function renameProfile(id: string, name: string): Promise<ProfileEntry> {
+/**
+ * Rename a profile of MART. ApiError 409: another profile has that name.
+ * Resolves with the renamed one.
+ */
+export async function renameProfile(
+    id: string,
+    name: string,
+): Promise<ProfileEntry> {
     const res = await request("/api/profiles/rename", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

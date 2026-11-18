@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #pragma once
 #include <condition_variable>
 #include <deque>
@@ -13,7 +32,7 @@ namespace mart {
 // block and cannot be interrupted, so every call goes through this queue.
 class Worker {
 public:
-    Worker(): th_([this] { loop(); }) {}
+    Worker() : th_([this] { loop(); }) {}
     ~Worker()
     {
         {
@@ -35,6 +54,7 @@ public:
         cv_.notify_one();
         return fut;
     }
+
 private:
     void loop()
     {
@@ -57,4 +77,4 @@ private:
     std::thread th_;  // last: starts after the other members exist
 };
 
-} // namespace mart
+}  // namespace mart

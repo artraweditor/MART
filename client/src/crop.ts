@@ -1,5 +1,27 @@
-// The crop tool: pure rectangle geometry, and the touch overlay that draws and edits the rectangle
-// over the preview. Rectangles are in pixels of the image as `preview` shows it (what Crop X/Y/W/H use).
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// The crop tool: pure rectangle geometry, and the touch overlay that draws and
+// edits the rectangle
+// over the preview. Rectangles are in pixels of the image as `preview` shows it
+// (what Crop X/Y/W/H use).
 
 import type { PreviewView } from "./preview.js";
 
@@ -14,16 +36,25 @@ export type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "move";
 
 export const MIN_SIZE = 32;
 
-const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
+const clamp = (v: number, lo: number, hi: number): number =>
+    Math.min(Math.max(v, lo), hi);
 
 /** The same rectangle moved/shrunk to lie inside the image. */
 export function clampRect(r: Rect, W: number, H: number, min = MIN_SIZE): Rect {
     const w = clamp(Math.round(r.w), Math.min(min, W), W);
     const h = clamp(Math.round(r.h), Math.min(min, H), H);
-    return { x: clamp(Math.round(r.x), 0, W - w), y: clamp(Math.round(r.y), 0, H - h), w, h };
+    return {
+        x: clamp(Math.round(r.x), 0, W - w),
+        y: clamp(Math.round(r.y), 0, H - h),
+        w,
+        h,
+    };
 }
 
-/** The largest rectangle of aspect `ratio` (w/h) that fits inside `r`, centred in it. */
+/**
+ * The largest rectangle of aspect `ratio` (w/h) that fits inside `r`, centred
+ * in it.
+ */
 export function fitRatio(r: Rect, ratio: number): Rect {
     let w = r.w;
     let h = w / ratio;
@@ -31,16 +62,37 @@ export function fitRatio(r: Rect, ratio: number): Rect {
         h = r.h;
         w = h * ratio;
     }
-    return { x: Math.round(r.x + (r.w - w) / 2), y: Math.round(r.y + (r.h - h) / 2), w: Math.round(w), h: Math.round(h) };
+    return {
+        x: Math.round(r.x + (r.w - w) / 2),
+        y: Math.round(r.y + (r.h - h) / 2),
+        w: Math.round(w),
+        h: Math.round(h),
+    };
 }
 
 /**
- * Drag `handle` of `start` by (dx, dy) image pixels. With `ratio` (w/h) the aspect is kept: corners hold the
- * opposite corner, edges hold the opposite edge and stay centred on the other axis. Always inside W x H.
+ * Drag `handle` of `start` by (dx, dy) image pixels. With `ratio` (w/h) the
+ * aspect is kept: corners hold the
+ * opposite corner, edges hold the opposite edge and stay centred on the other
+ * axis. Always inside W x H.
  */
-export function dragRect(start: Rect, handle: Handle, dx: number, dy: number, ratio: number | null, W: number, H: number, min = MIN_SIZE): Rect {
+export function dragRect(
+    start: Rect,
+    handle: Handle,
+    dx: number,
+    dy: number,
+    ratio: number | null,
+    W: number,
+    H: number,
+    min = MIN_SIZE,
+): Rect {
     if (handle === "move") {
-        return clampRect({ ...start, x: start.x + dx, y: start.y + dy }, W, H, min);
+        return clampRect(
+            { ...start, x: start.x + dx, y: start.y + dy },
+            W,
+            H,
+            min,
+        );
     }
     const left = handle.includes("w");
     const right = handle.includes("e");
@@ -50,19 +102,29 @@ export function dragRect(start: Rect, handle: Handle, dx: number, dy: number, ra
     const vertical = top || bottom;
 
     // the fixed edges
-    const ax = left ? start.x + start.w : start.x; // x of the fixed vertical edge
+    // x of the fixed vertical edge
+    const ax = left ? start.x + start.w : start.x;
     const ay = top ? start.y + start.h : start.y;
 
     if (!ratio) {
-        let x0 = start.x, x1 = start.x + start.w, y0 = start.y, y1 = start.y + start.h;
+        let x0 = start.x,
+            x1 = start.x + start.w,
+            y0 = start.y,
+            y1 = start.y + start.h;
         if (left) x0 = clamp(start.x + dx, 0, x1 - min);
         if (right) x1 = clamp(start.x + start.w + dx, x0 + min, W);
         if (top) y0 = clamp(start.y + dy, 0, y1 - min);
         if (bottom) y1 = clamp(start.y + start.h + dy, y0 + min, H);
-        return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
+        return {
+            x: Math.round(x0),
+            y: Math.round(y0),
+            w: Math.round(x1 - x0),
+            h: Math.round(y1 - y0),
+        };
     }
 
-    // with a locked ratio: decide the size from the dragged edge(s), then limit it to the image
+    // with a locked ratio: decide the size from the dragged edge(s), then limit
+    // it to the image
     let w: number;
     if (horizontal && vertical) {
         const wx = start.w + (left ? -dx : dx);
@@ -73,7 +135,8 @@ export function dragRect(start: Rect, handle: Handle, dx: number, dy: number, ra
     } else {
         w = (start.h + (top ? -dy : dy)) * ratio;
     }
-    // room for the width: towards the dragged side from the fixed edge; the height must fit too
+    // room for the width: towards the dragged side from the fixed edge; the
+    // height must fit too
     let maxW: number;
     if (horizontal) maxW = left ? ax : W - ax;
     else maxW = W;
@@ -97,25 +160,43 @@ export function dragRect(start: Rect, handle: Handle, dx: number, dy: number, ra
     else x = start.x + start.w / 2 - w / 2;
     if (vertical) y = top ? ay - h : ay;
     else y = start.y + start.h / 2 - h / 2;
-    return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+    return {
+        x: Math.round(x),
+        y: Math.round(y),
+        w: Math.round(w),
+        h: Math.round(h),
+    };
 }
 
-/** Which handle of `r` is at (px, py), in CSS pixels, given the rectangle on screen. */
-export function hitHandle(r: Rect, px: number, py: number, reach: number): Handle | null {
+/**
+ * Which handle of `r` is at (px, py), in CSS pixels, given the rectangle on
+ * screen.
+ */
+export function hitHandle(
+    r: Rect,
+    px: number,
+    py: number,
+    reach: number,
+): Handle | null {
     const near = (a: number, b: number) => Math.abs(a - b) <= reach;
-    const l = near(px, r.x), rr = near(px, r.x + r.w), t = near(py, r.y), b = near(py, r.y + r.h);
+    const l = near(px, r.x),
+        rr = near(px, r.x + r.w),
+        t = near(py, r.y),
+        b = near(py, r.y + r.h);
     const inX = px > r.x - reach && px < r.x + r.w + reach;
     const inY = py > r.y - reach && py < r.y + r.h + reach;
     if (l && t) return "nw";
     if (rr && t) return "ne";
     if (l && b) return "sw";
     if (rr && b) return "se";
-    // edges: only when the rectangle is big enough that the zones do not swallow the inside
+    // edges: only when the rectangle is big enough that the zones do not
+    // swallow the inside
     if (t && inX) return "n";
     if (b && inX) return "s";
     if (l && inY) return "w";
     if (rr && inY) return "e";
-    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return "move";
+    if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h)
+        return "move";
     return null;
 }
 
@@ -131,19 +212,37 @@ export class CropOverlay {
     private H = 0;
     private ratio: number | null = null;
     private active = false;
-    private drag: { id: number; handle: Handle; px: number; py: number; start: Rect } | null = null;
+    private drag: {
+        id: number;
+        handle: Handle;
+        px: number;
+        py: number;
+        start: Rect;
+    } | null = null;
 
-    constructor(canvas: HTMLCanvasElement, view: PreviewView, hit: HTMLElement, onCommit: (r: Rect) => void) {
+    constructor(
+        canvas: HTMLCanvasElement,
+        view: PreviewView,
+        hit: HTMLElement,
+        onCommit: (r: Rect) => void,
+    ) {
         this.canvas = canvas;
         this.view = view;
         this.hit = hit;
         this.onCommit = onCommit;
         new ResizeObserver(() => this.draw()).observe(canvas);
-        // capture phase: take the touches that start on the rectangle before the view pans
-        hit.addEventListener("pointerdown", (e) => this.down(e), { capture: true });
-        hit.addEventListener("pointermove", (e) => this.move(e), { capture: true });
+        // capture phase: take the touches that start on the rectangle before
+        // the view pans
+        hit.addEventListener("pointerdown", (e) => this.down(e), {
+            capture: true,
+        });
+        hit.addEventListener("pointermove", (e) => this.move(e), {
+            capture: true,
+        });
         hit.addEventListener("pointerup", (e) => this.up(e), { capture: true });
-        hit.addEventListener("pointercancel", (e) => this.cancel(e), { capture: true });
+        hit.addEventListener("pointercancel", (e) => this.cancel(e), {
+            capture: true,
+        });
     }
 
     get imageRect(): Rect {
@@ -153,7 +252,11 @@ export class CropOverlay {
     setImageSize(w: number, h: number): void {
         this.W = w;
         this.H = h;
-        this.rect = clampRect(this.rect.w ? this.rect : { x: 0, y: 0, w, h }, w, h);
+        this.rect = clampRect(
+            this.rect.w ? this.rect : { x: 0, y: 0, w, h },
+            w,
+            h,
+        );
         this.draw();
     }
 
@@ -180,7 +283,12 @@ export class CropOverlay {
 
     private screenRect(r: Rect): Rect {
         const a = this.view.toScreen(r.x, r.y);
-        return { x: a.x, y: a.y, w: r.w * this.view.scale, h: r.h * this.view.scale };
+        return {
+            x: a.x,
+            y: a.y,
+            w: r.w * this.view.scale,
+            h: r.h * this.view.scale,
+        };
     }
 
     private down(e: PointerEvent): void {
@@ -197,7 +305,13 @@ export class CropOverlay {
         if (!handle) return;
         e.stopImmediatePropagation();
         this.hit.setPointerCapture(e.pointerId);
-        this.drag = { id: e.pointerId, handle, px: p.x, py: p.y, start: { ...this.rect } };
+        this.drag = {
+            id: e.pointerId,
+            handle,
+            px: p.x,
+            py: p.y,
+            start: { ...this.rect },
+        };
     }
 
     private move(e: PointerEvent): void {
@@ -206,7 +320,15 @@ export class CropOverlay {
         e.stopImmediatePropagation();
         const p = this.local(e);
         const k = this.view.scale;
-        this.rect = dragRect(d.start, d.handle, (p.x - d.px) / k, (p.y - d.py) / k, this.ratio, this.W, this.H);
+        this.rect = dragRect(
+            d.start,
+            d.handle,
+            (p.x - d.px) / k,
+            (p.y - d.py) / k,
+            this.ratio,
+            this.W,
+            this.H,
+        );
         this.draw();
     }
 
@@ -215,7 +337,12 @@ export class CropOverlay {
         if (!d || e.pointerId !== d.id) return;
         e.stopImmediatePropagation();
         this.drag = null;
-        if (this.rect.x !== d.start.x || this.rect.y !== d.start.y || this.rect.w !== d.start.w || this.rect.h !== d.start.h)
+        if (
+            this.rect.x !== d.start.x ||
+            this.rect.y !== d.start.y ||
+            this.rect.w !== d.start.w ||
+            this.rect.h !== d.start.h
+        )
             this.onCommit({ ...this.rect });
         this.draw();
     }
@@ -230,8 +357,12 @@ export class CropOverlay {
 
     draw(): void {
         const dpr = window.devicePixelRatio || 1;
-        const cw = this.canvas.clientWidth, ch = this.canvas.clientHeight;
-        if (this.canvas.width !== Math.round(cw * dpr) || this.canvas.height !== Math.round(ch * dpr)) {
+        const cw = this.canvas.clientWidth,
+            ch = this.canvas.clientHeight;
+        if (
+            this.canvas.width !== Math.round(cw * dpr) ||
+            this.canvas.height !== Math.round(ch * dpr)
+        ) {
             this.canvas.width = Math.round(cw * dpr);
             this.canvas.height = Math.round(ch * dpr);
         }
@@ -263,9 +394,14 @@ export class CropOverlay {
         // handles
         c.fillStyle = "#f0891a";
         const pts: [number, number][] = [
-            [s.x, s.y], [s.x + s.w / 2, s.y], [s.x + s.w, s.y],
-            [s.x, s.y + s.h / 2], [s.x + s.w, s.y + s.h / 2],
-            [s.x, s.y + s.h], [s.x + s.w / 2, s.y + s.h], [s.x + s.w, s.y + s.h],
+            [s.x, s.y],
+            [s.x + s.w / 2, s.y],
+            [s.x + s.w, s.y],
+            [s.x, s.y + s.h / 2],
+            [s.x + s.w, s.y + s.h / 2],
+            [s.x, s.y + s.h],
+            [s.x + s.w / 2, s.y + s.h],
+            [s.x + s.w, s.y + s.h],
         ];
         for (const [x, y] of pts) {
             c.beginPath();

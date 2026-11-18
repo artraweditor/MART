@@ -1,4 +1,23 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "session.h"
 #include "arp.h"
 #include "halation.h"
@@ -27,20 +46,23 @@ std::string slurp(const std::string &p)
     f.read(s.data(), static_cast<std::streamsize>(s.size()));
     return s;
 }
-} // namespace
+}  // namespace
 
 namespace {
 std::string makeTmpdir()
 {
     char tmpl[] = "/tmp/mart-XXXXXX";
-    if (!mkdtemp(tmpl)) throw std::runtime_error("cannot create a temporary directory");
+    if (!mkdtemp(tmpl))
+        throw std::runtime_error("cannot create a temporary directory");
     return tmpl;
 }
 
-} // namespace
+}  // namespace
 
-Session::Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs, std::string lutDir):
-    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()), profiles_(std::move(profileDirs)), luts_(std::move(lutDir))
+Session::Session(const EngineOptions &o, std::vector<std::string> roots,
+                 std::vector<ProfileDir> profileDirs, std::string lutDir) :
+    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()),
+    profiles_(std::move(profileDirs)), luts_(std::move(lutDir))
 {
     engine_ = Engine::create(o);
 }
@@ -66,10 +88,14 @@ json Session::command(const std::vector<std::string> &argv)
     }
     json doc = json::parse(r.out, nullptr, false);
     if (!r.ok()) {
-        std::string msg = doc.is_object() && doc.contains("error") ? doc["error"].get<std::string>() : r.err;
+        std::string msg = doc.is_object() && doc.contains("error")
+                              ? doc["error"].get<std::string>()
+                              : r.err;
         throw ApiError(422, msg.empty() ? "the command failed" : msg);
     }
-    if (doc.is_discarded()) throw ApiError(502, "unexpected reply from ART: " + r.out.substr(0, 200));
+    if (doc.is_discarded())
+        throw ApiError(502,
+                       "unexpected reply from ART: " + r.out.substr(0, 200));
     return doc.contains("result") ? doc["result"] : json::object();
 }
 
@@ -101,14 +127,18 @@ json Session::status() const
     return s;
 }
 
-// What is applied when an image is opened, as the start of its history (not as edits: they cannot be undone and the
-// image is not "unsaved"):
-// - a picture that has no sidecar starts from the neutral profile, not from what ART would load for it (its default
+// What is applied when an image is opened, as the start of its history (not as
+// edits: they cannot be undone and the image is not "unsaved"):
+// - a picture that has no sidecar starts from the neutral profile, not from
+// what ART would load for it (its default
 //   or dynamic profile): MART has its own profiles;
-// - a DNG made by a phone can carry a flat field (gain maps) that corrects its vignetting: using it is on by default,
-//   unless the sidecar says otherwise. Other raws have none to use, so nothing is written for them;
+// - a DNG made by a phone can carry a flat field (gain maps) that corrects its
+// vignetting: using it is on by default,
+//   unless the sidecar says otherwise. Other raws have none to use, so nothing
+//   is written for them;
 // - the default profile, if one was chosen, for a picture that has no sidecar.
-// In this order: the neutral profile resets everything, and the default profile can say otherwise about the flat field.
+// In this order: the neutral profile resets everything, and the default profile
+// can say otherwise about the flat field.
 void Session::applyOpeningDefaults()
 {
     base_ = 0;
@@ -116,16 +146,20 @@ void Session::applyOpeningDefaults()
     const bool hasSidecar = stat((file_ + ".arp").c_str(), &st) == 0;
     if (!hasSidecar) command({"apply", ":neutral"});
     std::string lower = file_;
-    for (auto &c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (info_.value("is_raw", false) && lower.size() >= 4 && lower.compare(lower.size() - 4, 4, ".dng") == 0) {
+    for (auto &c : lower)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (info_.value("is_raw", false) && lower.size() >= 4 &&
+        lower.compare(lower.size() - 4, 4, ".dng") == 0) {
         std::ifstream side(file_ + ".arp", std::ios::binary);
         std::stringstream text;
         text << side.rdbuf();
-        if (text.str().find("FlatFieldUseEmbedded") == std::string::npos) {  // else: a choice of the user
+        if (text.str().find("FlatFieldUseEmbedded") ==
+            std::string::npos) {  // else: a choice of the user
             const std::string path = tmpdir_ + "/defaults.arp";
             {
                 std::ofstream f(path, std::ios::binary | std::ios::trunc);
-                f << "[RAW]\nFlatFieldEnabled=true\nFlatFieldUseEmbedded=true\n";
+                f << "[RAW]\nFlatFieldEnabled=true\nFlatFieldUseEmbedded="
+                     "true\n";
                 if (!f) throw ApiError(500, "cannot write " + path);
             }
             command({"apply", path});
@@ -137,11 +171,13 @@ void Session::applyOpeningDefaults()
             try {
                 applyProfileFile(profile, false, "default#1");
             } catch (const ApiError &) {
-                // a profile that ART does not accept must not keep the image from opening
+                // a profile that ART does not accept must not keep the image
+                // from opening
             }
         }
     }
-    // the first entry of the history that the user can go back to: where the defaults left it
+    // the first entry of the history that the user can go back to: where the
+    // defaults left it
     base_ = command({"get-history"}).value("selected", 0);
 }
 
@@ -172,19 +208,24 @@ json Session::info()
 PreviewFrame Session::preview(const PreviewRequest &rq)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
-    const int fw = info_.value("full_width", 0), fh = info_.value("full_height", 0);
+    const int fw = info_.value("full_width", 0),
+              fh = info_.value("full_height", 0);
     int x = rq.x, y = rq.y, w = rq.w, h = rq.h;
-    // a view of the old geometry (before a rotation, say) may not fit the image any more: show it all
-    if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > fw || y + h > fh) x = y = 0, w = fw, h = fh;
+    // a view of the old geometry (before a rotation, say) may not fit the image
+    // any more: show it all
+    if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > fw || y + h > fh)
+        x = y = 0, w = fw, h = fh;
     const bool whole = (x == 0 && y == 0 && w == fw && h == fh);
     double scale = rq.scale;
     if (scale <= 0) scale = rq.out_w > 0 ? double(rq.out_w) / w : 1.0;
     if (!(scale > 0) || scale > 4) throw ApiError(400, "invalid scale");
     const std::string file = tmpdir_ + "/preview.jpg";
-    std::vector<std::string> a = {"preview", file, "--scale", std::to_string(scale)};
+    std::vector<std::string> a = {"preview", file, "--scale",
+                                  std::to_string(scale)};
     if (!whole)
-        a.insert(a.end(), {"--crop", std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(w) + "," +
-                                         std::to_string(h)});
+        a.insert(a.end(),
+                 {"--crop", std::to_string(x) + "," + std::to_string(y) + "," +
+                                std::to_string(w) + "," + std::to_string(h)});
     json r = command(a);
     PreviewFrame f;
     f.width = r.value("width", 0);
@@ -192,9 +233,11 @@ PreviewFrame Session::preview(const PreviewRequest &rq)
     f.x = x, f.y = y, f.w = w, f.h = h;
     f.jpeg = slurp(file);
     if (f.jpeg.empty()) throw ApiError(502, "ART wrote no preview");
-    // `preview` always renders in sRGB (whatever the output, working or monitor profile) but embeds no profile: say
-    // so, so that a browser or a screen with another profile (a wide gamut one) converts the colours instead of
-    // showing them raw. This needs an ART in which the preview is always sRGB (see the README).
+    // `preview` always renders in sRGB (whatever the output, working or monitor
+    // profile) but embeds no profile: say so, so that a browser or a screen
+    // with another profile (a wide gamut one) converts the colours instead of
+    // showing them raw. This needs an ART in which the preview is always sRGB
+    // (see the README).
     f.jpeg = tagAsSRGB(f.jpeg);
     return f;
 }
@@ -205,8 +248,11 @@ json Session::params()
     json r = command({"get-params"});
     std::string ini = r.value("params", "");
     json doc = arp::parse(ini);
-    doc["Halation"] = halation::state(ini);  // not a group of the profile: MART's own view of one of the Smoothing regions
-    doc["Retouch"] = retouch::state(ini);    // likewise: our regions of the Color/tone correction tool, by id
+    doc["Halation"] =
+        halation::state(ini);  // not a group of the profile: MART's own view of
+                               // one of the Smoothing regions
+    doc["Retouch"] = retouch::state(
+        ini);  // likewise: our regions of the Color/tone correction tool, by id
     return {{"params", doc}, {"ini", ini}};
 }
 
@@ -215,19 +261,24 @@ json Session::lutParams(const std::string &id)
     if (file_.empty()) throw ApiError(409, "no image is open");
     std::string path;
     if (!id.empty()) {
-        path = luts_.path(id);  // a LUT that was just chosen: the profile may not have it yet
+        path = luts_.path(
+            id);  // a LUT that was just chosen: the profile may not have it yet
         if (path.empty()) throw ApiError(404, "no such LUT");
     } else {
         json p = arp::parse(command({"get-params"}).value("params", ""));
-        path = p.contains("Film Simulation") ? p["Film Simulation"].value("ClutFilename", "") : "";
+        path = p.contains("Film Simulation")
+                   ? p["Film Simulation"].value("ClutFilename", "")
+                   : "";
     }
     json r = {{"params", json::array()}, {"presets", json::array()}};
     if (path.empty()) return r;
-    path = luts_.fromUri(path);   // what the profile says (a URI, with the R host for the LUTs of MART's folder)
+    path = luts_.fromUri(path);  // what the profile says (a URI, with the R
+                                 // host for the LUTs of MART's folder)
     try {
         r = command({"get-clut-params", path});
     } catch (const ApiError &e) {
-        r["error"] = e.what();  // the file may not be on this machine (a relative or foreign path in the sidecar)
+        r["error"] = e.what();  // the file may not be on this machine (a
+                                // relative or foreign path in the sidecar)
     }
     return r;
 }
@@ -258,7 +309,8 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         command(a);
         dirty_ = true;
     };
-    if ((halationChange.is_null() && retouchChange.is_null()) || !patch.empty()) {
+    if ((halationChange.is_null() && retouchChange.is_null()) ||
+        !patch.empty()) {
         std::string text;
         try {
             text = arp::serialize(patch, [this](const std::string &id) {
@@ -274,7 +326,8 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
     if (!halationChange.is_null()) {
         std::string text;
         try {
-            text = halation::rewrite(command({"get-params"}).value("params", ""), halationChange);
+            text = halation::rewrite(
+                command({"get-params"}).value("params", ""), halationChange);
         } catch (const std::invalid_argument &e) {
             throw ApiError(400, e.what());
         }
@@ -283,7 +336,8 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
     if (!retouchChange.is_null()) {
         std::string text;
         try {
-            text = retouch::rewrite(command({"get-params"}).value("params", ""), retouchChange);
+            text = retouch::rewrite(command({"get-params"}).value("params", ""),
+                                    retouchChange);
         } catch (const std::invalid_argument &e) {
             throw ApiError(400, e.what());
         }
@@ -296,7 +350,9 @@ json Session::undo()
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
     json h = command({"get-history"});
-    if (h.value("selected", 0) <= base_) return {{"selected", h.value("selected", 0)}};  // at the start: nothing to undo
+    if (h.value("selected", 0) <= base_)
+        return {{"selected",
+                 h.value("selected", 0)}};  // at the start: nothing to undo
     json r = command({"undo"});
     dirty_ = true;
     refreshInfo();
@@ -317,7 +373,10 @@ json Session::history()
     json h = command({"get-history"});
     int sel = h.value("selected", -1);
     int count = h.contains("entries") ? int(h["entries"].size()) : 0;
-    return {{"selected", sel}, {"count", count}, {"can_undo", sel > base_}, {"can_redo", sel >= 0 && sel + 1 < count}};
+    return {{"selected", sel},
+            {"count", count},
+            {"can_undo", sel > base_},
+            {"can_redo", sel >= 0 && sel + 1 < count}};
 }
 
 json Session::save()
@@ -339,13 +398,17 @@ std::string Session::fileStem() const
 json Session::exportImage(const std::vector<std::string> &args)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
-    // Exports are always sRGB, like the preview (and what a phone expects), whatever the output profile of the
-    // image is. `--profile` overrides the settings for this export only: the image, its history and its sidecar
-    // are not touched. The intent and black point compensation are those of the preview.
+    // Exports are always sRGB, like the preview (and what a phone expects),
+    // whatever the output profile of the image is. `--profile` overrides the
+    // settings for this export only: the image, its history and its sidecar are
+    // not touched. The intent and black point compensation are those of the
+    // preview.
     const std::string path = tmpdir_ + "/export.arp";
     {
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
-        f << "[Color Management]\nOutputBPC=true\nOutputProfile=RTv2_sRGB\nOutputProfileIntent=Relative\n";
+        f << "[Color "
+             "Management]\nOutputBPC=true\nOutputProfile=RTv2_"
+             "sRGB\nOutputProfileIntent=Relative\n";
         if (!f) throw ApiError(500, "cannot write " + path);
     }
     std::vector<std::string> a = args;
@@ -353,21 +416,21 @@ json Session::exportImage(const std::vector<std::string> &args)
     return command(a);
 }
 
-json Session::exportFormats()
-{
-    return command({"export", "--list-formats"});
-}
+json Session::exportFormats() { return command({"export", "--list-formats"}); }
 
 json Session::metadata(bool makernotes, bool edits)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
-    return command({"get-metadata", makernotes ? "--makernotes" : "--no-makernotes", edits ? "--edits" : "--no-edits"});
+    return command({"get-metadata",
+                    makernotes ? "--makernotes" : "--no-makernotes",
+                    edits ? "--edits" : "--no-edits"});
 }
 
 json Session::spotWB(int x, int y, int w, int h)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
-    return command({"get-spot-wb", std::to_string(x), std::to_string(y), std::to_string(w), std::to_string(h)});
+    return command({"get-spot-wb", std::to_string(x), std::to_string(y),
+                    std::to_string(w), std::to_string(h)});
 }
 
 void Session::applyProfile(const std::string &id, bool append)
@@ -384,7 +447,8 @@ void Session::applyProfile(const std::string &id, bool append)
     refreshInfo();
 }
 
-void Session::applyProfileFile(const std::string &path, bool append, const std::string &mergeKey)
+void Session::applyProfileFile(const std::string &path, bool append,
+                               const std::string &mergeKey)
 {
     auto apply = [&](const std::string &file) {
         std::vector<std::string> a = {"apply"};
@@ -393,10 +457,12 @@ void Session::applyProfileFile(const std::string &path, bool append, const std::
         a.push_back(file);
         command(a);
     };
-    // a LUT of MART's folder is `file://R/...` in a profile: for ART that is relative to its own folder of LUTs
+    // a LUT of MART's folder is `file://R/...` in a profile: for ART that is
+    // relative to its own folder of LUTs
     const std::string original = slurp(path);
     const std::string text = luts_.resolveInProfile(original);
-    const bool hasHalation = halation::present(text), hasRetouch = retouch::present(text);
+    const bool hasHalation = halation::present(text),
+               hasRetouch = retouch::present(text);
     auto writeTmp = [&](const std::string &name, const std::string &content) {
         const std::string file = tmpdir_ + "/" + name;
         std::ofstream f(file, std::ios::binary | std::ios::trunc);
@@ -408,13 +474,16 @@ void Session::applyProfileFile(const std::string &path, bool append, const std::
         apply(text == original ? path : writeTmp("profile.arp", text));
         return;
     }
-    // The halation is a region of the smoothing tool and the retouching regions are some of those of the color/tone
-    // correction tool, added after the regions that the image has: the profile's Smoothing and ColorCorrection groups
-    // are not applied as they are (they would replace those regions), but through the same path as the controls.
+    // The halation is a region of the smoothing tool and the retouching regions
+    // are some of those of the color/tone correction tool, added after the
+    // regions that the image has: the profile's Smoothing and ColorCorrection
+    // groups are not applied as they are (they would replace those regions),
+    // but through the same path as the controls.
     std::string rest = text;
     if (hasHalation) rest = halation::withoutSmoothing(rest);
     if (hasRetouch) rest = retouch::withoutColorCorrection(rest);
-    if (rest.find('[') != std::string::npos) apply(writeTmp("profile.arp", rest));
+    if (rest.find('[') != std::string::npos)
+        apply(writeTmp("profile.arp", rest));
     auto applyText = [&](const std::string &t) {
         std::vector<std::string> a = {"apply"};
         if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
@@ -423,29 +492,41 @@ void Session::applyProfileFile(const std::string &path, bool append, const std::
     };
     if (hasHalation) {
         json st = halation::state(text);
-        json change = {{"Enabled", st["Enabled"]}, {"Strength", st["Strength"]}, {"Tint", st["Tint"]}};
-        applyText(halation::rewrite(command({"get-params"}).value("params", ""), change));
+        json change = {{"Enabled", st["Enabled"]},
+                       {"Strength", st["Strength"]},
+                       {"Tint", st["Tint"]}};
+        applyText(halation::rewrite(command({"get-params"}).value("params", ""),
+                                    change));
     }
-    if (hasRetouch) applyText(retouch::replace(command({"get-params"}).value("params", ""), text));
+    if (hasRetouch)
+        applyText(retouch::replace(command({"get-params"}).value("params", ""),
+                                   text));
 }
 
 json Session::profileSections()
 {
     json r = json::array();
-    for (auto &s : sections::list()) r.push_back({{"id", s.id}, {"label", s.label}, {"default", s.byDefault}});
+    for (auto &s : sections::list())
+        r.push_back(
+            {{"id", s.id}, {"label", s.label}, {"default", s.byDefault}});
     return r;
 }
 
-json Session::saveProfile(const std::string &name, const std::vector<std::string> &ids, bool overwrite)
+json Session::saveProfile(const std::string &name,
+                          const std::vector<std::string> &ids, bool overwrite)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
     std::string text;
     try {
-        text = sections::build(command({"get-params"}).value("params", ""), ids, [this](const std::string &v) {
-            // a LUT of MART's folder is written without the folder, with the host R, as ART does for its own
-            const std::string uri = luts_.toUri(luts_.fromUri(v));
-            return uri.empty() ? v : uri;
-        });
+        text = sections::build(command({"get-params"}).value("params", ""), ids,
+                               [this](const std::string &v) {
+                                   // a LUT of MART's folder is written without
+                                   // the folder, with the host R, as ART does
+                                   // for its own
+                                   const std::string uri =
+                                       luts_.toUri(luts_.fromUri(v));
+                                   return uri.empty() ? v : uri;
+                               });
         return profiles_.save(name, text, overwrite);
     } catch (const ProfileExists &e) {
         throw ApiError(409, e.what());
@@ -454,4 +535,4 @@ json Session::saveProfile(const std::string &name, const std::vector<std::string
     }
 }
 
-} // namespace mart
+}  // namespace mart

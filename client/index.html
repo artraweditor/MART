@@ -1,14 +1,36 @@
 <!doctype html>
+<!--
+
+   This file is part of MART.
+
+   Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+
+   MART is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   MART is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with MART.  If not, see <http://www.gnu.org/licenses/>.
+-->
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1,
+                   viewport-fit=cover, user-scalable=no">
     <meta name="color-scheme" content="dark">
     <meta name="theme-color" content="#2b2b2b">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="MART">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent">
     <title>MART</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -19,10 +41,13 @@
     <header id="bar">
         <img id="logo" src="icons/icon-192.png" alt="" width="28" height="28">
         <span id="title">MART</span>
-        <button id="undo" type="button" class="icon" aria-label="Undo" disabled>&#x21b6;</button>
-        <button id="redo" type="button" class="icon" aria-label="Redo" disabled>&#x21b7;</button>
+        <button id="undo" type="button" class="icon" aria-label="Undo"
+                disabled>&#x21b6;</button>
+        <button id="redo" type="button" class="icon" aria-label="Redo"
+                disabled>&#x21b7;</button>
         <button id="look" type="button" class="text">Look</button>
-        <button id="more" type="button" class="icon" aria-label="More: export, information, open">&#x22ef;</button>
+        <button id="more" type="button" class="icon"
+                aria-label="More: export, information, open">&#x22ef;</button>
         <button id="save" type="button" class="text" disabled>Save</button>
         <span id="conn" class="dot" title="connection"></span>
     </header>
@@ -36,8 +61,11 @@
         <div id="tools"></div>
     </section>
     <div id="sheet" hidden>
-        <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-            <header><h2 id="sheet-title" class="sheet-title"></h2><button type="button" class="sheet-close" aria-label="Close">&times;</button></header>
+        <div class="sheet-card" role="dialog" aria-modal="true"
+             aria-labelledby="sheet-title">
+            <header><h2 id="sheet-title" class="sheet-title"></h2><button
+                type="button" class="sheet-close"
+                aria-label="Close">&times;</button></header>
             <div class="sheet-body"></div>
         </div>
     </div>
@@ -46,8 +74,10 @@
             <h2 id="ov-title"></h2>
             <p id="ov-text"></p>
             <form id="ov-form" hidden>
-                <input id="ov-path" type="text" autocapitalize="off" autocorrect="off" spellcheck="false"
-                       placeholder="/path/to/photo.arw" aria-label="Path of the image on the server">
+                <input id="ov-path" type="text" autocapitalize="off"
+                       autocorrect="off" spellcheck="false"
+                       placeholder="/path/to/photo.arw"
+                       aria-label="Path of the image on the server">
                 <button type="submit">Open</button>
             </form>
         </div>

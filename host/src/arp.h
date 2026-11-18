@@ -1,4 +1,24 @@
-// Edit patches <-> .arp text. SPDX-License-Identifier: GPL-3.0-or-later
+/* -*- C++ -*-
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// Edit patches <-> .arp text.
 #pragma once
 #include "third_party/json.hpp"
 #include <functional>
@@ -6,11 +26,12 @@
 #include <string>
 #include <vector>
 
-namespace mart { namespace arp {
+namespace mart {
+namespace arp {
 
 using json = nlohmann::json;
 
-struct PatchError: std::runtime_error {
+struct PatchError : std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
@@ -32,4 +53,5 @@ json parse(const std::string &ini);
 // the allowed groups and their keys, for tests
 std::vector<std::pair<std::string, std::vector<std::string>>> allowedKeys();
 
-}} // namespace mart::arp
+}  // namespace arp
+}  // namespace mart

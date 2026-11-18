@@ -1,3 +1,23 @@
+/*
+ *
+ *  This file is part of MART.
+ *
+ *  Copyright 2026 Alberto Griggio <alberto.griggio@gmail.com>
+ *
+ *  MART is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  MART is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 // The live edit channel (WebSocket /api/ws): edits and view changes go out,
 // frames and state come back. Reconnects by itself and detects a dead
 // connection with a heartbeat.
@@ -84,7 +104,10 @@ export class Live {
             this.retry = 0;
             this.lastPong = performance.now();
             window.clearInterval(this.beat);
-            this.beat = window.setInterval(() => this.heartbeat(), HEARTBEAT_MS);
+            this.beat = window.setInterval(
+                () => this.heartbeat(),
+                HEARTBEAT_MS,
+            );
             this.ev.open();
         };
         ws.onmessage = (e) => this.message(e);
@@ -93,7 +116,8 @@ export class Live {
             this.ws = null;
             window.clearInterval(this.beat);
             this.ev.close(e.reason || "connection closed");
-            if (!this.stopped && e.reason !== "replaced by a newer connection") this.scheduleReconnect();
+            if (!this.stopped && e.reason !== "replaced by a newer connection")
+                this.scheduleReconnect();
         };
         ws.onerror = () => {
             /* onclose follows */
@@ -137,9 +161,14 @@ export class Live {
         }
         const buf = e.data as ArrayBuffer;
         const n = new DataView(buf).getUint32(0);
-        const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, n))) as FrameHeader;
+        const header = JSON.parse(
+            new TextDecoder().decode(new Uint8Array(buf, 4, n)),
+        ) as FrameHeader;
         this.lastPong = performance.now();
-        this.ev.frame(header, new Blob([new Uint8Array(buf, 4 + n)], { type: "image/jpeg" }));
+        this.ev.frame(
+            header,
+            new Blob([new Uint8Array(buf, 4 + n)], { type: "image/jpeg" }),
+        );
     }
 
     private send(m: Record<string, unknown>): number {
@@ -148,9 +177,16 @@ export class Live {
         return seq;
     }
 
-    /** Apply a patch; steps of one gesture share `merge` and make one undo step. */
+    /**
+     * Apply a patch; steps of one gesture share `merge` and make one undo step.
+     */
     edit(patch: Patch, view: ViewRequest, merge?: string): number {
-        return this.send({ type: "edit", patch, view, ...(merge ? { merge } : {}) });
+        return this.send({
+            type: "edit",
+            patch,
+            view,
+            ...(merge ? { merge } : {}),
+        });
     }
     view(view: ViewRequest): number {
         return this.send({ type: "view", view });
@@ -161,11 +197,17 @@ export class Live {
     redo(view: ViewRequest): number {
         return this.send({ type: "redo", view });
     }
-    /** Apply a saved profile (an id from the profile list); the answer is a state and a frame. */
+    /**
+     * Apply a saved profile (an id from the profile list); the answer is a
+     * state and a frame.
+     */
     profile(id: string, append: boolean, view: ViewRequest): number {
         return this.send({ type: "profile", id, append, view });
     }
-    /** Ask for the full state and a frame (after connecting or opening an image). */
+    /**
+     * Ask for the full state and a frame (after connecting or opening an
+     * image).
+     */
     sync(view: ViewRequest): number {
         return this.send({ type: "sync", view });
     }
