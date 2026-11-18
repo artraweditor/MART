@@ -49,7 +49,7 @@ try {
     await clickIn(".action", "Save the current settings as a profile…");
     await until("save dialog", () => js(`document.querySelector(".sheet-title")?.textContent === "Save a profile" && document.querySelectorAll("#sheet .sections .chip").length > 10`));
     const labels = await sheetText(".sections .chip");
-    for (const l of ["Exposure and highlight recovery", "Haze removal", "Contrast and tone curve", "Tone equalizer", "White balance", "Saturation and vibrance", "Primaries correction", "Soft light", "Film simulation", "Lens correction and flat field", "Capture sharpening", "Film grain", "Halation", "Crop and rotation"])
+    for (const l of ["Exposure and highlight recovery", "Haze removal", "Contrast and tone curve", "Tone equalizer", "White balance", "Saturation and vibrance", "Primaries correction", "Soft light", "Film simulation", "Lens correction and flat field", "Capture sharpening", "Noise reduction", "Film grain", "Halation", "Crop and rotation"])
         assert.ok(labels.includes(l), "a checkbox for " + l);
     const state = () => js(`Object.fromEntries([...document.querySelectorAll("#sheet .sections .chip")].map(c => [c.textContent.trim(), c.getAttribute("aria-checked")]))`);
     let st = await state();
@@ -67,7 +67,7 @@ try {
     await openLook();
     await clickIn(".action", "Save the current settings as a profile…");
     await until("save dialog", () => js(`document.querySelectorAll("#sheet .sections .chip").length > 10`));
-    for (const l of ["Haze removal", "Contrast and tone curve", "Tone equalizer", "Saturation and vibrance", "Primaries correction", "Soft light", "Film simulation", "Lens correction and flat field", "Capture sharpening", "Film grain", "Halation"])
+    for (const l of ["Haze removal", "Contrast and tone curve", "Tone equalizer", "Saturation and vibrance", "Primaries correction", "Soft light", "Film simulation", "Lens correction and flat field", "Capture sharpening", "Noise reduction", "Film grain", "Halation"])
         await clickIn(".sections .chip", l);   // off: only the exposure stays
     st = await state();
     assert.deepEqual(Object.entries(st).filter(([, v]) => v === "true").map(([k]) => k), ["Exposure and highlight recovery"]);

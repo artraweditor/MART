@@ -127,6 +127,19 @@ try {
     await chip("Enabled");  // the switch, now on
     await until("sharpening off", async () => (await params()).Sharpening.Enabled === false);
     await shot("tools-3-detail.png");
+    // ---- noise reduction presets ----------------------------------------------------------------------------
+    await js(`(() => { const h = [...document.querySelectorAll(".tool-heading")].find(h => h.textContent === "Noise reduction"); if (!h.parentElement.classList.contains("open")) h.querySelector("button").click(); })()`);
+    const nrChip = (t) => js(`[...document.querySelectorAll("#tools section:not([hidden]) .tool-group.open .chip")].find(c => c.textContent === ${JSON.stringify(t)}).click()`);
+    await nrChip("Medium");
+    const d = await until("medium denoise", async () => { const v = (await params()).Denoise; return v.Enabled === true && v.Luminance === 15 && v; });
+    assert.equal(d.SmoothingEnabled, true);
+    await nrChip("Low");
+    await until("low denoise", async () => { const v = (await params()).Denoise; return v.Luminance === 0 && v.SmoothingEnabled === false && v.ChrominanceAutoFactor === 0.5; });
+    await nrChip("High");
+    await until("high denoise", async () => { const v = (await params()).Denoise; return v.Luminance === 30 && v.ChrominanceAutoFactor === 0.7; });
+    await nrChip("Off");
+    await until("denoise off", async () => (await params()).Denoise.Enabled === false);
+    console.log("noise reduction: ok");
     console.log("lens, sharpening: ok");
 
     console.log("ui tools: ok");

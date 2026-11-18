@@ -4,6 +4,7 @@ import { registerControl } from "./controls.js";
 import type { Control } from "./controls.js";
 import type { Params } from "./live.js";
 import { el } from "./sheet.js";
+import { denoiseValue } from "./tools.js";
 
 /** the groups that have controls here (or are no tools): never listed */
 const COVERED = new Set([
@@ -95,6 +96,7 @@ export function summarize(params: Params): Item[] {
     const items: Item[] = [];
     for (const [group, g] of Object.entries(params)) {
         if (COVERED.has(group) || !g || g["Enabled"] !== true) continue;
+        if (group === "Denoise" && denoiseValue(g) !== "custom") continue;  // one of the presets of the Detail tab
         if (group === "Smoothing") {
             const s = smoothing(g);
             if (s) items.push(s);

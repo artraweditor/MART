@@ -93,6 +93,23 @@ const customWB = (get: Getter): Record<string, unknown> => ({
     Green: num(get("White Balance", "Green"), 1),
 });
 
+/** the settings of the noise reduction presets (Detail tab); "off" just disables the tool */
+export const DENOISE_PRESETS: Record<string, Record<string, unknown>> = {
+    low: { ColorSpace: "RGB", Aggressive: false, Gamma: 1.7, Luminance: 0, LuminanceDetail: 0, LuminanceDetailThreshold: 0, ChrominanceMethod: 1, ChrominanceAutoFactor: 0.5, SmoothingEnabled: false, GuidedChromaRadius: 3, NLStrength: 0 },
+    medium: { ColorSpace: "RGB", Aggressive: false, Gamma: 1.7, Luminance: 15, LuminanceDetail: 0, LuminanceDetailThreshold: 0, ChrominanceMethod: 1, ChrominanceAutoFactor: 0.5, SmoothingEnabled: true, GuidedChromaRadius: 3, NLStrength: 0 },
+    high: { ColorSpace: "RGB", Aggressive: false, Gamma: 1.7, Luminance: 30, LuminanceDetail: 0, LuminanceDetailThreshold: 0, ChrominanceMethod: 1, ChrominanceAutoFactor: 0.7, SmoothingEnabled: true, GuidedChromaRadius: 3, NLStrength: 0 },
+};
+
+/** "off", a preset's name, or "custom" for settings that are none of them (they stay as they are until a preset is chosen) */
+export function denoiseValue(g: Record<string, unknown> | undefined): string {
+    if (!g || g["Enabled"] !== true) return "off";
+    const same = (a: unknown, b: unknown): boolean => (typeof b === "number" ? typeof a === "number" && Math.abs(a - b) < 1e-6 : a === b);
+    for (const [name, p] of Object.entries(DENOISE_PRESETS)) {
+        if (Object.entries(p).every(([k, v]) => same(g[k], v))) return name;
+    }
+    return "custom";
+}
+
 /** the groups that have no `Enabled` key: LensProfile is on when its mode is not "none"; RAW has a switch for each feature */
 const NO_ENABLED = new Set(["LensProfile", "RAW"]);
 
@@ -297,6 +314,17 @@ export const TOOLS: Tool[] = [
             { kind: "slider", label: "Radius", group: "Sharpening", key: "DeconvRadius", min: 0.4, max: 2.5, step: 0.01, def: 0.75, digits: 2, extra: rld },
             { kind: "slider", label: "Amount", group: "Sharpening", key: "DeconvAmount", min: 0, max: 100, step: 1, def: 100, digits: 0, extra: rld },
             { kind: "slider", label: "Contrast threshold", group: "Sharpening", key: "Contrast", min: 0, max: 200, step: 1, def: 20, digits: 0, extra: rld },
+            { kind: "heading", label: "Noise reduction", group: "Denoise" },
+            {
+                kind: "choice",
+                label: "Noise reduction",
+                group: "Denoise",
+                key: "Enabled",
+                def: "off",
+                options: ["off", "low", "medium", "high"].map((v) => ({ value: v, label: v[0]!.toUpperCase() + v.slice(1) })),
+                read: (params) => denoiseValue(params["Denoise"]),
+                write: (v) => (v === "off" ? { Enabled: false } : { Enabled: true, ...DENOISE_PRESETS[String(v)] }),
+            },
             { kind: "heading", label: "Film grain", group: "Grain" },
             { kind: "toggle", label: "Enabled", group: "Grain", key: "Enabled", def: false },
             { kind: "slider", label: "Strength", group: "Grain", key: "Strength", min: 0, max: 100, step: 1, def: 50, digits: 0 },

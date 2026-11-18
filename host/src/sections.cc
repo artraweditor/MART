@@ -35,6 +35,7 @@ const std::vector<Def> &table()
         {{"lens", "Lens correction and flat field", true},
          {{"LensProfile", {}}, {"RAW", {"FlatFieldEnabled", "FlatFieldUseEmbedded"}}}},
         {{"sharpening", "Capture sharpening", true}, {{"Sharpening", {}}}},
+        {{"denoise", "Noise reduction", true}, {{"Denoise", {}}}},
         {{"grain", "Film grain", true}, {{"Grain", {}}}},
         {{"halation", "Halation", true}, {}},
         {{"geometry", "Crop and rotation", false}, {{"Crop", {}}, {"Rotation", {}}, {"Coarse Transformation", {}}}},
