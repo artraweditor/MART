@@ -19,6 +19,7 @@
  */
 
 #include "exporter.h"
+#include "tempdir.h"
 #include <chrono>
 #include <cstdlib>
 #include <dirent.h>
@@ -59,10 +60,7 @@ Exporter::Exporter(Worker &w, Session &s, const std::string &dir,
             throw std::runtime_error("cannot write to the export directory: " +
                                      dir_);
     } else {
-        char tmpl[] = "/tmp/mart-exports-XXXXXX";
-        if (!mkdtemp(tmpl))
-            throw std::runtime_error("cannot create a temporary directory");
-        dir_ = tmpl;
+        dir_ = makeTempDir("mart-exports-");
     }
 }
 

@@ -18,6 +18,10 @@ through libART and saves standard ART sidecars (`.arp`), so a shoot can be finis
 
 Then open http://localhost:8080. `--listen 0.0.0.0` makes it reachable from a tablet on the
 network; the server then requires the token it prints (open the printed URL).
+`--require-token` asks for the token on the loopback address too (other programs of
+the machine can reach it), and `--port 0` picks a free port. Temporary files go to
+`$TMPDIR` (or `/tmp`). The host is also a library (`app.h`: `mart::run`, `mart::stop`,
+and a C interface) that an app can embed; `main.cc` only adds the signals.
 `--socket PATH` uses a running `ART-cli --server` instead of the in-process engine.
 
 ## What it does

@@ -24,12 +24,16 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 find_package(Threads REQUIRED)
-add_executable(mart src/main.cc src/session.cc src/editor.cc src/arp.cc
+# everything but main() is a library, so that an app can embed the host
+add_library(mart-host STATIC src/app.cc src/session.cc src/editor.cc src/arp.cc
     src/profiles.cc src/luts.cc src/halation.cc src/retouch.cc src/sections.cc
-    src/icctag.cc src/exportreq.cc src/exporter.cc src/libart_dyn.cc)
-target_include_directories(mart PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(mart PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
-target_compile_options(mart PRIVATE -Wall -Wextra)
+    src/icctag.cc src/exportreq.cc src/exporter.cc src/libart_dyn.cc
+    src/tempdir.cc)
+target_include_directories(mart-host PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mart-host PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+target_compile_options(mart-host PRIVATE -Wall -Wextra)
+add_executable(mart src/main.cc)
+target_link_libraries(mart PRIVATE mart-host)
 
 enable_testing()
 add_executable(test_arp tests/test_arp.cc src/arp.cc)
@@ -50,6 +54,10 @@ add_test(NAME sections COMMAND test_sections)
 add_executable(test_retouch tests/test_retouch.cc src/retouch.cc)
 target_include_directories(test_retouch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME retouch COMMAND test_retouch)
+
+add_executable(test_tempdir tests/test_tempdir.cc src/tempdir.cc)
+target_include_directories(test_tempdir PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME tempdir COMMAND test_tempdir)
 
 add_executable(test_profiles tests/test_profiles.cc src/profiles.cc)
 target_include_directories(test_profiles PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

@@ -21,6 +21,7 @@
 #include "session.h"
 #include "arp.h"
 #include "halation.h"
+#include "tempdir.h"
 #include "retouch.h"
 #include "icctag.h"
 #include "sections.h"
@@ -48,20 +49,9 @@ std::string slurp(const std::string &p)
 }
 }  // namespace
 
-namespace {
-std::string makeTmpdir()
-{
-    char tmpl[] = "/tmp/mart-XXXXXX";
-    if (!mkdtemp(tmpl))
-        throw std::runtime_error("cannot create a temporary directory");
-    return tmpl;
-}
-
-}  // namespace
-
 Session::Session(const EngineOptions &o, std::vector<std::string> roots,
                  std::vector<ProfileDir> profileDirs, std::string lutDir) :
-    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()),
+    opts_(o), roots_(std::move(roots)), tmpdir_(makeTempDir("mart-")),
     profiles_(std::move(profileDirs)), luts_(std::move(lutDir))
 {
     engine_ = Engine::create(o);
