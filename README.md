@@ -22,13 +22,13 @@ network; the server then requires the token it prints (open the printed URL).
 
 ## What it does
 
-Tone, Color, Detail and Crop tabs (exposure and highlight recovery, a haze removal slider (ART's dehaze with a straight
+Tone, Color, Detail, Retouch and Crop tabs (exposure and highlight recovery, a haze removal slider (ART's dehaze with a straight
 strength curve, in RGB mode), contrast, base curve, a point-curve editor, tone
 equalizer; white balance with a neutral-gray picker, saturation, channel mixer (primaries mode), soft light; lens
 correction from the automatic or embedded data, and the flat field embedded in the raw file (DNG gain maps, on by
 default for a DNG that has no saved choice), capture sharpening by Richardson-Lucy deconvolution, film grain and
 halation; film simulation with a LUT picked from MART's own (including CTL scripts with their
-parameters); crop with ratios,
+parameters); retouching regions with a brush mask (see below); crop with ratios,
 quarter turns, flips and straightening), an Other tab that lists, read-only, the tools of the profile that have no
 controls here (they are kept on Save), undo/redo, Save (the standard `.arp`
 sidecar), **profiles** (the **Look** sheet), and a **⋯** menu
@@ -83,6 +83,7 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/tools_e2e.mjs http://localhost:8080               # every tool's patch against the engine (changes the open image, not the sidecar)
     node host/tests/ui_tools.mjs http://localhost:8080 /tmp           # curve editor and the new tools (use a freshly started host)
     node host/tests/ui_extras.mjs http://localhost:8080 /tmp          # grain, halation, film simulation, Other tab (fresh host)
+    node host/tests/ui_retouch.mjs http://localhost:8080 /tmp         # the Retouch tab: regions, sliders, painting (fresh host)
     node host/tests/ui_overflow.mjs http://localhost:8080 /tmp        # no sideways scrolling on phone widths
     node host/tests/ui_srgb.mjs http://localhost:8080 /tmp            # the preview stays sRGB whatever the profiles say (fresh host)
     node host/tests/srgb_e2e.mjs http://localhost:8080 /path/copy.arw   # exports are sRGB (a COPY: it rewrites its sidecar)
@@ -94,6 +95,15 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_pwa.mjs          # manifest, service worker, offline start
+
+Retouching regions are regions of ART's Color/tone correction tool (`[ColorCorrection]`) in perceptual mode, named
+`MART retouch <id>` and added after the regions that the sidecar already has; in desktop ART they are ordinary regions.
+Each has a hue shift, an output saturation, gain (highlights), lift (shadows), gamma (midtones), pivot and compression
+(gain, gamma and pivot are in stops: 0 is no change); a brush mask can limit it (feather, opacity and smoothness as in
+ART, a brush size, a hardness and an eraser; the mask contrast curve and the brush mode are left out: the brush is the
+only mask, in "intersect" mode, so a region with a brush mask and nothing painted does nothing). Paint with the mouse
+or one finger; two fingers pan and zoom. Painting is a mode of its own ("Edit the mask"): the strokes show as a red overlay, with Undo stroke, Clear and Discard, until Commit sends them to the engine (leaving the tab commits too). A profile saved with the "Retouching"
+section replaces the retouching regions of the image and keeps its other ones.
 
 Halation is a region of ART's Smoothing tool in halation mode, without a mask, named `MART halation` and added after
 the regions that the sidecar already has; in desktop ART it appears as an ordinary smoothing region.

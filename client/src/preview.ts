@@ -16,6 +16,16 @@ const MAX_ZOOM = 4; // CSS pixels per image pixel
 const SETTLE_MS = 90;
 const PAD = 16; // CSS px of margin around the image when it is fitted: room for the crop handles
 
+/** painting on the picture (the retouch brush): a drag with one finger or the mouse paints instead of panning */
+export interface BrushHandler {
+    /** positions are in pixels of the image */
+    start(x: number, y: number): void;
+    move(x: number, y: number): void;
+    end(): void;
+    /** a second finger came down: the stroke is dropped, the gesture is a pinch */
+    cancel(): void;
+}
+
 export class PreviewView {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
@@ -45,6 +55,15 @@ export class PreviewView {
     onTap: ((x: number, y: number) => void) | null = null;
     /** any tap on the picture, wherever it is */
     onAnyTap: (() => void) | null = null;
+    /** if set, drags paint (see BrushHandler) */
+    brush: BrushHandler | null = null;
+    private painting = false;
+    /** drawn over the frame after each draw, in canvas pixels (the retouch mask) */
+    drawOverlay: ((ctx: CanvasRenderingContext2D, dpr: number) => void) | null = null;
+    /** ask for a redraw (the overlay changed) */
+    redraw(): void {
+        this.queueDraw();
+    }
 
     constructor(canvas: HTMLCanvasElement, onSettled: () => void) {
         this.canvas = canvas;
@@ -189,6 +208,16 @@ export class PreviewView {
     private down(e: PointerEvent): void {
         this.canvas.setPointerCapture(e.pointerId);
         this.pointers.set(e.pointerId, this.pos(e));
+        if (this.brush && this.pointers.size === 1) {
+            const i = this.toImage(this.pos(e).x, this.pos(e).y);
+            this.painting = true;
+            this.brush.start(i.x, i.y);
+            return;
+        }
+        if (this.painting && this.pointers.size > 1) {
+            this.painting = false;
+            this.brush?.cancel();
+        }
         if (this.pointers.size === 1) {
             const now = performance.now();
             if (now - this.lastTap < 300) this.toggleZoom(this.pos(e));
@@ -203,6 +232,12 @@ export class PreviewView {
         const old = this.pointers.get(e.pointerId);
         if (!old || !this.iw) return;
         const now = this.pos(e);
+        if (this.painting) {
+            const i = this.toImage(now.x, now.y);
+            this.pointers.set(e.pointerId, now);
+            this.brush?.move(i.x, i.y);
+            return;
+        }
         if (this.pointers.size === 1) {
             this.tx += now.x - old.x;
             this.ty += now.y - old.y;
@@ -223,6 +258,13 @@ export class PreviewView {
     }
 
     private up(e: PointerEvent): void {
+        if (this.painting) {
+            this.painting = false;
+            this.pointers.delete(e.pointerId);
+            if (e.type === "pointerup") this.brush?.end();
+            else this.brush?.cancel();
+            return;
+        }
         const d = this.downAt;
         this.pointers.delete(e.pointerId);
         if (d && e.type === "pointerup" && performance.now() - d.t < 400) {
@@ -290,6 +332,7 @@ export class PreviewView {
                 f.region.h * this.zoom * dpr,
             );
         }
+        this.drawOverlay?.(c, dpr);
         this.afterDraw?.();
     }
 }

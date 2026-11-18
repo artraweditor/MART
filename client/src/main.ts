@@ -4,6 +4,7 @@ import { ApiError, NetworkError, getInfo, getStatus, openImage, saveImage, spotW
 import type { ImageInfo } from "./api.js";
 import "./clutpanel.js"; // these register their panels with controls.ts
 import "./other.js";
+import { attachRetouch, mergeRetouch, setRetouchActive } from "./retouch.js";
 import { makeControl } from "./controls.js";
 import type { Control, ControlHost } from "./controls.js";
 import { CropOverlay, clampRect, fitRatio } from "./crop.js";
@@ -172,6 +173,7 @@ function applyPatch(patch: Patch): void {
 
 const cropOverlay = new CropOverlay($("crop") as HTMLCanvasElement, preview, $("view"), (rect) => setCrop(rect, cropState().ratio));
 preview.afterDraw = () => cropOverlay.draw();
+attachRetouch(preview, () => ({ w: imgW, h: imgH }));
 
 const cropState = () => cropFromParams(params, imgW, imgH);
 
@@ -239,6 +241,16 @@ const host: ControlHost = {
         // a Temperature/Tint change also switches the preset chips, and a mode shows other controls
         if (def.group === "White Balance" || !gesture) syncControls();
     },
+    raw(patch, gestureKey) {
+        // the retouch regions: the patch is {Retouch: {id: fields | null}}; keep our copy of them as the host will have them
+        if (patch["Retouch"]) mergeRetouch(params, patch["Retouch"]);
+        if (gestureKey) dragging = true;
+        throttle.push(patch, gestureKey);
+        if (!gestureKey) {
+            throttle.flush();
+            syncControls();
+        }
+    },
     gestureEnd() {
         throttle.flush();
         dragging = false;
@@ -297,6 +309,16 @@ async function pickWhite(x: number, y: number): Promise<void> {
     }
 }
 
+/** the icons of the tabs (24x24, drawn with the text colour) */
+const TAB_ICONS: Record<string, string> = {
+    tone: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/>',
+    color: '<path d="M12 3.5C8 8.5 5.5 11.5 5.5 15a6.5 6.5 0 0 0 13 0c0-3.5-2.5-6.5-6.5-11.5z"/>',
+    detail: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><circle cx="12" cy="12" r="2.5"/>',
+    retouch: '<path d="M18.5 3.5a2 2 0 0 1 2 2c0 1-4.5 6-7 8.5l-3-3c2.5-2.5 7.5-7.5 8-7.5z"/><path d="M10.5 11.5l3 3c-.5 3-3 5-7 5 1.5-1.5 1-3 1.5-4.5.5-1.5 1.5-2.5 2.5-3.5z"/>',
+    crop: '<path d="M7 2v15h15M2 7h15v15"/>',
+    other: '<circle cx="5.5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18.5" cy="12" r="1.6" fill="currentColor"/>',
+};
+
 function buildPanel(): void {
     const tabs = $("tabs");
     const tools = $("tools");
@@ -316,13 +338,20 @@ function buildPanel(): void {
         store("mart.tab", String(i));
         activeTool = TOOLS[i]!.id;
         cropOverlay.setActive(activeTool === "crop");
+        setRetouchActive(activeTool === "retouch");
         setPicking(false);
         syncCrop();
     };
     TOOLS.forEach((tool, i) => {
         const b = document.createElement("button");
         b.type = "button";
-        b.textContent = tool.label;
+        // an icon; the name stays for screen readers (and as the tooltip)
+        b.innerHTML = `<svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">${TAB_ICONS[tool.id] ?? ""}</svg>`;
+        const name = document.createElement("span");
+        name.className = "sr-only";
+        name.textContent = tool.label;
+        b.append(name);
+        b.title = tool.label;
         b.setAttribute("role", "tab");
         b.addEventListener("click", () => {
             const same = tabButtons[i]!.getAttribute("aria-selected") === "true";

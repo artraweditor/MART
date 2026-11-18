@@ -2,6 +2,7 @@
 #include "session.h"
 #include "arp.h"
 #include "halation.h"
+#include "retouch.h"
 #include "icctag.h"
 #include "sections.h"
 #include <cctype>
@@ -205,6 +206,7 @@ json Session::params()
     std::string ini = r.value("params", "");
     json doc = arp::parse(ini);
     doc["Halation"] = halation::state(ini);  // not a group of the profile: MART's own view of one of the Smoothing regions
+    doc["Retouch"] = retouch::state(ini);    // likewise: our regions of the Color/tone correction tool, by id
     return {{"params", doc}, {"ini", ini}};
 }
 
@@ -234,10 +236,14 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
     json patch = patchIn;
-    json halationChange;
+    json halationChange, retouchChange;
     if (patch.is_object() && patch.contains("Halation")) {
         halationChange = patch["Halation"];
         patch.erase("Halation");
+    }
+    if (patch.is_object() && patch.contains("Retouch")) {
+        retouchChange = patch["Retouch"];
+        patch.erase("Retouch");
     }
     auto apply = [&](const std::string &text) {
         const std::string path = tmpdir_ + "/patch.arp";
@@ -252,7 +258,7 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         command(a);
         dirty_ = true;
     };
-    if (halationChange.is_null() || !patch.empty()) {
+    if ((halationChange.is_null() && retouchChange.is_null()) || !patch.empty()) {
         std::string text;
         try {
             text = arp::serialize(patch, [this](const std::string &id) {
@@ -269,6 +275,15 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         std::string text;
         try {
             text = halation::rewrite(command({"get-params"}).value("params", ""), halationChange);
+        } catch (const std::invalid_argument &e) {
+            throw ApiError(400, e.what());
+        }
+        apply(text);
+    }
+    if (!retouchChange.is_null()) {
+        std::string text;
+        try {
+            text = retouch::rewrite(command({"get-params"}).value("params", ""), retouchChange);
         } catch (const std::invalid_argument &e) {
             throw ApiError(400, e.what());
         }
@@ -381,44 +396,37 @@ void Session::applyProfileFile(const std::string &path, bool append, const std::
     // a LUT of MART's folder is `file://R/...` in a profile: for ART that is relative to its own folder of LUTs
     const std::string original = slurp(path);
     const std::string text = luts_.resolveInProfile(original);
-    if (!halation::present(text)) {
-        if (text == original) {
-            apply(path);
-        } else {
-            const std::string file = tmpdir_ + "/profile.arp";
-            {
-                std::ofstream f(file, std::ios::binary | std::ios::trunc);
-                f << text;
-                if (!f) throw ApiError(500, "cannot write " + file);
-            }
-            apply(file);
-        }
+    const bool hasHalation = halation::present(text), hasRetouch = retouch::present(text);
+    auto writeTmp = [&](const std::string &name, const std::string &content) {
+        const std::string file = tmpdir_ + "/" + name;
+        std::ofstream f(file, std::ios::binary | std::ios::trunc);
+        f << content;
+        if (!f) throw ApiError(500, "cannot write " + file);
+        return file;
+    };
+    if (!hasHalation && !hasRetouch) {
+        apply(text == original ? path : writeTmp("profile.arp", text));
         return;
     }
-    // The halation is a region of the smoothing tool, added after the regions that the image has: the profile's
-    // Smoothing group is not applied as it is (it would replace them), but through the same path as the slider.
-    const std::string rest = halation::withoutSmoothing(text);
-    if (rest.find('[') != std::string::npos) {
-        const std::string file = tmpdir_ + "/profile.arp";
-        {
-            std::ofstream f(file, std::ios::binary | std::ios::trunc);
-            f << rest;
-            if (!f) throw ApiError(500, "cannot write " + file);
-        }
-        apply(file);
+    // The halation is a region of the smoothing tool and the retouching regions are some of those of the color/tone
+    // correction tool, added after the regions that the image has: the profile's Smoothing and ColorCorrection groups
+    // are not applied as they are (they would replace those regions), but through the same path as the controls.
+    std::string rest = text;
+    if (hasHalation) rest = halation::withoutSmoothing(rest);
+    if (hasRetouch) rest = retouch::withoutColorCorrection(rest);
+    if (rest.find('[') != std::string::npos) apply(writeTmp("profile.arp", rest));
+    auto applyText = [&](const std::string &t) {
+        std::vector<std::string> a = {"apply"};
+        if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
+        a.push_back(writeTmp("patch.arp", t));
+        command(a);
+    };
+    if (hasHalation) {
+        json st = halation::state(text);
+        json change = {{"Enabled", st["Enabled"]}, {"Strength", st["Strength"]}, {"Tint", st["Tint"]}};
+        applyText(halation::rewrite(command({"get-params"}).value("params", ""), change));
     }
-    json st = halation::state(text);
-    json change = {{"Enabled", st["Enabled"]}, {"Strength", st["Strength"]}, {"Tint", st["Tint"]}};
-    const std::string patch = tmpdir_ + "/patch.arp";
-    {
-        std::ofstream f(patch, std::ios::binary | std::ios::trunc);
-        f << halation::rewrite(command({"get-params"}).value("params", ""), change);
-        if (!f) throw ApiError(500, "cannot write " + patch);
-    }
-    std::vector<std::string> a = {"apply"};
-    if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
-    a.push_back(patch);
-    command(a);
+    if (hasRetouch) applyText(retouch::replace(command({"get-params"}).value("params", ""), text));
 }
 
 json Session::profileSections()

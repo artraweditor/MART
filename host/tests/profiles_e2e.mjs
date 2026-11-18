@@ -37,7 +37,7 @@ try {
     // ---- the sections --------------------------------------------------------------------------------------------
     const sections = await (await fetch(base + "/api/profile-sections")).json();
     const ids = sections.map((s) => s.id);
-    for (const id of ["exposure", "haze", "tone", "toneeq", "wb", "saturation", "mixer", "softlight", "film", "lens", "sharpening", "grain", "halation", "geometry"]) assert.ok(ids.includes(id), id);
+    for (const id of ["exposure", "haze", "tone", "toneeq", "wb", "saturation", "mixer", "softlight", "film", "lens", "sharpening", "grain", "halation", "retouch", "geometry"]) assert.ok(ids.includes(id), id);
     assert.equal(sections.find((s) => s.id === "wb").default, false, "white balance is of the image");
     assert.equal(sections.find((s) => s.id === "exposure").default, true);
 
@@ -53,13 +53,15 @@ try {
     await edit({ "White Balance": { Setting: "CustomTemp", Temperature: 4000, Green: 1 } });
     await edit({ RAW: { FlatFieldEnabled: true, FlatFieldUseEmbedded: true } });
     await edit({ Saturation: { Enabled: true, Saturation: 33 } });
+    const cc0 = Object.keys(before.ColorCorrection).filter((k) => /^MaskName_/.test(k)).length;
+    await edit({ Retouch: { 4: { Enabled: true, Slope: 2, HueShift: 12, BrushEnabled: true, Strokes: [[0.1, 1, 1, 0.5, 0.5, 0.6, 0.5]] } } });
 
-    let r = await post("/api/profiles/save", { name: "Test A", sections: ["exposure", "tone", "grain", "halation", "lens"] });
+    let r = await post("/api/profiles/save", { name: "Test A", sections: ["exposure", "tone", "grain", "halation", "retouch", "lens"] });
     assert.equal(r.status, 201, await r.clone().text());
     const entry = await r.json();
     assert.deepEqual([entry.name, entry.source, entry.default], ["Test A", "mine", false]);
     const text = readFileSync(join(dir, "Test A.arp"), "utf8");
-    for (const must of ["[Exposure]", "Compensation=0.5", "[ToneCurve]", "Contrast=20", "[Grain]", "ISO=1600", "[LensProfile]", "[RAW]", "FlatFieldUseEmbedded=true", "[Smoothing]", "Mode_1=7", "MaskName_1=MART halation", "HalationSize_1=2"])
+    for (const must of ["[Exposure]", "Compensation=0.5", "[ToneCurve]", "Contrast=20", "[Grain]", "ISO=1600", "[LensProfile]", "[RAW]", "FlatFieldUseEmbedded=true", "[Smoothing]", "Mode_1=7", "MaskName_1=MART halation", "HalationSize_1=2", "[ColorCorrection]", "MaskName_1=MART retouch 4", "Slope_1=2", "DrawnMaskEnabled_1=true"])
         assert.ok(text.includes(must), "the profile has " + must);
     for (const mustNot of ["[White Balance]", "[Saturation]", "[Crop]", "[Sharpening]", "CAEnabled", "DarkFrame", "NLStrength", "Mode_2"])
         assert.ok(!text.includes(mustNot), "the profile has no " + mustNot);
@@ -70,7 +72,7 @@ try {
     assert.equal(r.status, 409);
     assert.match((await r.json()).error, /already exists/);
     assert.ok(readFileSync(join(dir, "Test A.arp"), "utf8").includes("[Grain]"), "not replaced");
-    r = await post("/api/profiles/save", { name: "Test A", sections: ["exposure", "tone", "grain", "halation", "lens"], overwrite: true });
+    r = await post("/api/profiles/save", { name: "Test A", sections: ["exposure", "tone", "grain", "halation", "retouch", "lens"], overwrite: true });
     assert.equal(r.status, 201);
     for (const [body, re] of [[{ name: "", sections: ["exposure"] }, /name/], [{ name: "x", sections: [] }, /nothing/], [{ name: "x", sections: ["nope"] }, /unknown section/], [{ name: "x" }, /expected/], [{ name: "...", sections: ["exposure"] }, /name/]]) {
         r = await post("/api/profiles/save", body);
@@ -97,6 +99,12 @@ try {
     assert.equal(st.params.Saturation.Saturation, before.Saturation.Saturation, "what the profile does not hold is left");
     assert.equal(regions(st.params.Smoothing), n0 + 1, "the halation is added to the regions of the image");
     for (const [k, v] of Object.entries(before.Smoothing)) if (/_\d+$/.test(k) && Number(k.match(/_(\d+)$/)[1]) <= n0) assert.deepEqual(st.params.Smoothing[k], v, "the image's region is as it was: " + k);
+    // the retouching regions come with it, after those of the image, which are as they were
+    assert.equal(Object.keys(st.params.Retouch).length, 1);
+    assert.deepEqual([st.params.Retouch["4"].Slope, st.params.Retouch["4"].HueShift, st.params.Retouch["4"].BrushEnabled], [2, 12, true]);
+    assert.equal(st.params.Retouch["4"].Strokes.length, 1);
+    assert.equal(Object.keys(st.params.ColorCorrection).filter((k) => /^MaskName_/.test(k)).length, cc0 + 1);
+    for (const [k, v] of Object.entries(before.ColorCorrection)) if (/_\d+$/.test(k) && k.endsWith("_1") && k !== "MaskEnabled_1") assert.deepEqual(st.params.ColorCorrection[k], v, "the image's color/tone region is as it was: " + k);
     // the whole profile is one step of the history
     assert.equal(st.history.can_undo, true);
     send({ type: "undo" });

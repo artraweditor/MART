@@ -9,7 +9,7 @@ import { denoiseValue } from "./tools.js";
 /** the groups that have controls here (or are no tools): never listed */
 const COVERED = new Set([
     "Exposure", "White Balance", "ToneCurve", "Saturation", "ToneEqualizer", "Channel Mixer", "SoftLight", "Sharpening",
-    "Grain", "Film Simulation", "Crop", "Rotation", "LensProfile", "Coarse Transformation", "Halation", "Dehaze",
+    "Grain", "Film Simulation", "Crop", "Rotation", "LensProfile", "Coarse Transformation", "Halation", "Dehaze", "Retouch",
 ]);
 
 const NAMES: Record<string, string> = {
@@ -81,14 +81,19 @@ function smoothing(g: Record<string, unknown>): Item | null {
     return rows.length ? { name: NAMES["Smoothing"]!, summary: `${rows.length} region${rows.length > 1 ? "s" : ""}`, rows } : null;
 }
 
-function colorCorrection(g: Record<string, unknown>): Item {
+/** the prefix of the name of the regions of the Retouch tab (see host/src/retouch.cc) */
+const RETOUCH = "MART retouch ";
+
+function colorCorrection(g: Record<string, unknown>): Item | null {
     const rows: [string, string][] = [];
     for (let k = 1; k <= lastRegion(g); k++) {
+        if (String(g[`MaskName_${k}`] ?? "").startsWith(RETOUCH)) continue; // the Retouch tab's own
+
         let t = String(g[`Mode_${k}`] ?? "Jzazbz");
         if (g[`MaskEnabled_${k}`] === false) t += " (off)";
         rows.push([`Region ${k}`, t]);
     }
-    return { name: NAMES["ColorCorrection"]!, summary: `${rows.length} region${rows.length === 1 ? "" : "s"}`, rows };
+    return rows.length ? { name: NAMES["ColorCorrection"]!, summary: `${rows.length} region${rows.length === 1 ? "" : "s"}`, rows } : null;
 }
 
 /** the tools that the profile applies and that have no controls in this app */
@@ -101,7 +106,8 @@ export function summarize(params: Params): Item[] {
             const s = smoothing(g);
             if (s) items.push(s);
         } else if (group === "ColorCorrection") {
-            items.push(colorCorrection(g));
+            const c = colorCorrection(g);
+            if (c) items.push(c);
         } else if (group === "Local Contrast" || group === "TextureBoost") {
             const n = lastRegion(g) + 1; // the first region has no suffix
             items.push({ name: NAMES[group]!, summary: `${n} region${n > 1 ? "s" : ""}`, rows: [] });

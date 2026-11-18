@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "sections.h"
 #include "halation.h"
+#include "retouch.h"
 #include <set>
 #include <stdexcept>
 #include <utility>
@@ -38,6 +39,7 @@ const std::vector<Def> &table()
         {{"denoise", "Noise reduction", true}, {{"Denoise", {}}}},
         {{"grain", "Film grain", true}, {{"Grain", {}}}},
         {{"halation", "Halation", true}, {}},
+        {{"retouch", "Retouching", true}, {}},
         {{"geometry", "Crop and rotation", false}, {{"Crop", {}}, {"Rotation", {}}, {"Coarse Transformation", {}}}},
     };
     return t;
@@ -88,8 +90,8 @@ std::string build(const std::string &paramsText, const std::vector<std::string> 
     std::string out;
     for (auto &d : table()) {
         if (!wanted.count(d.section.id)) continue;
-        if (d.items.empty()) {  // the halation
-            const std::string h = halation::profileText(paramsText);
+        if (d.items.empty()) {  // the halation, or the retouching regions: not groups of the profile
+            const std::string h = d.section.id == "retouch" ? retouch::profileText(paramsText) : halation::profileText(paramsText);
             if (!h.empty()) out += h + "\n";
             continue;
         }

@@ -4,7 +4,7 @@
 import type { ChoiceDef, ControlDef, CurveDef, CustomDef, HeadingDef, SliderDef, ToggleDef } from "./tools.js";
 import { addPoint, encode, hitPoint, identity, isIdentity, makeEvaluator, movePoint, parseCurve, removePoint } from "./curve.js";
 import type { Curve } from "./curve.js";
-import type { Params } from "./live.js";
+import type { Params, Patch } from "./live.js";
 import { isShown, readValue } from "./tools.js";
 
 export interface ControlHost {
@@ -12,6 +12,8 @@ export interface ControlHost {
     set(def: ControlDef, value: unknown, gesture: number): void;
     /** a slider drag ended */
     gestureEnd(): void;
+    /** a patch that is not the value of one control (the retouch regions); `gestureKey` is "" for a discrete change */
+    raw(patch: Patch, gestureKey: string): void;
 }
 
 export interface Control {

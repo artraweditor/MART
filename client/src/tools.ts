@@ -73,7 +73,7 @@ export interface HeadingDef extends Base {
 /** a panel built by another module (see `registerControl` in controls.ts): the film simulation, the list of other tools */
 export interface CustomDef extends Base {
     kind: "custom";
-    name: "clut" | "info";
+    name: "clut" | "info" | "retouch";
 }
 
 export type ControlDef = SliderDef | ChoiceDef | ToggleDef | CurveDef | HeadingDef | CustomDef;
@@ -336,6 +336,12 @@ export const TOOLS: Tool[] = [
             { kind: "slider", label: "Strength", group: "Halation", key: "Strength", min: 0.01, max: 5, step: 0.01, def: 1, digits: 2 },
             { kind: "slider", label: "Tint", group: "Halation", key: "Tint", min: -0.5, max: 0.5, step: 0.001, def: 0, digits: 3 },
         ],
+    },
+    {
+        // regions of ART's color/tone correction tool with a simplified interface (retouch.ts; host/src/retouch.cc)
+        id: "retouch",
+        label: "Retouch",
+        controls: [{ kind: "custom", label: "Retouching", group: "Retouch", name: "retouch" }],
     },
     {
         id: "crop",
