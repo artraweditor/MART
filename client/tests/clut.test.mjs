@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseClutParams, withDefaults, lutName, isLutId, paramDefs, presetsDef, lutDef } from "../dist/app/clut.js";
+import { parseClutParams, withDefaults, lutName, isLutId, matchLut, paramDefs, presetsDef, lutDef } from "../dist/app/clut.js";
 import { patchFor, readValue } from "../dist/app/tools.js";
 
 const info = {
@@ -96,4 +96,31 @@ test("presets and reset", () => {
 test("choosing a LUT starts from its defaults and turns the tool on; none turns it off", () => {
     assert.deepEqual(patchFor(lutDef, "u2", get("gain=1;")), { "Film Simulation": { Enabled: true, ClutFilename: "u2", ClutParams: {} } });
     assert.deepEqual(patchFor(lutDef, "", get("")), { "Film Simulation": { Enabled: false, ClutFilename: "", ClutParams: {} } });
+});
+
+test("which LUT of MART's folder a profile means", () => {
+    const luts = [
+        { id: "d0:a.cube", name: "a.cube", source: "mine" },
+        { id: "d0:grade.ctl", name: "grade.ctl", source: "mine" },
+        { id: "d0:sub/grade.ctl", name: "sub/grade.ctl", source: "mine" },
+        { id: "d0:my film.png", name: "my film.png", source: "mine" },
+    ];
+    const m = (k) => matchLut(k, luts)?.id ?? null;
+    // the id just chosen
+    assert.equal(m("d0:a.cube"), "d0:a.cube");
+    // what a profile or the engine says: the host R is relative to the folder
+    assert.equal(m("file://R/a.cube"), "d0:a.cube");
+    assert.equal(m("file://R/my%20film.png"), "d0:my film.png");
+    assert.equal(m("file://R/sub/grade.ctl"), "d0:sub/grade.ctl", "the longest path that matches");
+    assert.equal(m("file://R/grade.ctl"), "d0:grade.ctl");
+    // an absolute path or the URI of one, in the folder wherever it is
+    assert.equal(m("file:///home/x/.config/MART/luts/grade.ctl"), "d0:grade.ctl");
+    assert.equal(m("file://H/.config/MART/luts/sub/grade.ctl"), "d0:sub/grade.ctl");
+    assert.equal(m("/tmp/luts/my film.png"), "d0:my film.png");
+    assert.equal(m("sub/grade.ctl"), "d0:sub/grade.ctl");
+    // none of them
+    assert.equal(m("file:///somewhere/else.cube"), null);
+    assert.equal(m("file:///x/notgrade.ctl"), null, "a name that only ends the same");
+    assert.equal(m(""), null);
+    assert.equal(m(undefined), null);
 });

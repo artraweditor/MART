@@ -64,6 +64,12 @@ int main()
     for (auto &s : l) all.push_back(s.id);
     t = sections::build(params, all);
     CHECK(t.find("[Crop]") != std::string::npos && t.find("[White Balance]") != std::string::npos);
+    // the LUT of the film simulation goes through the writer given (for the host R of MART's folder)
+    const std::string film = "[Film Simulation]\nEnabled=true\nClutFilename=file:///x/luts/a%20b.cube\nStrength=100\n";
+    t = sections::build(film, {"film"});
+    CHECK(has("\n" + t, "ClutFilename=file:///x/luts/a%20b.cube"));   // as it is, without a writer
+    t = sections::build(film, {"film"}, [](const std::string &v) { return v == "file:///x/luts/a%20b.cube" ? std::string("file://R/a%20b.cube") : v; });
+    CHECK(has("\n" + t, "ClutFilename=file://R/a%20b.cube") && has("\n" + t, "Strength=100") && t.find("/x/luts") == std::string::npos);
     CHECK(refused(params, {"nope"}));
     CHECK(refused(params, {"exposure", "Exposure"}));
 

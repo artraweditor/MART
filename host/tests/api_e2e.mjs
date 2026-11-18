@@ -91,12 +91,14 @@ console.log("profiles:", list.length, [...new Set(list.map((p) => p.source))].jo
     assert.equal((await api("/api/profiles?name=x", { method: "POST", body: "" })).status, 400);
     const up = await api("/api/profiles?name=" + encodeURIComponent("../My look.arp"), { method: "POST", body: "[Saturation]\nEnabled=true\nSaturation=33\n" });
     assert.equal(up.status, 201);
-    assert.equal(up.body.name, ".._My look", "the display name has no path");
-    assert.ok((await api("/api/profiles")).body.some((p) => p.id === up.body.id && p.source === "uploaded"));
+    assert.equal(up.body.name, "_My look", "no path in the name, nothing hidden");
+    assert.ok((await api("/api/profiles")).body.some((p) => p.id === up.body.id && p.source === "mine"), "it is stored in MART's folder");
+    assert.equal((await api("/api/profiles?name=" + encodeURIComponent("../My look.arp"), { method: "POST", body: "[Saturation]\nEnabled=true\n" })).status, 409, "the name is taken");
     const s = send({ type: "profile", id: up.body.id, view });
     const st = await next((m) => m.type === "state" && m.seq === s);
     assert.equal(st.params.Saturation.Saturation, 33);
     await next((m) => m.type === "frame" && m.seq === s);
+    assert.equal((await post("/api/profiles/delete", { id: up.body.id })).status, 200, "(the test's own profile goes away)");
     // unknown and malicious ids
     for (const id of ["nope", "d0:../../etc/passwd", "d0:/etc/passwd", "d9:x.arp", "u99"]) {
         const s2 = send({ type: "profile", id, view });

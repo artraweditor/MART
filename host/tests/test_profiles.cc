@@ -19,10 +19,9 @@ int main()
 {
     char tmpl[] = "/tmp/mart-test-XXXXXX";
     const std::string d = mkdtemp(tmpl);
-    mkdir((d + "/up").c_str(), 0700);
     const std::string dir = d + "/config/MART/profiles";  // not there yet: made by the first save
 
-    Profiles p({{"mine", dir}}, d + "/up");
+    Profiles p({{"mine", dir}});
     auto list = p.list();
     CHECK(list.size() == 1 && list[0]["id"] == ":neutral" && list[0]["source"] == "builtin");  // only what is built in
 
@@ -35,7 +34,7 @@ int main()
     auto f = p.save("warm", "[Exposure]\nEnabled=true\n", false);
     CHECK(f["name"] == "warm" && f["id"] == "d0:warm.arp");
     list = p.list();
-    CHECK(list.size() == 3 && list[1]["source"] == "mine");
+    CHECK(list.size() == 3 && list[1]["source"] == "mine");   // Neutral and two of mine
 
     // the same name: refused, unless it is to be replaced
     bool exists409 = false;
@@ -132,13 +131,26 @@ int main()
     CHECK(p.defaultPath() == dir + "/keep.arp");
     p.setDefault("");
 
-    // uploads are not in the folder and cannot be the default
-    auto up = p.upload("device.arp", "[Saturation]\nEnabled=true\n");
-    CHECK(up["source"] == "uploaded");
-    CHECK(!p.path(up["id"]).empty());
+    // importing a profile from a file: stored in the folder, under the name given, if it looks like a profile
+    auto imp = p.import("from a file.arp", "[Saturation]\nEnabled=true\n");
+    CHECK(imp["id"] == "d0:from a file.arp" && imp["source"] == "mine" && imp["default"] == false);
+    CHECK(read(dir + "/from a file.arp") == "[Saturation]\nEnabled=true\n");
+    bool taken = false;
+    try { p.import("from a file", "[Saturation]\nEnabled=true\n"); } catch (const ProfileExists &) { taken = true; }
+    CHECK(taken);
+    for (auto &bad : {std::string("this is not a profile"), std::string(""), std::string("a=b\n"), std::string("[x\n"), std::string("[A]\n") + std::string(1, '\0')}) {
+        bool r = false;
+        try { p.import("bad", bad); } catch (const std::invalid_argument &) { r = true; }
+        CHECK(r);
+    }
+    CHECK(!exists(dir + "/bad.arp"));
+    CHECK(p.import("crlf", "[A]\r\nb=1\r\n")["name"] == "crlf");
+    bool big = false;
+    try { p.import("big", "[A]\n" + std::string(1 << 20, 'x')); } catch (const std::invalid_argument &) { big = true; }
+    CHECK(big);
 
     // no folder at all
-    Profiles none({}, d + "/up");
+    Profiles none({});
     bool r = false;
     try { none.save("x", "[A]\nb=1\n", false); } catch (const std::invalid_argument &) { r = true; }
     CHECK(r);

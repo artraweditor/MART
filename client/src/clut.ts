@@ -1,7 +1,7 @@
 // Film simulation: the parameters of a LUT script as controls, and how they are kept in the profile
 // (`[Film Simulation] ClutParams=name=v1,v2;name2=v;`). Pure, so that it can be tested.
 
-import type { ClutInfo, ClutParam } from "./api.js";
+import type { ClutInfo, ClutParam, LutEntry } from "./api.js";
 import type { ChoiceDef, ControlDef, Getter, SliderDef, ToggleDef } from "./tools.js";
 import type { Params } from "./live.js";
 
@@ -44,6 +44,27 @@ export function lutName(key: unknown, known?: { id: string; name: string } | nul
         /* not escaped */
     }
     return p.slice(p.lastIndexOf("/") + 1);
+}
+
+/**
+ * The LUT of MART's folder that the profile means: its key is the id just chosen, or a path or a URI (`file://R/...`,
+ * or an absolute one: the folder is not told, so the end of the path is compared). Null if it is none of them.
+ */
+export function matchLut(key: unknown, luts: LutEntry[]): LutEntry | null {
+    if (typeof key !== "string" || key === "") return null;
+    const byId = luts.find((l) => l.id === key);
+    if (byId) return byId;
+    const m = /^file:\/\/[^/]*(\/.*)$/.exec(key);
+    let p = m ? m[1]! : key;
+    try {
+        p = decodeURIComponent(p);
+    } catch {
+        /* not escaped */
+    }
+    let best: LutEntry | null = null;
+    for (const l of luts)
+        if ((p === l.name || p === "/" + l.name || p.endsWith("/" + l.name)) && (!best || l.name.length > best.name.length)) best = l;
+    return best;
 }
 
 /** a key that is an id of the host (a LUT just chosen) rather than what the engine reports */

@@ -46,15 +46,16 @@ try {
     await tab("Color");
     await scrollTo("Film simulation");
     await sleep(200);
-    const lutBtn = `[...document.querySelectorAll("${section} .clut .chip")].find(c => c.getAttribute("aria-haspopup") === "dialog")`;
-    assert.equal(await js(`${lutBtn}.textContent`), "Choose a LUT…");
-    await js(`${lutBtn}.click()`);
-    await until("LUT list", () => js(`document.querySelectorAll("#sheet .looks .row-btn").length > 1`));
+    const sel = `document.querySelector("${section} .lut-select")`;
+    const pick = (text) => js(`(() => { const s = ${sel}; const o = [...s.options].find(o => o.textContent === ${JSON.stringify(text)}); if (!o) throw new Error("no LUT " + ${JSON.stringify(text)}); s.value = o.value; s.dispatchEvent(new Event("change", { bubbles: true })); })()`);
+    const picked = () => js(`${sel}.selectedOptions[0].textContent`);
+    await until("LUTs listed", () => js(`${sel}.options.length > 1`));
+    assert.deepEqual(await js(`[...${sel}.options].map(o => o.textContent)`), ["None", "sigmoid.ctl"], "the LUTs of MART's folder, and none");
+    assert.equal(await picked(), "None");
     await shot("extras-2-luts.png");
-    await js(`[...document.querySelectorAll("#sheet .row-btn")].find(x => x.textContent.trim() === "sigmoid.ctl").click()`);
-    await until("sheet closed", () => js(`document.getElementById("sheet").hidden`));
+    await pick("sigmoid.ctl");
     await until("LUT applied", async () => { const f = (await params())["Film Simulation"]; return f.Enabled === true && /sigmoid\.ctl$/.test(decodeURIComponent(f.ClutFilename)) && f; });
-    assert.equal(await js(`${lutBtn}.textContent`), "sigmoid.ctl");
+    assert.equal(await picked(), "sigmoid.ctl");
     // the parameters of the script, with the labels translated
     await until("parameters", async () => (await labels()).includes("Skew"));
     const ls = await labels();
@@ -72,12 +73,10 @@ try {
     await sleep(300);
     assert.ok((await labels()).includes("Skew"), "the controls stay");
     // none
-    await js(`${lutBtn}.click()`);
-    await until("LUT list", () => js(`document.querySelectorAll("#sheet .looks .row-btn").length > 1`));
-    await js(`[...document.querySelectorAll("#sheet .row-btn")].find(x => x.textContent.trim() === "None").click()`);
+    await pick("None");
     await until("no LUT", async () => { const f2 = (await params())["Film Simulation"]; return f2.ClutFilename === "" && f2.Enabled === false; });
     await until("controls gone", async () => !(await labels()).includes("Skew"));
-    assert.equal(await js(`${lutBtn}.textContent`), "Choose a LUT…");
+    assert.equal(await picked(), "None");
     console.log("film simulation: ok");
 
     // ---- the Other tab -----------------------------------------------------------------------------------------

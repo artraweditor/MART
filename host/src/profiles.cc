@@ -61,7 +61,7 @@ bool safeRelative(const std::string &rel)
 
 } // namespace
 
-Profiles::Profiles(std::vector<ProfileDir> dirs, const std::string &uploadDir): dirs_(std::move(dirs)), uploadDir_(uploadDir) {}
+Profiles::Profiles(std::vector<ProfileDir> dirs): dirs_(std::move(dirs)) {}
 
 nlohmann::json Profiles::list()
 {
@@ -71,16 +71,20 @@ nlohmann::json Profiles::list()
     for (size_t i = 0; i < dirs_.size(); ++i) {
         std::vector<std::string> files;
         scan(dirs_[i].path, "", 0, files);
-        std::sort(files.begin(), files.end());
+        std::sort(files.begin(), files.end(), [](const std::string &a, const std::string &b) {
+            std::string la = a, lb = b;
+            for (auto &c : la) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            for (auto &c : lb) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            return la != lb ? la < lb : a < b;
+        });   // by name, ignoring case
         for (auto &f : files)
             r.push_back({{"id", "d" + std::to_string(i) + ":" + f}, {"name", displayName(f)}, {"source", dirs_[i].tag},
                          {"default", i == 0 && f == dflt}});
     }
-    for (auto &[id, name] : uploads_) r.push_back({{"id", id}, {"name", name}, {"source", "uploaded"}, {"default", false}});
     return r;
 }
 
-nlohmann::json Profiles::upload(const std::string &name, const std::string &text)
+nlohmann::json Profiles::import(const std::string &name, const std::string &text)
 {
     if (text.empty() || text.size() > (1u << 20)) throw std::invalid_argument("a profile is 1 byte to 1 MiB");
     if (text.find('\0') != std::string::npos) throw std::invalid_argument("not a text profile");
@@ -94,23 +98,12 @@ nlohmann::json Profiles::upload(const std::string &name, const std::string &text
         i = j + 1;
     }
     if (!group) throw std::invalid_argument("this does not look like an ART profile (.arp)");
-    std::string id = "u" + std::to_string(nextUpload_++);
-    std::ofstream f(uploadDir_ + "/" + id + ".arp", std::ios::binary | std::ios::trunc);
-    f << text;
-    if (!f) throw std::runtime_error("cannot store the profile");
-    // a display name: no path, no control characters
-    std::string n;
-    for (char c : name) n += (c == '/' || c == '\\' || static_cast<unsigned char>(c) < 32) ? '_' : c;
-    n = displayName(n.substr(0, 80));
-    if (n.empty()) n = "Uploaded profile";
-    uploads_[id] = n;
-    return {{"id", id}, {"name", n}, {"source", "uploaded"}, {"default", false}};
+    return save(name, text, false);
 }
 
 std::string Profiles::path(const std::string &id) const
 {
     if (isBuiltin(id)) return id;  // ART's own name: `apply :neutral`
-    if (uploads_.count(id)) return uploadDir_ + "/" + id + ".arp";
     if (id.size() < 3 || id[0] != 'd') return "";
     size_t colon = id.find(':');
     if (colon == std::string::npos) return "";

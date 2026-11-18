@@ -3,6 +3,7 @@
 // flat field of the raw file is with the lens correction, the halation is a region of the smoothing tool.)
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -16,10 +17,13 @@ struct Section {
 
 std::vector<Section> list();
 
+/** how the LUT of the film simulation is written in a profile (what `get-params` says -> the value to save) */
+using LutWriter = std::function<std::string(const std::string &)>;
+
 /**
  * The text of a profile with the given sections of `paramsText` (the text of `get-params`); empty if there is nothing
  * of them to save. Throws std::invalid_argument for an unknown id.
  */
-std::string build(const std::string &paramsText, const std::vector<std::string> &ids);
+std::string build(const std::string &paramsText, const std::vector<std::string> &ids, const LutWriter &lut = nullptr);
 
 }} // namespace mart::sections

@@ -31,8 +31,7 @@ struct PreviewFrame {
 // The one open image and the engine. All methods must run on the worker thread.
 class Session {
 public:
-    Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs,
-            std::vector<ProfileDir> lutDirs);
+    Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs, std::string lutDir);
     ~Session();
 
     json status() const;

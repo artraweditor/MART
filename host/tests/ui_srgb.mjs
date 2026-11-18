@@ -30,6 +30,7 @@ try {
     assert.equal(st.params["Color Management"].OutputProfile, "RTv4_DisplayP3");
     const after = await mean();
     ws.close();
+    await fetch(base + "/api/profiles/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: up.id }) });   // the test's own profile
     console.log("mean RGB before", before.map((v) => v.toFixed(1)).join(","), "after", after.map((v) => v.toFixed(1)).join(","));
     // the working space changes the processing a little; a wide gamut preview read as sRGB would be far off
     for (let k = 0; k < 3; k++) assert.ok(Math.abs(before[k] - after[k]) < 3, `channel ${k}: ${before[k]} -> ${after[k]}`);

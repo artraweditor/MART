@@ -34,8 +34,8 @@ void usage()
         "  --www DIR        the built client (default: ../client/dist next to the binary)\n"
         "  --socket PATH    use a running `ART-cli --server` instead of the in-process engine\n"
         "  --data DIR       ART's data directory (in-process engine)\n"
-        "  --luts DIR       a folder of LUTs and CTL scripts to offer for film simulation (repeatable; default: DATA/luts,\n"
-        "                   DATA/ctlscripts and ART's user luts folder)\n"
+        "  --luts DIR       the folder of MART's LUTs and CTL scripts for the film simulation, where they are imported\n"
+        "                   (default: ~/.config/MART/luts)\n"
         "  --profiles DIR   the folder of MART's profiles, where they are saved (default: ~/.config/MART/profiles)\n"
         "  --gpu MODE       auto|off|force (in-process engine)\n"
         "  --library PATH   libART (default: $ART_LIBRARY, next to the binary)\n"
@@ -103,7 +103,8 @@ int main(int argc, char **argv)
     std::string listen = "127.0.0.1", www, token, image;
     int port = 8080;
     std::vector<std::string> roots;
-    std::vector<ProfileDir> profileDirs, lutDirs;
+    std::vector<ProfileDir> profileDirs;
+    std::string lutDir;
     std::string exportDir;
     bool userProfiles = true, userLuts = true;
     bool remote = false;
@@ -121,7 +122,7 @@ int main(int argc, char **argv)
         else if (a == "--data") eo.data_dir = val();
         else if (a == "--export-dir") exportDir = val();
         else if (a == "--profiles") { profileDirs.clear(); profileDirs.push_back({"mine", val()}); userProfiles = false; }
-        else if (a == "--luts") { lutDirs.push_back({"folder", val()}); userLuts = false; }
+        else if (a == "--luts") { lutDir = val(); userLuts = false; }
         else if (a == "--gpu") eo.gpu = val();
         else if (a == "--library") eo.library = val();
         else if (a == "--token") token = val();
@@ -149,25 +150,16 @@ int main(int argc, char **argv)
     }
 
     if (userLuts) {
-        auto add = [&](const char *tag, const std::string &d) {
-            struct stat st;
-            if (stat(d.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) lutDirs.push_back({tag, d});
-        };
-        const char *dd = eo.data_dir.empty() ? std::getenv("ART_DATA_DIR") : eo.data_dir.c_str();
-        if (dd) {
-            add("bundled", std::string(dd) + "/luts");
-            add("bundled", std::string(dd) + "/ctlscripts");
-        }
-        if (const char *home = std::getenv("HOME")) {
-            add("user", std::string(home) + "/.config/ART/luts");
-            add("user", std::string(home) + "/Library/Application Support/ART/luts");
-        }
+        // MART's own LUTs: one folder of the user's (made when the first one is imported), not ART's
+        const char *xdg = std::getenv("XDG_CONFIG_HOME"), *home = std::getenv("HOME");
+        if (xdg && *xdg) lutDir = std::string(xdg) + "/MART/luts";
+        else if (home) lutDir = std::string(home) + "/.config/MART/luts";
     }
 
     Worker worker;
     std::unique_ptr<Session> session;
     try {
-        worker.submit([&] { session = std::make_unique<Session>(eo, roots, profileDirs, lutDirs); }).get();
+        worker.submit([&] { session = std::make_unique<Session>(eo, roots, profileDirs, lutDir); }).get();
         if (!image.empty()) worker.submit([&] { session->open(image); }).get();
     } catch (const std::exception &e) {
         std::fprintf(stderr, "mart: %s\n", e.what());
@@ -181,7 +173,7 @@ int main(int argc, char **argv)
         int yes = 1;
         setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&yes), sizeof(yes));
     });
-    svr.set_payload_max_length(Luts::MAX_UPLOAD + (1u << 20));  // only an uploaded LUT is large: see the pre-routing handler
+    svr.set_payload_max_length(Luts::MAX_IMPORT + (1u << 20));  // only an uploaded LUT is large: see the pre-routing handler
     svr.set_file_extension_and_mimetype_mapping("webmanifest", "application/manifest+json");  // the largest body is an uploaded profile (1 MiB)
     if (!svr.set_mount_point("/", www))
         std::fprintf(stderr, "mart: warning: client directory not found: %s\n", www.c_str());
@@ -313,11 +305,14 @@ int main(int argc, char **argv)
     svr.Get("/api/profiles", [&](const httplib::Request &, httplib::Response &res) {
         serve(worker, res, [&](Worker &w) { sendJson(res, w.submit([&] { return session->profiles().list(); }).get()); });
     });
+    // import: a profile from a file of the user's is stored in MART's folder (under the name given)
     svr.Post("/api/profiles", [&](const httplib::Request &req, httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             std::string name = req.get_param_value("name"), text = req.body;
             try {
-                sendJson(res, w.submit([&] { return session->profiles().upload(name, text); }).get(), 201);
+                sendJson(res, w.submit([&] { return session->profiles().import(name, text); }).get(), 201);
+            } catch (const ProfileExists &e) {
+                throw ApiError(409, e.what());
             } catch (const std::invalid_argument &e) {
                 throw ApiError(400, e.what());
             }
@@ -394,10 +389,42 @@ int main(int argc, char **argv)
         serve(worker, res, [&](Worker &w) {
             std::string name = req.get_param_value("name");
             try {
-                sendJson(res, w.submit([&] { return session->luts().upload(name, req.body); }).get(), 201);
+                sendJson(res, w.submit([&] { return session->luts().import(name, req.body); }).get(), 201);
+            } catch (const ProfileExists &e) {
+                throw ApiError(409, e.what());
             } catch (const std::invalid_argument &e) {
                 throw ApiError(400, e.what());
             }
+        });
+    });
+    svr.Post("/api/luts/rename", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            json b = json::parse(req.body, nullptr, false);
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string() || !b.contains("name") || !b["name"].is_string())
+                throw ApiError(400, "expected {id, name}");
+            const std::string id = b["id"], name = b["name"];
+            try {
+                sendJson(res, w.submit([&] { return session->luts().rename(id, name); }).get());
+            } catch (const ProfileExists &e) {
+                throw ApiError(409, e.what());
+            } catch (const std::out_of_range &e) {
+                throw ApiError(404, e.what());
+            } catch (const std::invalid_argument &e) {
+                throw ApiError(400, e.what());
+            }
+        });
+    });
+    svr.Post("/api/luts/delete", [&](const httplib::Request &req, httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            json b = json::parse(req.body, nullptr, false);
+            if (!b.is_object() || !b.contains("id") || !b["id"].is_string()) throw ApiError(400, "expected {id}");
+            const std::string id = b["id"];
+            try {
+                w.submit([&] { session->luts().remove(id); }).get();
+            } catch (const std::out_of_range &e) {
+                throw ApiError(404, e.what());
+            }
+            sendJson(res, w.submit([&] { return session->luts().list(); }).get());
         });
     });
     svr.Get("/api/lut/params", [&](const httplib::Request &req, httplib::Response &res) {

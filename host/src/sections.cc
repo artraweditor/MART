@@ -76,7 +76,7 @@ std::vector<Section> list()
     return r;
 }
 
-std::string build(const std::string &paramsText, const std::vector<std::string> &ids)
+std::string build(const std::string &paramsText, const std::vector<std::string> &ids, const LutWriter &lut)
 {
     std::set<std::string> wanted(ids.begin(), ids.end());
     for (auto &id : wanted) {
@@ -96,8 +96,12 @@ std::string build(const std::string &paramsText, const std::vector<std::string> 
             Lines l;
             if (!group(paramsText, item.group, l)) continue;
             std::string body;
-            for (auto &[k, v] : l)
-                if (item.keys.empty() || item.keys.count(k)) body += k + "=" + v + "\n";
+            for (auto &[k, v] : l) {
+                if (!item.keys.empty() && !item.keys.count(k)) continue;
+                // the LUT of the film simulation is written so that ART can find it too (see Luts::toUri)
+                const bool isLut = item.group == "Film Simulation" && k == "ClutFilename" && lut;
+                body += k + "=" + (isLut ? lut(v) : v) + "\n";
+            }
             if (!body.empty()) out += "[" + item.group + "]\n" + body + "\n";
         }
     }

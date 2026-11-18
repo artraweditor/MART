@@ -154,7 +154,7 @@ const up = await fetch(base + "/api/luts?name=" + encodeURIComponent("../my test
 assert.equal(up.status, 201);
 const lut = await up.json();
 assert.equal(lut.name, "_my test.ctl", "no path in the name, nothing hidden");
-assert.ok((await (await fetch(base + "/api/luts")).json()).some((l) => l.id === lut.id && l.source === "uploaded"));
+assert.ok((await (await fetch(base + "/api/luts")).json()).some((l) => l.id === lut.id && l.source === "mine"));
 assert.equal((await fetch(base + "/api/luts?name=x.exe", { method: "POST", body: "MZ" })).status, 400, "not a LUT");
 assert.equal((await fetch(base + "/api/luts?name=x.ctl", { method: "POST", body: "" })).status, 400);
 assert.match(await refused({ "Film Simulation": { ClutFilename: "/etc/passwd" } }), /no such LUT/);
@@ -178,6 +178,9 @@ assert.notEqual(await mean(), withLut, "its parameter changes the picture");
 p = await edit({ "Film Simulation": { Enabled: false, ClutFilename: "" } });
 assert.equal(p["Film Simulation"].ClutFilename, "");
 assert.deepEqual(await (await fetch(base + "/api/lut/params")).json(), { params: [], presets: [] });
+assert.equal((await fetch(base + "/api/luts", { method: "POST", body: ctl })).status, 400, "no name");
+assert.equal((await fetch(base + "/api/luts?name=" + encodeURIComponent("_my test.ctl"), { method: "POST", body: ctl })).status, 409, "the name is taken");
+assert.equal((await fetch(base + "/api/luts/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: lut.id }) })).status, 200, "(the test's own LUT goes away)");
 console.log("film simulation: ok");
 
 ws.close();

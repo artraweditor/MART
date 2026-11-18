@@ -33,33 +33,13 @@ std::string makeTmpdir()
 {
     char tmpl[] = "/tmp/mart-XXXXXX";
     if (!mkdtemp(tmpl)) throw std::runtime_error("cannot create a temporary directory");
-    std::string d = tmpl;
-    if (mkdir((d + "/uploads").c_str(), 0700) != 0 || mkdir((d + "/luts").c_str(), 0700) != 0) throw std::runtime_error("cannot create a temporary directory");
-    return d;
+    return tmpl;
 }
 
-// ART writes a LUT as a `file://` URI with %XX escapes; a plain path is accepted too
-std::string fileUriToPath(const std::string &s)
-{
-    if (s.compare(0, 7, "file://") != 0) return s;
-    std::string out;
-    for (size_t i = 7; i < s.size(); ++i) {
-        if (s[i] == '%' && i + 2 < s.size() && std::isxdigit(static_cast<unsigned char>(s[i + 1])) &&
-            std::isxdigit(static_cast<unsigned char>(s[i + 2]))) {
-            out += static_cast<char>(std::stoi(s.substr(i + 1, 2), nullptr, 16));
-            i += 2;
-        } else {
-            out += s[i];
-        }
-    }
-    return out;
-}
 } // namespace
 
-Session::Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs,
-                 std::vector<ProfileDir> lutDirs):
-    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()), profiles_(std::move(profileDirs), tmpdir_ + "/uploads"),
-    luts_(std::move(lutDirs), tmpdir_ + "/luts")
+Session::Session(const EngineOptions &o, std::vector<std::string> roots, std::vector<ProfileDir> profileDirs, std::string lutDir):
+    opts_(o), roots_(std::move(roots)), tmpdir_(makeTmpdir()), profiles_(std::move(profileDirs)), luts_(std::move(lutDir))
 {
     engine_ = Engine::create(o);
 }
@@ -72,14 +52,6 @@ Session::~Session()
     unlink((tmpdir_ + "/defaults.arp").c_str());
     unlink((tmpdir_ + "/profile.arp").c_str());
     unlink((tmpdir_ + "/export.arp").c_str());
-    if (DIR *d = opendir((tmpdir_ + "/uploads").c_str())) {
-        while (dirent *e = readdir(d))
-            if (e->d_name[0] != '.') unlink((tmpdir_ + "/uploads/" + e->d_name).c_str());
-        closedir(d);
-    }
-    rmdir((tmpdir_ + "/uploads").c_str());
-    luts_.clear();
-    rmdir((tmpdir_ + "/luts").c_str());
     rmdir(tmpdir_.c_str());
 }
 
@@ -249,7 +221,7 @@ json Session::lutParams(const std::string &id)
     }
     json r = {{"params", json::array()}, {"presets", json::array()}};
     if (path.empty()) return r;
-    path = fileUriToPath(path);
+    path = luts_.fromUri(path);   // what the profile says (a URI, with the R host for the LUTs of MART's folder)
     try {
         r = command({"get-clut-params", path});
     } catch (const ApiError &e) {
@@ -406,9 +378,21 @@ void Session::applyProfileFile(const std::string &path, bool append, const std::
         a.push_back(file);
         command(a);
     };
-    const std::string text = slurp(path);
+    // a LUT of MART's folder is `file://R/...` in a profile: for ART that is relative to its own folder of LUTs
+    const std::string original = slurp(path);
+    const std::string text = luts_.resolveInProfile(original);
     if (!halation::present(text)) {
-        apply(path);
+        if (text == original) {
+            apply(path);
+        } else {
+            const std::string file = tmpdir_ + "/profile.arp";
+            {
+                std::ofstream f(file, std::ios::binary | std::ios::trunc);
+                f << text;
+                if (!f) throw ApiError(500, "cannot write " + file);
+            }
+            apply(file);
+        }
         return;
     }
     // The halation is a region of the smoothing tool, added after the regions that the image has: the profile's
@@ -449,7 +433,11 @@ json Session::saveProfile(const std::string &name, const std::vector<std::string
     if (file_.empty()) throw ApiError(409, "no image is open");
     std::string text;
     try {
-        text = sections::build(command({"get-params"}).value("params", ""), ids);
+        text = sections::build(command({"get-params"}).value("params", ""), ids, [this](const std::string &v) {
+            // a LUT of MART's folder is written without the folder, with the host R, as ART does for its own
+            const std::string uri = luts_.toUri(luts_.fromUri(v));
+            return uri.empty() ? v : uri;
+        });
         return profiles_.save(name, text, overwrite);
     } catch (const ProfileExists &e) {
         throw ApiError(409, e.what());

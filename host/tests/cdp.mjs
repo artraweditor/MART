@@ -32,6 +32,13 @@ export async function launch({ window = process.env.WINDOW ?? "1180,820", out = 
         /** any DevTools protocol command */
         cmd: async (method, params = {}) => (await cmd(method, params)).result,
         goto: (url) => cmd("Page.navigate", { url }),
+        /** choose files in a file input (as the file dialog would): the first element that matches the selector */
+        async setFiles(selector, files) {
+            const doc = (await cmd("DOM.getDocument")).result.root.nodeId;
+            const node = (await cmd("DOM.querySelector", { nodeId: doc, selector })).result.nodeId;
+            if (!node) throw new Error("no " + selector);
+            await cmd("DOM.setFileInputFiles", { nodeId: node, files });
+        },
         async js(expr) {
             const r = await cmd("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
             if (r.result.exceptionDetails) throw new Error(JSON.stringify(r.result.exceptionDetails));

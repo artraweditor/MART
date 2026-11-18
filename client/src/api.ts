@@ -109,8 +109,8 @@ export async function listProfiles(): Promise<ProfileEntry[]> {
     return (await request("/api/profiles", { cache: "no-store" })).json();
 }
 
-/** Send the text of an .arp; it is then in the list. */
-export async function uploadProfile(name: string, text: string): Promise<ProfileEntry> {
+/** Store a profile from a file of the user's in MART's folder, under this name (the text of an .arp). ApiError 409: the name is taken. */
+export async function importProfile(name: string, text: string): Promise<ProfileEntry> {
     const res = await request(`/api/profiles?name=${encodeURIComponent(name)}`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
@@ -181,20 +181,41 @@ export function exportUrl(job: string): string {
 
 export interface LutEntry {
     id: string;
+    /** the path in MART's folder of LUTs, with the extension */
     name: string;
-    source: string; // "bundled", "user", "folder", "uploaded"
+    source: string;
 }
 
 export async function listLuts(): Promise<LutEntry[]> {
     return (await request("/api/luts", { cache: "no-store" })).json();
 }
 
-/** Send a LUT, a CTL script or a Hald CLUT image from this device; it is then in the list. */
-export async function uploadLut(name: string, data: Blob): Promise<LutEntry> {
-    const res = await request(`/api/luts?name=${encodeURIComponent(name)}`, {
+/** Store a LUT, a CTL script or a Hald CLUT image from a file of the user's in MART's folder, under this file name. ApiError 409: the name is taken. */
+export async function importLut(fileName: string, data: Blob): Promise<LutEntry> {
+    const res = await request(`/api/luts?name=${encodeURIComponent(fileName)}`, {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
         body: data,
+    });
+    return res.json();
+}
+
+/** Rename a LUT (its extension stays). ApiError 409: the name is taken. */
+export async function renameLut(id: string, name: string): Promise<LutEntry> {
+    const res = await request("/api/luts/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, name }),
+    });
+    return res.json();
+}
+
+/** Delete a LUT. Resolves with the new list. */
+export async function deleteLut(id: string): Promise<LutEntry[]> {
+    const res = await request("/api/luts/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
     });
     return res.json();
 }

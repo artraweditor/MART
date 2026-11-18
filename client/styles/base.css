@@ -237,3 +237,10 @@ body.busy #sheet { pointer-events: auto; }
 .look-actions .look-message { flex-basis: 100%; margin: 0; }
 .chip.danger { background: #3a2226; border-color: #5a2d33; color: #ffb4b4; }
 .more { font-size: 1.2rem; color: var(--fg); }
+
+/* the LUT drop-down of the film simulation, and the rows of the LUTs */
+.lut-select {
+    display: block; width: 100%; min-height: var(--tap); margin-bottom: 8px; padding: 0 12px;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--fg); font: inherit;
+}
+.lut-name { display: flex; align-items: center; flex: 1; min-width: 0; overflow-wrap: anywhere; padding: 8px 4px; }

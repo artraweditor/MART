@@ -431,6 +431,9 @@ lookBtn.addEventListener("click", () => {
         saved(name) {
             toast(`Saved the profile ${name}`);
         },
+        imported(name) {
+            toast(`Imported the profile ${name}`);
+        },
     });
 });
 moreBtn.addEventListener("click", () => {

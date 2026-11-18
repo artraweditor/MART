@@ -2,6 +2,9 @@
 //   node tests/ui_profiles.mjs http://localhost:8080 outdir     (host started with its own --profiles DIR holding a profile
 //                                                                named Sharpening, on a COPY of an image: use a fresh one)
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { launch, sleep } from "./cdp.mjs";
 
 const base = process.argv[2] ?? "http://localhost:8080";
@@ -134,6 +137,48 @@ try {
     await until("deleted", async () => !(await profiles()).some((p) => p.name === "Brighter"));
     await until("list without it", async () => (await group("My profiles")).join() === "Sharpening");
     console.log("renaming and deleting: ok");
+    console.log("renaming and deleting: ok");
+
+    // ---- importing a profile from a file ---------------------------------------------------------------------------------------
+    const dir = mkdtempSync(join(tmpdir(), "mart-ui-"));
+    const file = join(dir, "from disk.arp");
+    writeFileSync(file, "[Saturation]\nEnabled=true\nSaturation=44\n");
+    const notProfile = join(dir, "notes.arp");
+    writeFileSync(notProfile, "this is not a profile\n");
+    await openLook();
+    await clickIn(".action", "Import a profile…");
+    await until("import dialog", () => js(`document.querySelector(".sheet-title")?.textContent === "Import a profile"`));
+    const importBtn = `[...document.querySelectorAll("#sheet .action")].find(a => a.textContent === "Import")`;
+    assert.equal(await js(`${importBtn}.disabled`), true, "nothing to import yet");
+    await b.setFiles("#sheet input[type=file]", [file]);
+    await until("name proposed", () => js(`document.querySelector("#sheet input[type=text]").value === "from disk"`));
+    assert.equal(await js(`${importBtn}.disabled`), false);
+    // the name can be set
+    await js(`(() => { const i = document.querySelector("#sheet input[type=text]"); i.value = "Disk look"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await js(`${importBtn}.click()`);
+    await until("imported", async () => (await profiles()).some((p) => p.name === "Disk look" && p.source === "mine"));
+    await until("sheet closed", () => js(`document.getElementById("sheet").hidden`));
+    assert.match(await toast(), /Imported the profile Disk look/);
+    // it is in the list and can be applied
+    await openLook();
+    assert.ok((await group("My profiles")).includes("Disk look"));
+    await clickIn(".row-btn", "Disk look");
+    await until("applied", async () => (await params()).Saturation.Saturation === 44);
+    // the same name again: refused, the name stays to be changed; a file that is not a profile is refused too
+    await openLook();
+    await clickIn(".action", "Import a profile…");
+    await b.setFiles("#sheet input[type=file]", [file]);
+    await until("name proposed", () => js(`document.querySelector("#sheet input[type=text]").value === "from disk"`));
+    await js(`(() => { const i = document.querySelector("#sheet input[type=text]"); i.value = "Disk look"; i.dispatchEvent(new Event("input", { bubbles: true })); })()`);
+    await js(`${importBtn}.click()`);
+    await until("name taken", () => js(`[...document.querySelectorAll("#sheet .muted")].some(p => p.textContent.includes("already exists"))`));
+    assert.equal(await js(`document.getElementById("sheet").hidden`), false, "the dialog stays");
+    await b.setFiles("#sheet input[type=file]", [notProfile]);
+    await until("another file", () => js(`document.querySelector("#sheet input[type=text]").value === "notes"`));
+    await js(`${importBtn}.click()`);
+    await until("not a profile", () => js(`[...document.querySelectorAll("#sheet .muted")].some(p => p.textContent.includes("does not look like"))`));
+    assert.ok(!(await profiles()).some((p) => p.name === "notes"));
+    console.log("importing: ok");
     console.log("ui profiles: ok");
 } finally {
     await b.close();

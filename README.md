@@ -27,8 +27,8 @@ strength curve, in RGB mode), contrast, base curve, a point-curve editor, tone
 equalizer; white balance with a neutral-gray picker, saturation, channel mixer (primaries mode), soft light; lens
 correction from the automatic or embedded data, and the flat field embedded in the raw file (DNG gain maps, on by
 default for a DNG that has no saved choice), capture sharpening by Richardson-Lucy deconvolution, film grain and
-halation; film simulation with a LUT (a folder of the server's, or a file from the device, including CTL scripts with
-their parameters); crop with ratios,
+halation; film simulation with a LUT picked from MART's own (including CTL scripts with their
+parameters); crop with ratios,
 quarter turns, flips and straightening), an Other tab that lists, read-only, the tools of the profile that have no
 controls here (they are kept on Save), undo/redo, Save (the standard `.arp`
 sidecar), **profiles** (the **Look** sheet), and a **⋯** menu
@@ -41,7 +41,8 @@ MART has its own profiles (partial `.arp` files), kept in one folder, `~/.config
 `$XDG_CONFIG_HOME/MART/profiles`; `--profiles DIR` changes it). ART's own profiles are not offered. The **Look** sheet:
 
 - applies a profile (undo takes all of it away), or the built-in *Neutral* (every tool at its default), or a profile
-  file from the device; "add to my local adjustments" keeps the image's local tools instead of replacing them;
+  "add to my local adjustments" keeps the image's local tools instead of replacing them;
+- **imports** a profile from a file of the device (a file dialog), under a name that can be set;
 - **saves the current settings** as a profile, with a checkbox for each section of the interface (exposure, haze
   removal, tone curve, tone equalizer, white balance, saturation, channel mixer, soft light, film simulation, lens
   correction with the flat field, capture sharpening, film grain, halation, crop and rotation). A section stands for
@@ -87,6 +88,8 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/srgb_e2e.mjs http://localhost:8080 /path/copy.arw   # exports are sRGB (a COPY: it rewrites its sidecar)
     node host/tests/profiles_e2e.mjs http://localhost:8080 /path/copy.arw DIR   # saving, applying, the default (host with --profiles DIR)
     node host/tests/ui_profiles.mjs http://localhost:8080 /tmp        # the Look sheet and the Save dialog (fresh host, own --profiles DIR)
+    node host/tests/luts_e2e.mjs http://localhost:8080 LUTS_DIR PROFILES_DIR   # the LUT folder, and the R host in profiles (host with --luts and --profiles)
+    node host/tests/ui_luts.mjs http://localhost:8080 /tmp            # the LUT drop-down and Manage LUTs (fresh host, own --luts DIR with sigmoid.ctl)
     node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone
     node host/tests/ui_resize.mjs http://localhost:8080 /tmp          # the picture stays fitted when the view changes
     MART_CMD='host/build/mart ... photo.arw' node host/tests/ui_reconnect.mjs    # server away and back
@@ -105,5 +108,16 @@ preview is in the monitor or working profile and the colours are wrong. Exports 
 output profile of the image says: the host gives every export a small profile with `export --profile`, which overrides
 the output profile for that export only (the image, its history and its sidecar are not touched).
 The parameters of a CTL script, with their labels translated, are read with ART's `get-clut-params FILE` command (see
-the same document); without it a LUT can still be chosen but its parameters are not shown. LUTs are offered from `DATA/luts`, `DATA/ctlscripts`,
-ART's user `luts` folder and `--luts DIR`.
+the same document); without it a LUT can still be chosen but its parameters are not shown. 
+
+## LUTs
+
+The film simulation uses MART's own LUTs, kept in one folder, `~/.config/MART/luts` (or `$XDG_CONFIG_HOME/MART/luts`;
+`--luts DIR` changes it), not ART's. The LUT is picked from a drop-down of those installed, and **Manage LUTs** imports a
+LUT from a file of the device (a Hald CLUT image, a CLF file or a CTL script; the name can be set, the extension is the
+file's), renames and deletes them.
+
+A profile that is saved holds a LUT of the folder as ART writes the LUTs of its own folder: `file://R/<path in the
+folder>`, where the host name `R` means relative. So the profile can be applied in ART if the same LUT is installed in its
+LUT folder; and when MART applies a profile, a LUT with an `R` URI (or a relative path) is looked for in MART's folder.
+A LUT elsewhere keeps the path that ART gives it. Renaming or deleting a LUT breaks the profiles and sidecars that name it.

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "third_party/json.hpp"
-#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -23,12 +22,13 @@ struct ProfileExists: std::runtime_error {
 class Profiles {
 public:
     /** `dirs[0]` is where profiles are saved (it is made when needed) and where the default is kept */
-    Profiles(std::vector<ProfileDir> dirs, const std::string &uploadDir);
+    explicit Profiles(std::vector<ProfileDir> dirs);
 
-    // [{"id","name","source","default"}]: ids are opaque to the client ("d<N>:<relative path>", "u<N>")
+    // [{"id","name","source","default"}]: ids are opaque to the client ("d0:<relative path>")
     nlohmann::json list();
-    // store an uploaded profile (text of an .arp); returns its entry. Throws std::invalid_argument
-    nlohmann::json upload(const std::string &name, const std::string &text);
+    // store a profile that comes from a file (the text of an .arp) in the folder; returns its entry. Throws
+    // std::invalid_argument (not a profile, too large, no usable name) and ProfileExists
+    nlohmann::json import(const std::string &name, const std::string &text);
     // save a profile in the folder: `<name>.arp` (the name is made safe). Throws std::invalid_argument (no usable name,
     // nothing to save, no folder) and ProfileExists unless `overwrite`
     nlohmann::json save(const std::string &name, const std::string &text, bool overwrite);
@@ -54,9 +54,6 @@ private:
     std::string defaultRel() const;  // the name kept in the folder, "" if none
 
     std::vector<ProfileDir> dirs_;
-    std::string uploadDir_;
-    std::map<std::string, std::string> uploads_;  // id -> display name
-    int nextUpload_ = 1;
 };
 
 } // namespace mart
