@@ -39,6 +39,10 @@ using ReadyFn = std::function<void(int port, const std::string &token)>;
  */
 int run(int argc, char **argv, const ReadyFn &ready = {});
 
+/** allow the running host to open images under `dir` (any thread; the app uses
+ * it for the folder that the user picked). False if no host is running. */
+bool addRoot(const std::string &dir);
+
 /** ask a running `run` to return; any thread. Returns when it has (or soon
  * after). Does nothing if none is running. */
 void stop();
@@ -53,6 +57,7 @@ int mart_run(int argc, char **argv,
              void (*ready)(int port, const char *token, void *user),
              void *user);
 void mart_stop(void);
+int mart_add_root(const char *dir); /* 0 if done */
 #ifdef __cplusplus
 }
 #endif

@@ -32,6 +32,11 @@ add_library(mart-host STATIC src/app.cc src/session.cc src/editor.cc src/arp.cc
 target_include_directories(mart-host PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(mart-host PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 target_compile_options(mart-host PRIVATE -Wall -Wextra)
+# MART_IOS: only the static library, for the iOS app (see ios/build-host.sh)
+option(MART_IOS "Build only the host library, for embedding in the iOS app" OFF)
+if(MART_IOS)
+  return()
+endif()
 add_executable(mart src/main.cc)
 target_link_libraries(mart PRIVATE mart-host)
 

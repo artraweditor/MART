@@ -57,6 +57,10 @@ public:
     ~Session();
 
     json status() const;
+    /// allow opening images under `dir` (any thread)
+    void addRoot(const std::string &dir);
+    /// the images in a folder under a root: {dir, images: [{name, path, size, mtime, edited}]}
+    json listImages(const std::string &dir) const;
     json open(
         const std::string &path,
         bool discard = false);  // returns get-info; 409 if dirty and !discard
@@ -108,6 +112,7 @@ private:
     EngineOptions opts_;
     std::unique_ptr<Engine> engine_;
     std::vector<std::string> roots_;
+    mutable std::mutex rootsMutex_;  // roots_ can grow while the worker reads it
     std::string tmpdir_;
     std::string file_;
     json info_;

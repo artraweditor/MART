@@ -148,8 +148,9 @@ std::unique_ptr<Engine> Engine::create(const EngineOptions &o)
     };
     if (o.inprocess) {
         check(api.set_inprocess(
-            opt, o.data_dir.empty() ? nullptr : o.data_dir.c_str(), nullptr,
-            nullptr));
+            opt, o.data_dir.empty() ? nullptr : o.data_dir.c_str(),
+            o.config_dir.empty() ? nullptr : o.config_dir.c_str(),
+            o.cache_dir.empty() ? nullptr : o.cache_dir.c_str()));
         if (!o.gpu.empty()) check(api.set_gpu(opt, o.gpu.c_str()));
     } else {
         check(

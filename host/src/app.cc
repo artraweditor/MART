@@ -49,6 +49,7 @@ namespace {
 std::mutex g_mutex;
 std::condition_variable g_cv;
 std::function<void()> g_stopper;
+std::function<void(const std::string &)> g_addRoot;  // set while a host runs
 bool g_stopRequested = false;
 bool g_finished = false;
 
@@ -70,6 +71,9 @@ void usage()
                "                   (default: ~/.config/MART/luts)\n"
                "  --profiles DIR   the folder of MART's profiles, where they "
                "are saved (default: ~/.config/MART/profiles)\n"
+               "  --art-config DIR ART's configuration folder (in-process "
+               "engine; default: ART's own)\n"
+               "  --art-cache DIR  ART's cache folder (in-process engine)\n"
                "  --gpu MODE       auto|off|force (in-process engine)\n"
                "  --library PATH   libART (default: $ART_LIBRARY, next to the "
                "binary)\n"
@@ -180,7 +184,11 @@ int run(int argc, char **argv, const ReadyFn &ready)
         } else if (a == "--luts") {
             lutDir = val();
             userLuts = false;
-        } else if (a == "--gpu")
+        } else if (a == "--art-config")
+            eo.config_dir = val();
+        else if (a == "--art-cache")
+            eo.cache_dir = val();
+        else if (a == "--gpu")
             eo.gpu = val();
         else if (a == "--library")
             eo.library = val();
@@ -407,6 +415,14 @@ int run(int argc, char **argv, const ReadyFn &ready)
                                  body["discard"].get<bool>();
             sendJson(res,
                      w.submit([&] { return session->open(p, discard); }).get());
+        });
+    });
+    svr.Get("/api/images", [&](const httplib::Request &req,
+                               httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            if (!req.has_param("dir")) throw ApiError(400, "expected ?dir=");
+            std::string d = req.get_param_value("dir");
+            sendJson(res, w.submit([&] { return session->listImages(d); }).get());
         });
     });
     svr.Get("/api/info", [&](const httplib::Request &, httplib::Response &res) {
@@ -678,6 +694,7 @@ int run(int argc, char **argv, const ReadyFn &ready)
     {
         // stop() may come from any thread, at any time after this
         std::lock_guard<std::mutex> g(g_mutex);
+        g_addRoot = [&](const std::string &d) { session->addRoot(d); };
         g_stopper = [&] {
             editor.shutdown();
             svr.stop();
@@ -696,10 +713,19 @@ int run(int argc, char **argv, const ReadyFn &ready)
     {
         std::lock_guard<std::mutex> g(g_mutex);
         g_stopper = nullptr;
+        g_addRoot = nullptr;
         g_finished = true;
     }
     g_cv.notify_all();
     return 0;
+}
+
+bool addRoot(const std::string &dir)
+{
+    std::lock_guard<std::mutex> g(g_mutex);
+    if (!g_addRoot) return false;
+    g_addRoot(dir);
+    return true;
 }
 
 void stop()
@@ -727,4 +753,6 @@ int mart_run(int argc, char **argv, void (*ready)(int, const char *, void *),
 }
 
 void mart_stop(void) { mart::stop(); }
+
+int mart_add_root(const char *dir) { return dir && mart::addRoot(dir) ? 0 : -1; }
 }

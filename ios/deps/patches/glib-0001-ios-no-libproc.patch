@@ -1,0 +1,24 @@
+iOS has no <libproc.h>/proc_pidinfo (used by gspawn.c only to close fds in the forked
+child; fork/exec is unavailable in an iOS app anyway). Fall back to the sysconf() loop.
+--- a/glib/gspawn.c
++++ b/glib/gspawn.c
+@@ -70,7 +70,9 @@
+ #include "glibintl.h"
+ #include "glib-unix.h"
+ 
+-#ifdef __APPLE__
++#include <TargetConditionals.h>
++
++#if defined(__APPLE__) && !TARGET_OS_IPHONE
+ #include <libproc.h>
+ #include <sys/proc_info.h>
+ #endif
+@@ -1556,7 +1558,7 @@
+   if (open_max < 0)
+     open_max = 4096;
+ 
+-#if defined(__APPLE__)
++#if defined(__APPLE__) && !TARGET_OS_IPHONE
+   /* proc_pidinfo isn't documented as async-signal-safe but looking at the implementation
+    * in the darwin tree here:
+    *

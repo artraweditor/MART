@@ -45,6 +45,7 @@ struct EngineOptions {
     bool inprocess = true;
     std::string socket;    // remote: socket path (empty: default)
     std::string data_dir;  // inprocess: ART's data files
+    std::string config_dir, cache_dir;  // inprocess: where ART keeps its options/cache (empty: default)
     std::string gpu;      // inprocess: auto|off|force (empty: from ART options)
     int timeout_ms = -1;  // remote
     std::string library;  // explicit libART path

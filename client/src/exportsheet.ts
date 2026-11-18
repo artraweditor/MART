@@ -19,7 +19,7 @@
  */
 
 // The Export sheet: export of the image as it is now (full size, or resized),
-// then a download.
+// then a download (in the app: the system's "save to" picker).
 
 import {
     ApiError,
@@ -29,6 +29,7 @@ import {
     startExport,
 } from "./api.js";
 import type { ExportOptions, ExportStatus } from "./api.js";
+import { isNative, nativeSaveFile } from "./native.js";
 import { el, openSheet } from "./sheet.js";
 
 interface Saved {
@@ -337,9 +338,6 @@ export function showExport(imageName: string): void {
             return;
         }
         const { job, st } = ok;
-        const a = el("a", { class: "action", text: `Download ${st.name}` });
-        a.href = exportUrl(job);
-        a.download = st.name ?? "";
         const facts = [
             `${st.width} × ${st.height}`,
             st.bytes ? formatBytes(st.bytes) : "",
@@ -347,10 +345,32 @@ export function showExport(imageName: string): void {
         ]
             .filter(Boolean)
             .join(" · ");
-        progress.append(
-            el("p", { class: "export-done", text: "Exported: " + facts }),
-            a,
-        );
+        if (isNative() && st.path) {
+            // in the app: choose where to save the file (offered at once)
+            const path = st.path;
+            const note = el("p", { class: "muted" });
+            const save = el("button", { class: "action", text: "Save to…" });
+            const saveFile = async (): Promise<void> => {
+                try {
+                    note.textContent = (await nativeSaveFile(path))
+                        ? `Saved ${st.name}.`
+                        : "Not saved yet.";
+                } catch (e) {
+                    note.textContent = e instanceof Error ? e.message : String(e);
+                }
+            };
+            save.addEventListener("click", () => void saveFile());
+            progress.append(
+                el("p", { class: "export-done", text: "Exported: " + facts }),
+                save,
+                note,
+            );
+            void saveFile();
+            return;
+        }
+        const a = el("a", { class: "action", text: `Download ${st.name}` });
+        a.href = exportUrl(job);
+        a.download = st.name ?? "";
         if (st.path)
             progress.append(
                 el("p", {

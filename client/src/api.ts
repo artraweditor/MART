@@ -115,6 +115,22 @@ export async function openImage(
     return res.json();
 }
 
+export interface ImageEntry {
+    name: string;
+    path: string;
+    size: number;
+    /** seconds since the epoch */
+    mtime: number;
+    /** there is a sidecar (.arp) next to it */
+    edited: boolean;
+}
+
+/** The images in a folder that the host may read. */
+export async function listImages(dir: string): Promise<ImageEntry[]> {
+    const res = await request("/api/images?dir=" + encodeURIComponent(dir));
+    return (await res.json()).images;
+}
+
 export type Metadata = Record<
     string,
     string | number | boolean | null | (string | number)[]

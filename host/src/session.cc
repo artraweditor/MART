@@ -18,6 +18,7 @@
  *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include "session.h"
 #include "arp.h"
 #include "halation.h"
@@ -95,7 +96,12 @@ std::string Session::confine(const std::string &path) const
     if (!rp) throw ApiError(404, "no such file: " + path);
     std::string p = rp;
     free(rp);
-    for (auto root : roots_) {
+    std::vector<std::string> roots;
+    {
+        std::lock_guard<std::mutex> g(rootsMutex_);
+        roots = roots_;
+    }
+    for (auto root : roots) {
         char *rr = realpath(root.c_str(), nullptr);
         if (!rr) continue;
         std::string r = rr;
@@ -103,6 +109,59 @@ std::string Session::confine(const std::string &path) const
         if (p == r || p.compare(0, r.size() + 1, r + "/") == 0) return p;
     }
     throw ApiError(403, "the file is not under an allowed root");
+}
+
+void Session::addRoot(const std::string &dir)
+{
+    std::lock_guard<std::mutex> g(rootsMutex_);
+    for (auto &r : roots_)
+        if (r == dir) return;
+    roots_.push_back(dir);
+}
+
+namespace {
+// what ART can open as an image
+bool isImageName(const std::string &name)
+{
+    static const char *const exts[] = {
+        "arw", "srf", "sr2", "cr2", "cr3", "crw", "nef", "nrw", "orf", "raf",
+        "rw2", "rwl", "pef", "dng", "srw", "3fr", "erf", "mef", "mos", "kdc",
+        "dcr", "x3f", "iiq", "fff", "cap", "mrw", "raw", "gpr", "jpg", "jpeg",
+        "tif", "tiff", "png"};
+    auto dot = name.rfind('.');
+    if (dot == std::string::npos || name[0] == '.') return false;
+    std::string e = name.substr(dot + 1);
+    for (auto &ch : e) ch = static_cast<char>(std::tolower(ch));
+    for (auto x : exts)
+        if (e == x) return true;
+    return false;
+}
+}  // namespace
+
+json Session::listImages(const std::string &dir) const
+{
+    const std::string d = confine(dir);
+    DIR *dp = opendir(d.c_str());
+    if (!dp) throw ApiError(404, "cannot read the folder: " + dir);
+    json images = json::array();
+    while (dirent *e = readdir(dp)) {
+        const std::string name = e->d_name;
+        if (!isImageName(name)) continue;
+        const std::string path = d + "/" + name;
+        struct stat st;
+        if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) continue;
+        struct stat sc;
+        images.push_back({{"name", name},
+                          {"path", path},
+                          {"size", static_cast<long long>(st.st_size)},
+                          {"mtime", static_cast<long long>(st.st_mtime)},
+                          {"edited", stat((path + ".arp").c_str(), &sc) == 0}});
+    }
+    closedir(dp);
+    std::sort(images.begin(), images.end(), [](const json &a, const json &b) {
+        return a["name"].get<std::string>() < b["name"].get<std::string>();
+    });
+    return {{"dir", d}, {"images", images}};
 }
 
 json Session::status() const

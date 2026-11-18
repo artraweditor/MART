@@ -521,6 +521,60 @@ form button {
 .choice {
     margin-top: 8px;
 }
+.thumb-grid {
+    margin: 8px 0;
+    max-height: 55vh;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
+.thumb-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    min-width: 0;
+    font-size: 0.85rem;
+}
+.thumb-pic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 4 / 3;
+    border-radius: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+.thumb-pic img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.thumb-tile:active .thumb-pic {
+    border-color: var(--accent);
+}
+.image-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sheet-body select {
+    display: block;
+    width: 100%;
+    min-height: var(--tap);
+    margin: 8px 0;
+    background: var(--panel);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 8px;
+    font-size: 1rem;
+}
 
 /* export */
 .export-progress {

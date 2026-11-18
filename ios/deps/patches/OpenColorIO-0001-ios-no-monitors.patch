@@ -1,0 +1,12 @@
+iOS has no IOKit graphics: use the empty monitor list of the generic branch.
+--- a/src/OpenColorIO/SystemMonitor.cpp
++++ b/src/OpenColorIO/SystemMonitor.cpp
+@@ -26,7 +26,7 @@
+ 
+ } // namespace OCIO_NAMESPACE
+ 
+-#elif __APPLE__
++#elif defined(__APPLE__) && !defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+ 
+ #include "SystemMonitor_macos.cpp"
+ 

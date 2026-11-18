@@ -55,6 +55,7 @@ import type {
     StateMessage,
 } from "./live.js";
 import { showLooks } from "./looks.js";
+import { isNative } from "./native.js";
 import { showOpen } from "./opener.js";
 import { el, openSheet } from "./sheet.js";
 import { PreviewView } from "./preview.js";
@@ -98,7 +99,7 @@ function showOverlay(heading: string, text: string, form = false): void {
     ovText.textContent = text;
     ovForm.hidden = !form;
     overlay.hidden = false;
-    if (form) ovPath.focus();
+    if (form && !isNative()) ovPath.focus();
 }
 const hideOverlay = (): void => {
     overlay.hidden = true;
@@ -575,7 +576,9 @@ async function start(): Promise<void> {
         else {
             showOverlay(
                 "Open an image",
-                "Type the path of a raw file on the machine running MART.",
+                isNative()
+                    ? "Choose an image from a folder in Files."
+                    : "Type the path of a raw file on the machine running MART.",
                 true,
             );
         }
@@ -584,17 +587,28 @@ async function start(): Promise<void> {
     }
 }
 
+if (isNative()) {
+    // in the app the image is chosen from a folder, not typed
+    ovPath.hidden = true;
+    ovForm.querySelector("button")!.textContent = "Open…";
+}
+
 ovForm.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const path = ovPath.value.trim();
-    if (!path) return;
-    ovText.textContent = "Opening…";
+    if (isNative()) {
+        showOpen({ save, opened: show });
+        return;
+    }
     try {
+        const path = ovPath.value.trim();
+        if (!path) return;
+        ovText.textContent = "Opening…";
         show(await openImage(path));
     } catch (e) {
         if (e instanceof ApiError && e.status !== 401 && e.status !== 503)
             ovText.textContent = e.message;
-        else onError(e);
+        else if (e instanceof ApiError || e instanceof NetworkError) onError(e);
+        else ovText.textContent = e instanceof Error ? e.message : String(e);
     }
 });
 

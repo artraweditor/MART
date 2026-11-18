@@ -3,3 +3,10 @@ host/build/
 client/node_modules/
 client/dist/
 node_modules/
+ios/build/
+ios/deps/build/
+ios/deps/prefix/
+ios/deps/src/
+ios/deps/logs/
+ios/MART/build/
+ios/MART/MART.xcodeproj/
