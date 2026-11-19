@@ -10,3 +10,16 @@ ios/deps/src/
 ios/deps/logs/
 ios/MART/build/
 ios/MART/MART.xcodeproj/
+ios/deps/src
+native/src/
+android/deps/build/
+android/deps/prefix/
+android/deps/logs/
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/jniLibs/
+android/app/src/main/assets/
+android/.kotlin/
+android/.idea/

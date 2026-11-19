@@ -19,7 +19,7 @@
  */
 
 // Open another image: by its path on the machine running MART; in the app, from a
-// list of the images of a folder chosen in Files (they are opened in place). Unsaved edits
+// list of the images of a folder chosen on the device (they are opened in place). Unsaved edits
 // are never dropped silently.
 
 import { ApiError, listImages, openImage } from "./api.js";
@@ -48,7 +48,7 @@ export function showOpen(host: OpenHost): void {
     const text = el("p", {
         class: "muted",
         text: native
-            ? "Choose an image from a folder in Files."
+            ? "Choose an image from a folder on this device."
             : "Type the path of a raw file on the machine running MART.",
     });
     const input = el("input", {

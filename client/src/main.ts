@@ -577,7 +577,7 @@ async function start(): Promise<void> {
             showOverlay(
                 "Open an image",
                 isNative()
-                    ? "Choose an image from a folder in Files."
+                    ? "Choose an image from a folder on this device."
                     : "Type the path of a raw file on the machine running MART.",
                 true,
             );

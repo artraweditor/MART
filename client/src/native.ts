@@ -18,19 +18,54 @@
  *  along with MART.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// The bridge to the native app that hosts MART (iOS now, Android later): when
-// the page runs in a web view of the app, the app can show the system's pickers. In a browser none of this exists and the page uses paths and
-// downloads.
+// The bridge to the native app that hosts MART (iOS and Android): when the page runs
+// in a web view of the app, the app can show the system's pickers. In a browser none
+// of this exists and the page uses paths and downloads.
+//
+// iOS: window.webkit.messageHandlers.mart (WKScriptMessageHandlerWithReply, a promise).
+// Android: window.martAndroid.post(id, json) (a @JavascriptInterface object, no return
+// value); the app answers with window.__martNativeReply(id, json).
 
 interface NativeHandler {
     postMessage(msg: unknown): Promise<unknown>;
+}
+
+interface AndroidBridge {
+    post(id: string, json: string): void;
+}
+
+interface AndroidWindow {
+    martAndroid?: AndroidBridge;
+    __martNativeReply?: (id: string, json: string) => void;
+}
+
+const pending = new Map<string, (value: unknown) => void>();
+let nextId = 1;
+
+function androidHandler(): NativeHandler | null {
+    const w = window as unknown as AndroidWindow;
+    const bridge = w.martAndroid;
+    if (!bridge) return null;
+    w.__martNativeReply ??= (id, json) => {
+        const done = pending.get(id);
+        pending.delete(id);
+        done?.(JSON.parse(json));
+    };
+    return {
+        postMessage: (msg) =>
+            new Promise((resolve) => {
+                const id = String(nextId++);
+                pending.set(id, resolve);
+                bridge.post(id, JSON.stringify(msg));
+            }),
+    };
 }
 
 function handler(): NativeHandler | null {
     const w = window as unknown as {
         webkit?: { messageHandlers?: { mart?: NativeHandler } };
     };
-    return w.webkit?.messageHandlers?.mart ?? null;
+    return w.webkit?.messageHandlers?.mart ?? androidHandler();
 }
 
 /** whether the page runs inside the MART app */

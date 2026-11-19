@@ -23,3 +23,5 @@ YAMLCPP_V=0.8.0
 PYSTRING_V=1.1.4
 MINIZIP_V=4.0.7
 OCIO_V=2.5.2
+# Android only (bionic has no iconv below API 28, no libintl)
+ICONV_V=1.17;        ICONV_URL=https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$ICONV_V.tar.gz
