@@ -4,15 +4,11 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.graphics.Bitmap
 import android.graphics.Color
-import android.media.ThumbnailUtils
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Base64
 import android.util.Log
-import android.util.Size
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -31,7 +27,6 @@ import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -170,12 +165,6 @@ class MainActivity : Activity() {
                 for (f in folders.folders()) a.put(JSONObject().put("path", f.path).put("name", f.name))
                 reply(JSONObject().put("folders", a))
             }
-            "thumbnail" -> {
-                val path = m.optString("path")
-                if (!folders.allowed(path)) return reply(JSONObject().put("error", "not an image of a chosen folder"))
-                val side = m.optDouble("size", 256.0).coerceIn(32.0, 1024.0).toInt()
-                Thread { reply(JSONObject().put("data", thumbnail(path, side) ?: JSONObject.NULL)) }.start()
-            }
             "pickFolder" -> {
                 if (pickerReply != null) return reply(JSONObject().put("error", "a file picker is already open"))
                 if (!folders.hasAllFilesAccess()) {
@@ -200,13 +189,6 @@ class MainActivity : Activity() {
             else -> reply(JSONObject().put("error", "unknown command"))
         }
     }
-
-    /** a thumbnail as the system makes it, as a data: URL (null: none for this format) */
-    private fun thumbnail(path: String, side: Int): String? = try {
-        val bmp = ThumbnailUtils.createImageThumbnail(File(path), Size(side, side), null)
-        val o = ByteArrayOutputStream(); bmp.compress(Bitmap.CompressFormat.JPEG, 80, o)
-        "data:image/jpeg;base64," + Base64.encodeToString(o.toByteArray(), Base64.NO_WRAP)
-    } catch (_: Exception) { null }
 
     @Deprecated("plain Activity API, no AndroidX")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

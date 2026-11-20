@@ -22,15 +22,10 @@
 // list of the images of a folder chosen on the device (they are opened in place). Unsaved edits
 // are never dropped silently.
 
-import { ApiError, listImages, openImage } from "./api.js";
+import { ApiError, listImages, openImage, thumbnailUrl } from "./api.js";
 import type { ImageEntry, ImageInfo } from "./api.js";
 import { formatBytes } from "./exportsheet.js";
-import {
-    isNative,
-    nativeFolders,
-    nativePickFolder,
-    nativeThumbnail,
-} from "./native.js";
+import { isNative, nativeFolders, nativePickFolder } from "./native.js";
 import type { NativeFolder } from "./native.js";
 import { el, openSheet } from "./sheet.js";
 
@@ -225,9 +220,9 @@ async function showFolders(
     });
 }
 
-// Thumbnails come from the system one at a time, as the tiles scroll into view; the
-// ones seen are kept for the session.
-const thumbs = new Map<string, string | null>();
+// Thumbnails come from the host (libART's `thumbnail`), a few at a time as the tiles scroll
+// into view; the browser keeps the ones seen.
+const THUMB_SIZE = 256;
 const queue: Array<() => Promise<void>> = [];
 let running = 0;
 
@@ -242,27 +237,25 @@ function pump(): void {
     }
 }
 
-function setPicture(pic: HTMLElement, data: string | null): void {
-    if (!data) return;
-    const img = el("img", {});
-    img.src = data;
-    img.alt = "";
-    pic.replaceChildren(img);
+/** show the thumbnail in the tile once it has loaded; resolves when it has (or failed) */
+function loadPicture(pic: HTMLElement, url: string): Promise<void> {
+    return new Promise((resolve) => {
+        const img = el("img", {});
+        img.alt = "";
+        img.onload = () => {
+            pic.replaceChildren(img);
+            resolve();
+        };
+        img.onerror = () => resolve(); // keep the placeholder
+        img.src = url;
+    });
 }
 
 function lazyThumbnail(pic: HTMLElement, im: ImageEntry): void {
-    const key = `${im.path}:${im.mtime}`;
-    if (thumbs.has(key)) return setPicture(pic, thumbs.get(key)!);
     const load = (): void => {
         queue.push(async () => {
             if (!pic.isConnected) return; // the list was replaced meanwhile
-            try {
-                const data = await nativeThumbnail(im.path, 256);
-                thumbs.set(key, data);
-                setPicture(pic, data);
-            } catch {
-                /* keep the placeholder */
-            }
+            await loadPicture(pic, thumbnailUrl(im, THUMB_SIZE));
         });
         pump();
     };

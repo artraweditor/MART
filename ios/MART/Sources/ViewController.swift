@@ -1,6 +1,5 @@
 import UIKit
 import WebKit
-import QuickLookThumbnailing
 
 final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDelegate, WKUIDelegate,
                             WKScriptMessageHandlerWithReply, UIDocumentPickerDelegate {
@@ -161,13 +160,6 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
             let list = FolderStore.shared.folders().map { ["path": $0.path, "name": $0.name] }
             return replyHandler(["folders": list], nil)
         }
-        if cmd == "thumbnail" {
-            guard let path = body["path"] as? String, FolderStore.shared.allowed(path) else {
-                return replyHandler(["error": "not an image of a chosen folder"], nil)
-            }
-            let side = min(max((body["size"] as? Double) ?? 256, 32), 1024)
-            return thumbnail(path, side: CGFloat(side), reply: replyHandler)
-        }
         if pickerReply != nil { return replyHandler(["error": "a file picker is already open"], nil) }
         let picker: UIDocumentPickerViewController
         switch cmd {
@@ -191,21 +183,6 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
         picker.delegate = self
         picker.allowsMultipleSelection = false
         present(picker, animated: true)
-    }
-
-    /// A thumbnail of the file as the system makes it (what Files shows), as a data: URL.
-    private func thumbnail(_ path: String, side: CGFloat, reply: @escaping (Any?, String?) -> Void) {
-        let scale = UIScreen.main.scale
-        let req = QLThumbnailGenerator.Request(fileAt: URL(fileURLWithPath: path),
-                                               size: CGSize(width: side, height: side), scale: scale,
-                                               representationTypes: .thumbnail)
-        QLThumbnailGenerator.shared.generateBestRepresentation(for: req) { rep, error in
-            guard let img = rep?.uiImage, let jpeg = img.jpegData(compressionQuality: 0.8) else {
-                // no thumbnail for this format: the page shows a placeholder
-                return reply(["data": NSNull()], nil)
-            }
-            reply(["data": "data:image/jpeg;base64," + jpeg.base64EncodedString()], nil)
-        }
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {

@@ -106,24 +106,6 @@ export async function nativePickFolder(): Promise<NativeFolder | null> {
 }
 
 /**
- * A thumbnail of an image in one of the folders, as a data: URL (null: the system
- * has none for this format). `size` is the longest edge in points.
- */
-export async function nativeThumbnail(
-    path: string,
-    size: number,
-): Promise<string | null> {
-    const h = handler();
-    if (!h) throw new Error("not running in the app");
-    const r = (await h.postMessage({ cmd: "thumbnail", path, size })) as {
-        data?: string | null;
-        error?: string;
-    } | null;
-    if (r?.error) throw new Error(r.error);
-    return r?.data ?? null;
-}
-
-/**
  * Let the user choose where to save a file that the host has written (one of
  * its exports). Resolves with whether it was saved (false: cancelled).
  */

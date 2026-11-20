@@ -41,13 +41,6 @@ final class FolderStore {
         return out
     }
 
-    /// Whether the path is in the app's own images folder or in a folder that was chosen.
-    func allowed(_ path: String) -> Bool {
-        let p = URL(fileURLWithPath: path).standardizedFileURL.path
-        let roots = [HostController.shared.imagesDir] + open.keys
-        return roots.contains { p.hasPrefix(URL(fileURLWithPath: $0).standardizedFileURL.path + "/") }
-    }
-
     /// A folder that the user has just picked (the picker gave access to it).
     func add(_ url: URL) -> Folder? {
         guard activate(url),

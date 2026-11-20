@@ -126,6 +126,15 @@ export interface ImageEntry {
 }
 
 /** The images in a folder that the host may read. */
+/**
+ * The address of the thumbnail of an image of a folder (a JPEG whose longest edge is at most `size`
+ * pixels; made by the host with libART, from the embedded preview of a raw). The file's mtime is
+ * in the address, so that the browser's copy is current.
+ */
+export function thumbnailUrl(im: ImageEntry, size: number): string {
+    return `/api/thumbnail?path=${encodeURIComponent(im.path)}&size=${size}&v=${im.mtime}`;
+}
+
 export async function listImages(dir: string): Promise<ImageEntry[]> {
     const res = await request("/api/images?dir=" + encodeURIComponent(dir));
     return (await res.json()).images;

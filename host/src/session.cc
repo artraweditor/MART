@@ -291,6 +291,19 @@ PreviewFrame Session::preview(const PreviewRequest &rq)
     return f;
 }
 
+std::string Session::thumbnail(const std::string &path, int size)
+{
+    const std::string in = confine(path);
+    if (size < 16 || size > 2048) throw ApiError(400, "invalid size");
+    const std::string file = tmpdir_ + "/thumb.jpg";  // one at a time: the worker thread
+    std::remove(file.c_str());
+    command({"thumbnail", in, file, std::to_string(size), "--no-profile"});
+    std::string jpeg = slurp(file);
+    std::remove(file.c_str());
+    if (jpeg.empty()) throw ApiError(502, "ART wrote no thumbnail");
+    return tagAsSRGB(jpeg);  // like the preview: sRGB, but without a profile
+}
+
 json Session::params()
 {
     if (file_.empty()) throw ApiError(409, "no image is open");

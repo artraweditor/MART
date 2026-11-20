@@ -66,6 +66,10 @@ public:
         bool discard = false);  // returns get-info; 409 if dirty and !discard
     json info();
     PreviewFrame preview(const PreviewRequest &r);
+    /// a JPEG (sRGB) thumbnail of an image file under a root, whose longest edge is at most
+    /// `size` (libART's `thumbnail --no-profile`: the embedded preview of a raw, ignoring
+    /// the sidecar). Needs no open image and does not touch it.
+    std::string thumbnail(const std::string &path, int size);
 
     json params();  // {params:{Group:{Key:v}}, ini}
     void applyPatch(const json &patch, const std::string &mergeKey);

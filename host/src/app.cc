@@ -425,6 +425,20 @@ int run(int argc, char **argv, const ReadyFn &ready)
             sendJson(res, w.submit([&] { return session->listImages(d); }).get());
         });
     });
+    // a thumbnail of an image of a folder (for the file selector); `v` (the file's mtime)
+    // only changes the URL when the file changes, so that the browser can keep it
+    svr.Get("/api/thumbnail", [&](const httplib::Request &req,
+                                  httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            if (!req.has_param("path")) throw ApiError(400, "expected ?path=");
+            const std::string p = req.get_param_value("path");
+            const int size = toInt(req, "size", 256);
+            std::string jpeg =
+                w.submit([&] { return session->thumbnail(p, size); }).get();
+            res.set_header("Cache-Control", "private, max-age=86400");
+            res.set_content(std::move(jpeg), "image/jpeg");
+        });
+    });
     svr.Get("/api/info", [&](const httplib::Request &, httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
             sendJson(res, w.submit([&] { return session->info(); }).get());

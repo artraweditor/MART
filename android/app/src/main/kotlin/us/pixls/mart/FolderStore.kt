@@ -38,12 +38,6 @@ class FolderStore(private val c: Context) {
         return out
     }
 
-    fun allowed(path: String): Boolean {
-        val p = File(path).canonicalPath
-        val roots = folders().map { File(it.path).canonicalPath }
-        return roots.any { p.startsWith("$it/") }
-    }
-
     /** the path of a folder that the tree picker returned, or null (not on shared storage) */
     fun pathOf(tree: Uri): String? {
         val id = DocumentsContract.getTreeDocumentId(tree)           // "primary:Pictures/x" or "1234-ABCD:x"
