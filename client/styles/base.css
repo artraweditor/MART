@@ -969,3 +969,19 @@ body.busy #sheet {
     flex: 1 1 10rem;
     min-width: 0;
 }
+
+a.action[aria-disabled] {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+details.fold > summary {
+    min-height: var(--tap);
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: var(--accent);
+}
+details.fold[open] > summary {
+    margin-bottom: 8px;
+}

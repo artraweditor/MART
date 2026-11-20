@@ -95,6 +95,8 @@ public:
     void applyProfile(const std::string &id, bool append);
     json profileSections();  // [{id, label, default}]: the checkboxes of the
                              // Save dialog
+    // the settings of the given sections as the text of a profile (an .arp) and the name that suits it
+    std::string profileText(const std::vector<std::string> &sections, std::string &suggestedName);
     json saveProfile(const std::string &name,
                      const std::vector<std::string> &sections, bool overwrite);
     // a folder that exports may be written to: under a root, and writable (its realpath); throws ApiError

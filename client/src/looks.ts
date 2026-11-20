@@ -25,8 +25,10 @@
 import {
     ApiError,
     deleteProfile,
+    getStatus,
     importProfile,
     listProfiles,
+    profileExportUrl,
     profileSections,
     renameProfile,
     saveProfile,
@@ -103,6 +105,11 @@ export async function showLooks(host: LooksHost): Promise<void> {
         text: "Save the current settings as a profile…",
     });
     saveBtn.addEventListener("click", () => void showSaveProfile(host));
+    const exportBtn = el("button", {
+        class: "action secondary",
+        text: "Export the current settings…",
+    });
+    exportBtn.addEventListener("click", () => void showExportSettings());
     const importBtn = el("button", {
         class: "action secondary",
         text: "Import a profile…",
@@ -128,6 +135,7 @@ export async function showLooks(host: LooksHost): Promise<void> {
     sheet.body.append(
         note,
         saveBtn,
+        exportBtn,
         importBtn,
         filter,
         appendBtn,
@@ -333,4 +341,92 @@ export async function showSaveProfile(host: LooksHost): Promise<void> {
         }
     });
     name.focus();
+}
+
+/**
+ * Export the current settings to an .arp file: which sections to keep (all of them at first), then
+ * the file goes where the user says (the browser's download, or the app's "save to" picker).
+ */
+export async function showExportSettings(): Promise<void> {
+    const sheet = openSheet("Export settings");
+    const status = el("p", { class: "muted" });
+    const boxes = el("div", { class: "sections" });
+    // the tools to include: all of them, unless the user opens this and unchecks some
+    const choice = el("details", { class: "fold" });
+    const summary = el("summary", { text: "Include: all settings" });
+    choice.append(summary, boxes);
+    const go = el("a", { class: "action", text: "Export" });
+    go.setAttribute("role", "button");
+    // the suggestion (the name of the image) is there to be edited
+    const name = el("input", { type: "text", placeholder: "File name" });
+    name.setAttribute("aria-label", "File name");
+    name.autocapitalize = "off";
+    name.spellcheck = false;
+    try {
+        const file = (await getStatus()).open?.file ?? "";
+        name.value = file.slice(file.lastIndexOf("/") + 1).replace(/\.[^.]*$/, "");
+    } catch {
+        /* the host picks the name then */
+    }
+    sheet.body.append(
+        el("p", {
+            class: "muted",
+            text:
+                "Choose what the file keeps: the settings of the checked " +
+                "sections, as they are now. The file is a profile (.arp) " +
+                "that can be applied to other pictures, in MART or in ART.",
+        }),
+        el(
+            "div",
+            { class: "ctl" },
+            el("div", { class: "row" }, el("label", { text: "File name" })),
+            name,
+        ),
+        choice,
+        status,
+        go,
+    );
+    const checked = new Map<string, HTMLButtonElement>();
+    const chosen = (): string[] =>
+        [...checked]
+            .filter(([, b]) => b.getAttribute("aria-checked") === "true")
+            .map(([id]) => id);
+    name.addEventListener("input", () => update());
+    const update = (): void => {
+        const ids = chosen();
+        summary.textContent =
+            ids.length === checked.size
+                ? "Include: all settings"
+                : `Include: ${ids.length} of ${checked.size} sections`;
+        go.toggleAttribute("aria-disabled", ids.length === 0);
+        if (ids.length) {
+            go.setAttribute("href", profileExportUrl(ids, name.value));
+            go.setAttribute("download", "");
+            status.textContent = "";
+        } else {
+            go.removeAttribute("href");
+            status.textContent = "Check at least one section.";
+        }
+    };
+    try {
+        for (const s of await profileSections()) {
+            const b = el("button", { class: "chip wide", text: s.label });
+            b.type = "button";
+            b.setAttribute("role", "checkbox");
+            b.setAttribute("aria-checked", "true");
+            b.addEventListener("click", () => {
+                b.setAttribute(
+                    "aria-checked",
+                    String(b.getAttribute("aria-checked") !== "true"),
+                );
+                update();
+            });
+            checked.set(s.id, b);
+            boxes.append(b);
+        }
+    } catch (e) {
+        status.textContent = e instanceof Error ? e.message : String(e);
+        return;
+    }
+    update();
 }

@@ -206,6 +206,14 @@ export async function importProfile(
     return res.json();
 }
 
+/** the address that downloads the settings of these sections as an .arp file (named after the image) */
+export function profileExportUrl(sections: string[], name = ""): string {
+    return (
+        `/api/profiles/export?sections=${encodeURIComponent(sections.join(","))}` +
+        (name.trim() ? `&name=${encodeURIComponent(name.trim())}` : "")
+    );
+}
+
 export interface SpotWB {
     temperature: number;
     tint: number;

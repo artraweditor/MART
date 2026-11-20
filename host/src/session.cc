@@ -619,6 +619,25 @@ json Session::profileSections()
     return r;
 }
 
+std::string Session::profileText(const std::vector<std::string> &ids, std::string &suggestedName)
+{
+    if (file_.empty()) throw ApiError(409, "no image is open");
+    suggestedName = fileStem();
+    try {
+        return sections::build(command({"get-params"}).value("params", ""), ids,
+                               [this](const std::string &v) {
+                                   // a LUT of MART's folder is written without
+                                   // the folder, with the host R, as ART does
+                                   // for its own
+                                   const std::string uri =
+                                       luts_.toUri(luts_.fromUri(v));
+                                   return uri.empty() ? v : uri;
+                               });
+    } catch (const std::invalid_argument &e) {
+        throw ApiError(400, e.what());
+    }
+}
+
 json Session::saveProfile(const std::string &name,
                           const std::vector<std::string> &ids, bool overwrite)
 {

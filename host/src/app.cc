@@ -530,6 +530,32 @@ int run(int argc, char **argv, const ReadyFn &ready)
                      201);
         });
     });
+    // export: the settings of some sections as an .arp file to download (not stored in MART's folder)
+    svr.Get("/api/profiles/export", [&](const httplib::Request &req,
+                                        httplib::Response &res) {
+        serve(worker, res, [&](Worker &w) {
+            std::vector<std::string> ids;
+            {
+                std::string v = req.get_param_value("sections"), cur;
+                for (char c : v + ",") {
+                    if (c == ',') {
+                        if (!cur.empty()) ids.push_back(cur);
+                        cur.clear();
+                    } else
+                        cur += c;
+                }
+            }
+            if (ids.empty()) throw ApiError(400, "expected sections=a,b,...");
+            std::string name = sanitizeStem(req.get_param_value("name"));
+            std::string text, stem;
+            text = w.submit([&] { return session->profileText(ids, stem); }).get();
+            if (name.empty()) name = sanitizeStem(stem);
+            if (name.empty()) name = "profile";
+            res.set_header("Content-Disposition", "attachment; filename=\"" + name + ".arp\"");
+            res.set_header("Cache-Control", "no-store");
+            res.set_content(text, "text/plain; charset=utf-8");
+        });
+    });
     svr.Post("/api/profiles/rename", [&](const httplib::Request &req,
                                          httplib::Response &res) {
         serve(worker, res, [&](Worker &w) {
