@@ -97,6 +97,8 @@ public:
                              // Save dialog
     json saveProfile(const std::string &name,
                      const std::vector<std::string> &sections, bool overwrite);
+    // a folder that exports may be written to: under a root, and writable (its realpath); throws ApiError
+    std::string exportFolder(const std::string &dir) const;
     bool dirty() const { return dirty_; }
     bool isOpen() const { return !file_.empty(); }
     int fullWidth() const { return info_.value("full_width", 0); }

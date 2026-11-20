@@ -53,13 +53,14 @@ private:
     struct Job {
         std::string state = "queued";  // queued, running, done, error
         std::string name, path, format, error, mime;
+        bool keep = false;  // written to a folder chosen by the user: never deleted
         int width = 0, height = 0;
         long long bytes = 0;
         long long startedMs = 0, endedMs = 0;
     };
-    void run(const std::string &id, const ExportRequest &);
+    void run(const std::string &id, const ExportRequest &, const std::string &dir);
     std::string uniquePath(const std::string &stem,
-                           const std::string &ext) const;  // worker thread
+                           const std::string &ext, const std::string &dir) const;  // worker thread
 
     Worker &worker_;
     Session &session_;

@@ -24,12 +24,13 @@
 import {
     ApiError,
     NetworkError,
+    browseFolder,
     exportStatus,
     exportUrl,
     startExport,
 } from "./api.js";
 import type { ExportOptions, ExportStatus } from "./api.js";
-import { isNative, nativeSaveFile } from "./native.js";
+import { isNative, nativePickFolder, nativeSaveFile } from "./native.js";
 import { el, openSheet } from "./sheet.js";
 
 interface Saved {
@@ -40,6 +41,8 @@ interface Saved {
     compression: "none" | "zip";
     /** the longest edge in pixels at most; 0: full size */
     size: 0 | 1920 | 2560 | 3840;
+    /** the folder to write to ("": the default one) */
+    dir: string;
 }
 
 const DEFAULTS: Saved = {
@@ -48,7 +51,8 @@ const DEFAULTS: Saved = {
     pngBits: 8,
     tifBits: 16,
     compression: "none",
-    size: 0,
+    size: 1920,
+    dir: "",
 };
 const KEY = "mart.export";
 
@@ -81,6 +85,7 @@ export function toOptions(s: Saved, name: string): ExportOptions {
     }
     if (s.size) o.size = s.size;
     if (name.trim()) o.name = name.trim();
+    if (s.dir) o.dir = s.dir;
     return o;
 }
 
@@ -93,6 +98,89 @@ export function formatBytes(n: number): string {
 export function formatElapsed(ms: number): string {
     const s = Math.round(ms / 1000);
     return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+/**
+ * Where to write the file: the host's own folder (what the browser downloads from, or the app's
+ * "Save to" picker), or a folder chosen here. In the app the system's picker chooses it; in a
+ * browser, the folders that the host allows are browsed.
+ */
+function folderChooser(s: Saved, changed: () => void): HTMLElement {
+    const root = el("div", { class: "ctl" });
+    const where = el("output", { class: "export-folder" });
+    const choose = el("button", { class: "chip", text: "Choose…" });
+    const reset = el("button", { class: "chip", text: "Default" });
+    choose.type = reset.type = "button";
+    const row = el("div", { class: "row" }, el("label", { text: "Save in" }));
+    const chips = el("div", { class: "chips" }, where, choose, reset);
+    const panel = el("div", { class: "folder-browser" });
+    panel.hidden = true;
+    root.append(row, chips, panel);
+
+    const paint = (): void => {
+        where.textContent = s.dir || (isNative() ? "Ask where to save" : "Download");
+        reset.hidden = !s.dir;
+    };
+    paint();
+    const set = (dir: string): void => {
+        s.dir = dir;
+        changed();
+        paint();
+        panel.hidden = true;
+    };
+    reset.addEventListener("click", () => set(""));
+
+    // browsing the host's folders
+    const browse = async (dir: string, auto = false): Promise<void> => {
+        let l;
+        try {
+            l = await browseFolder(dir);
+        } catch (e) {
+            panel.replaceChildren(el("p", { class: "error", text: e instanceof Error ? e.message : String(e) }));
+            return;
+        }
+        if (auto && l.dir === "" && l.dirs.length === 1) return browse(l.dirs[0]!.path);
+        const up = el("button", { class: "chip", text: "\u2191 Up" });
+        up.type = "button";
+        up.disabled = l.dir === "";
+        up.addEventListener("click", () => void browse(l.parent));
+        const use = el("button", { class: "action", text: "Use this folder" });
+        use.disabled = l.dir === "";
+        use.addEventListener("click", () => set(l.dir));
+        const cancel = el("button", { class: "action secondary", text: "Cancel" });
+        cancel.addEventListener("click", () => (panel.hidden = true));
+        const subs = el(
+            "div",
+            { class: "chips" },
+            ...l.dirs.map((d) => {
+                const b = el("button", { class: "chip", text: d.name + (l.dir ? "/" : "") });
+                b.type = "button";
+                b.addEventListener("click", () => void browse(d.path));
+                return b;
+            }),
+        );
+        panel.replaceChildren(
+            el("div", { class: "folder-bar" }, up, el("span", { class: "muted folder-where", text: l.dir || "Folders" })),
+            subs,
+            use,
+            cancel,
+        );
+    };
+    choose.addEventListener("click", async () => {
+        if (isNative()) {
+            try {
+                const f = await nativePickFolder();
+                if (f) set(f.path);
+            } catch (e) {
+                where.textContent = e instanceof Error ? e.message : String(e);
+            }
+            return;
+        }
+        panel.hidden = false;
+        await browse(s.dir, true);
+        if (s.dir && panel.querySelector(".error")) await browse("", true);
+    });
+    return root;
 }
 
 // an export in progress (the sheet can be closed and reopened)
@@ -145,10 +233,13 @@ export function showExport(imageName: string): void {
     };
 
     const options = el("div");
+    // the suggestion is there to be edited, not retyped
     const name = el("input", { type: "text", placeholder: imageName });
+    name.value = imageName;
     name.setAttribute("aria-label", "File name");
     name.autocapitalize = "off";
     name.spellcheck = false;
+    const folder = folderChooser(s, () => save(s));
     const go = el("button", { class: "action", text: "Export" });
     const progress = el("div", { class: "export-progress" });
     body.append(
@@ -159,6 +250,7 @@ export function showExport(imageName: string): void {
             el("div", { class: "row" }, el("label", { text: "File name" })),
             name,
         ),
+        folder,
         go,
         progress,
     );
@@ -260,6 +352,7 @@ export function showExport(imageName: string): void {
     const showForm = (on: boolean): void => {
         options.hidden = !on;
         name.parentElement!.hidden = !on;
+        folder.hidden = !on;
         go.hidden = !on;
         progress.hidden = on;
     };
@@ -344,7 +437,7 @@ export function showExport(imageName: string): void {
         ]
             .filter(Boolean)
             .join(" · ");
-        if (isNative() && st.path) {
+        if (isNative() && st.path && !st.chosen) {
             // in the app: choose where to save the file (offered at once)
             const path = st.path;
             const note = el("p", { class: "muted" });
@@ -370,13 +463,22 @@ export function showExport(imageName: string): void {
         const a = el("a", { class: "action", text: `Download ${st.name}` });
         a.href = exportUrl(job);
         a.download = st.name ?? "";
-        if (st.path)
-            progress.append(
-                el("p", {
-                    class: "muted",
-                    text: `Also kept on the server: ${st.path}`,
-                }),
-            );
+        progress.append(
+            el("p", { class: "export-done", text: "Exported: " + facts }),
+        );
+        if (isNative() && st.chosen) {
+            // written where the user chose: nothing more to do
+            progress.append(el("p", { class: "muted", text: `Saved ${st.path}` }));
+        } else {
+            progress.append(a);
+            if (st.path)
+                progress.append(
+                    el("p", {
+                        class: "muted",
+                        text: `Also kept on the server: ${st.path}`,
+                    }),
+                );
+        }
         const again = el("button", {
             class: "action secondary",
             text: "Export again",

@@ -117,6 +117,15 @@ std::string Session::confine(const std::string &path) const
     throw ApiError(403, "the file is not under an allowed root");
 }
 
+std::string Session::exportFolder(const std::string &dir) const
+{
+    const std::string d = confine(dir);
+    struct stat st;
+    if (stat(d.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) throw ApiError(400, "not a folder: " + dir);
+    if (access(d.c_str(), W_OK) != 0) throw ApiError(403, "cannot write to the folder: " + dir);
+    return d;
+}
+
 void Session::addRoot(const std::string &dir)
 {
     std::lock_guard<std::mutex> g(rootsMutex_);

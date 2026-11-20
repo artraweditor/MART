@@ -238,6 +238,7 @@ export interface ExportOptions {
     compression?: "none" | "zip"; // tif
     size?: number; // the longest edge in pixels at most; full size if absent
     name?: string; // file name without extension; the image's name if empty
+    dir?: string; // the folder to write to (one the host may use); the host's own if empty
 }
 
 export interface ExportStatus {
@@ -249,6 +250,7 @@ export interface ExportStatus {
     height?: number;
     bytes?: number;
     path?: string; // where the server keeps it, if it keeps exported files
+    chosen?: boolean; // it is in the folder that the request chose
     error?: string;
 }
 

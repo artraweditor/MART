@@ -82,11 +82,13 @@ bool Exporter::busy() const
 }
 
 std::string Exporter::uniquePath(const std::string &stem,
-                                 const std::string &ext) const
+                                 const std::string &ext,
+                                 const std::string &dir) const
 {
-    std::string p = dir_ + "/" + stem + "." + ext;
+    const std::string &d = dir.empty() ? dir_ : dir;
+    std::string p = d + "/" + stem + "." + ext;
     for (int i = 1; exists(p) && i < 10000; ++i)
-        p = dir_ + "/" + stem + "-" + std::to_string(i) + "." + ext;
+        p = d + "/" + stem + "-" + std::to_string(i) + "." + ext;
     return p;
 }
 
@@ -102,13 +104,21 @@ json Exporter::start(const json &body)
         active_ = false;
     };
     ExportRequest req;
+    std::string folder;  // chosen by the user: the file is written (and kept) there
     try {
         // the default name is that of the image, which only the worker thread
         // may ask
         std::string stem =
             worker_.submit([this] { return session_.fileStem(); }).get();
         if (stem.empty()) throw ApiError(409, "no image is open");
-        req = parseExportRequest(body, stem);
+        json b = body;
+        if (b.is_object() && b.contains("dir")) {
+            if (!b["dir"].is_string()) throw ApiError(400, "dir must be a string");
+            const std::string d = b["dir"];
+            b.erase("dir");
+            if (!d.empty()) folder = worker_.submit([this, d] { return session_.exportFolder(d); }).get();
+        }
+        req = parseExportRequest(b, stem);
     } catch (const ExportRequestError &e) {
         release();
         throw ApiError(400, e.what());
@@ -122,6 +132,7 @@ json Exporter::start(const json &body)
         id = "e" + std::to_string(next_++);
         jobs_[id] = Job{};
         jobs_[id].format = req.format;
+        jobs_[id].keep = !folder.empty();
         jobs_[id].mime = exportMimeType(req.format);
         jobs_[id].startedMs = nowMs();
         order_.push_back(id);
@@ -129,19 +140,19 @@ json Exporter::start(const json &body)
                KEEP_JOBS) {  // forget the oldest (and delete its file, unless
                              // the user keeps them)
             auto &old = jobs_[order_.front()];
-            if (!persistent_ && !old.path.empty()) unlink(old.path.c_str());
+            if (!persistent_ && !old.keep && !old.path.empty()) unlink(old.path.c_str());
             jobs_.erase(order_.front());
             order_.erase(order_.begin());
         }
     }
     if (onBusy_) onBusy_(true);
-    worker_.submit([this, id, req] { run(id, req); });
+    worker_.submit([this, id, req, folder] { run(id, req, folder); });
     return {{"job", id}};
 }
 
-void Exporter::run(const std::string &id, const ExportRequest &req)
+void Exporter::run(const std::string &id, const ExportRequest &req, const std::string &dir)
 {
-    std::string path = uniquePath(req.stem, exportExtension(req.format));
+    std::string path = uniquePath(req.stem, exportExtension(req.format), dir);
     {
         std::lock_guard<std::mutex> g(m_);
         auto it = jobs_.find(id);
@@ -198,8 +209,9 @@ json Exporter::status(const std::string &id) const
         r["width"] = j.width;
         r["height"] = j.height;
         r["bytes"] = j.bytes;
-        if (persistent_)
+        if (persistent_ || j.keep)
             r["path"] = j.path;  // otherwise the file is only for downloading
+        if (j.keep) r["chosen"] = true;  // in the folder that the user chose
     } else if (j.state == "error") {
         r["error"] = j.error;
     }

@@ -182,6 +182,84 @@ function remember(path: string): void {
     }
 }
 
+// ---- what the thumbnail browser shows: only the raw files or all, and in which order ----
+
+const RAW_EXT = new Set(
+    ("arw srf sr2 cr2 cr3 crw nef nrw orf raf rw2 rwl pef dng srw 3fr erf mef mos kdc dcr x3f iiq fff " +
+        "cap mrw raw gpr").split(" "),
+);
+const isRaw = (name: string): boolean =>
+    RAW_EXT.has(name.slice(name.lastIndexOf(".") + 1).toLowerCase());
+
+type SortOrder = "name-asc" | "name-desc" | "date-asc" | "date-desc";
+const SORTS: [SortOrder, string][] = [
+    ["name-asc", "Name (A to Z)"],
+    ["name-desc", "Name (Z to A)"],
+    ["date-asc", "Date (oldest first)"],
+    ["date-desc", "Date (newest first)"],
+];
+const VIEW_KEY = "mart.thumbs.view";
+
+/** the controls above the thumbnails, and the filter and the order that they set (kept for next time) */
+function thumbView(onChange: () => void): {
+    el: HTMLElement;
+    apply(images: ImageEntry[]): ImageEntry[];
+} {
+    let rawOnly = false;
+    let order: SortOrder = "name-asc";
+    try {
+        const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}") as {
+            rawOnly?: boolean;
+            order?: SortOrder;
+        };
+        rawOnly = v.rawOnly === true;
+        if (SORTS.some(([o]) => o === v.order)) order = v.order!;
+    } catch {
+        /* private mode, or garbage */
+    }
+    const save = (): void => {
+        try {
+            localStorage.setItem(VIEW_KEY, JSON.stringify({ rawOnly, order }));
+        } catch {
+            /* private mode */
+        }
+    };
+    const raw = el("button", { class: "chip", text: "Raw only" });
+    raw.setAttribute("role", "switch");
+    raw.setAttribute("aria-checked", String(rawOnly));
+    raw.addEventListener("click", () => {
+        rawOnly = !rawOnly;
+        raw.setAttribute("aria-checked", String(rawOnly));
+        save();
+        onChange();
+    });
+    const sort = el("select", {});
+    sort.setAttribute("aria-label", "Sort by");
+    for (const [o, label] of SORTS) {
+        const opt = el("option", { text: label });
+        opt.value = o;
+        opt.selected = o === order;
+        sort.append(opt);
+    }
+    sort.addEventListener("change", () => {
+        order = sort.value as SortOrder;
+        save();
+        onChange();
+    });
+    return {
+        el: el("div", { class: "thumb-options" }, raw, sort),
+        apply(images) {
+            const v = rawOnly ? images.filter((im) => isRaw(im.name)) : [...images];
+            const dir = order.endsWith("desc") ? -1 : 1;
+            const key = order.startsWith("date")
+                ? (a: ImageEntry, b: ImageEntry) => a.mtime - b.mtime
+                : (a: ImageEntry, b: ImageEntry) =>
+                      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+            return v.sort((a, b) => dir * key(a, b) || a.name.localeCompare(b.name));
+        },
+    };
+}
+
 /** the folder selector and the list of its images, in the app */
 async function showFolders(
     body: HTMLElement,
@@ -201,7 +279,16 @@ async function showFolders(
     });
     photos.hidden = true;
     const list = el("div", { class: "thumb-grid" });
-    body.append(text, select, choose, photos, list, choice);
+    let shown: ImageEntry[] = [];
+    const view = thumbView(() => draw());
+    const draw = (): void => {
+        if (shown.length === 0) return;
+        const v = view.apply(shown);
+        if (v.length === 0)
+            list.replaceChildren(el("p", { class: "muted", text: "No raw files in this folder." }));
+        else fillImages(list, v, open);
+    };
+    body.append(text, select, choose, photos, view.el, list, choice);
 
     let folders: NativeFolder[] = [];
     const fillSelect = (current: string): void => {
@@ -253,13 +340,14 @@ async function showFolders(
             return;
         }
         remember(path);
+        shown = images;
         if (images.length === 0) {
             list.replaceChildren(
                 el("p", { class: "muted", text: "No images in this folder." }),
             );
             return;
         }
-        fillImages(list, images, open);
+        draw();
     };
 
     try {
@@ -350,7 +438,15 @@ function serverBrowser(
     const bar = el("div", { class: "folder-bar" }, up, where);
     const subs = el("div", { class: "chips" });
     const grid = el("div", { class: "thumb-grid" });
-    root.append(bar, subs, grid);
+    let images: ImageEntry[] = [];
+    const view = thumbView(() => draw());
+    const draw = (): void => {
+        if (images.length === 0) return;
+        const v = view.apply(images);
+        if (v.length === 0) grid.replaceChildren(el("p", { class: "muted", text: "No raw files in this folder." }));
+        else fillImages(grid, v, open);
+    };
+    root.append(bar, subs, view.el, grid);
     let parent = "";
     const intro = text.textContent ?? "";
 
@@ -368,7 +464,8 @@ function serverBrowser(
             }),
         );
         if (l.dir !== "") remember(l.dir);
-        if (l.images.length > 0) fillImages(grid, l.images, open);
+        images = l.images;
+        if (l.images.length > 0) draw();
         else
             grid.replaceChildren(
                 el("p", {

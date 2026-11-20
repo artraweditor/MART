@@ -310,6 +310,29 @@ input[type="range"]::-moz-range-thumb {
     background: var(--accent);
     border: 0;
 }
+/* On a touch screen only the thumb takes the finger: a swipe that starts on the track scrolls the
+   panel instead of jumping the slider to where it landed. The thumb gets a bigger (invisible)
+   border to grab. */
+@media (pointer: coarse) {
+    input[type="range"] {
+        pointer-events: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+        pointer-events: auto;
+        width: 44px;
+        height: 44px;
+        margin-top: -20px;
+        border: 8px solid transparent;
+        background-clip: content-box;
+    }
+    input[type="range"]::-moz-range-thumb {
+        pointer-events: auto;
+        width: 44px;
+        height: 44px;
+        border: 8px solid transparent;
+        background-clip: content-box;
+    }
+}
 input[type="range"]:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
@@ -933,4 +956,16 @@ body.busy #sheet {
 .chip.primary {
     background: var(--accent);
     color: var(--bg, #000);
+}
+
+.thumb-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+.thumb-options select {
+    flex: 1 1 10rem;
+    min-width: 0;
 }

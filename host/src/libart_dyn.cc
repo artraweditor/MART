@@ -44,6 +44,7 @@ struct Api {
     int (*set_inprocess)(void *, const char *, const char *, const char *);
     int (*set_timeout)(void *, int);
     int (*set_gpu)(void *, const char *);
+    int (*set_embed_params)(void *, int) = nullptr;  // newer libART only
     const char *(*options_error)(const void *);
     int (*options_error_code)(const void *);
     void *(*engine_create)(void *);
@@ -113,6 +114,8 @@ void load(const std::string &explicit_path)
     sym(lib, "ART_options_set_inprocess", api.set_inprocess);
     sym(lib, "ART_options_set_timeout", api.set_timeout);
     sym(lib, "ART_options_set_gpu", api.set_gpu);
+    // (optional: a libART without it embeds the parameters only if its options file says so)
+    api.set_embed_params = reinterpret_cast<int (*)(void *, int)>(dlsym(lib, "ART_options_set_embed_params"));
     sym(lib, "ART_options_error", api.options_error);
     sym(lib, "ART_options_error_code", api.options_error_code);
     sym(lib, "ART_engine_create", api.engine_create);
@@ -152,6 +155,8 @@ std::unique_ptr<Engine> Engine::create(const EngineOptions &o)
             o.config_dir.empty() ? nullptr : o.config_dir.c_str(),
             o.cache_dir.empty() ? nullptr : o.cache_dir.c_str()));
         if (!o.gpu.empty()) check(api.set_gpu(opt, o.gpu.c_str()));
+        // exported images carry their processing parameters (as the sidecar has them)
+        if (api.set_embed_params) check(api.set_embed_params(opt, 1));
     } else {
         check(
             api.set_remote(opt, o.socket.empty() ? nullptr : o.socket.c_str()));
