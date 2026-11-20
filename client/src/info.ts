@@ -113,25 +113,15 @@ export function showInfo(info: ImageInfo): void {
     };
 
     const renderMetadata = async (): Promise<void> => {
-        let edits = false;
-        let makernotes = false;
         let md: Metadata = {};
         const filter = el("input", {
             type: "search",
             placeholder: "Filter, e.g. lens or gps",
         });
         filter.setAttribute("aria-label", "Filter the tags");
-        const editsBtn = el("button", { class: "chip", text: "With my edits" });
-        editsBtn.setAttribute("role", "switch");
-        editsBtn.setAttribute("aria-checked", "false");
-        const mnBtn = el("button", { class: "chip", text: "Maker notes" });
-        mnBtn.setAttribute("role", "switch");
-        mnBtn.setAttribute("aria-checked", "false");
-        mnBtn.title = "Read with ExifTool: slower";
-        const opts = el("div", { class: "chips" }, editsBtn, mnBtn);
         const status = el("p", { class: "muted" });
         const list = el("dl", { class: "facts tags" });
-        content.append(filter, opts, status, list);
+        content.append(filter, status, list);
 
         const render = (): void => {
             const rows = filterTags(md, filter.value);
@@ -145,11 +135,9 @@ export function showInfo(info: ImageInfo): void {
                     : `${rows.length} of ${Object.keys(md).length} tags`;
         };
         const load = async (): Promise<void> => {
-            status.textContent = makernotes
-                ? "Reading the maker notes…"
-                : "Reading…";
+            status.textContent = "Reading…";
             try {
-                md = await getMetadata(makernotes, edits);
+                md = await getMetadata(false, false);
                 render();
             } catch (e) {
                 status.textContent = e instanceof Error ? e.message : String(e);
@@ -162,16 +150,6 @@ export function showInfo(info: ImageInfo): void {
         });
         const flip = (b: HTMLElement, on: boolean): void =>
             b.setAttribute("aria-checked", String(on));
-        editsBtn.addEventListener("click", () => {
-            edits = !edits;
-            flip(editsBtn, edits);
-            void load();
-        });
-        mnBtn.addEventListener("click", () => {
-            makernotes = !makernotes;
-            flip(mnBtn, makernotes);
-            void load();
-        });
         await load();
     };
 
