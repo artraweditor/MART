@@ -84,7 +84,7 @@ step_glib()  { meson_dep glib glib-$GLIB_V.tar.xz -Dtests=false -Dnls=disabled -
                  -Dinstalled_tests=false -Dman=false -Dxattr=false -Dlibelf=disabled -Dglib_debug=disabled -Dsysprof=disabled ${GLIB_EXTRA[@]+"${GLIB_EXTRA[@]}"}; }
 step_sigc()  { meson_dep libsigc++ libsigc++-$SIGC_V.tar.xz -Dbuild-documentation=false -Dbuild-examples=false -Dbuild-tests=false -Dbuild-pdf=false; }
 step_glibmm(){ meson_dep glibmm glibmm-$GLIBMM_V.tar.xz -Dbuild-documentation=false -Dbuild-examples=false; }
-step_lensfun(){ cmake_dep lensfun lensfun-$LENSFUN_V.tar.gz -DBUILD_STATIC=ON -DBUILD_TESTS=OFF -DBUILD_LENSTOOL=OFF -DBUILD_DOC=OFF -DBUILD_AUXFUN=OFF -DINSTALL_PYTHON_MODULE=OFF -DINSTALL_HELPER_SCRIPTS=OFF; }
+step_lensfun(){ cmake_dep lensfun lensfun-$LENSFUN_V.tar.gz -DBUILD_STATIC=ON -DBUILD_TESTS=OFF -DBUILD_LENSTOOL=OFF -DBUILD_DOC=OFF -DBUILD_AUXFUN=OFF -DPYTHON=PYTHON-NOTFOUND -DINSTALL_PYTHON_MODULE=OFF -DINSTALL_HELPER_SCRIPTS=OFF; }
 step_exiv2() { cmake_dep exiv2 exiv2-$EXIV2_V.tar.gz -DEXIV2_ENABLE_SHARED=OFF -DEXIV2_ENABLE_XMP=ON -DEXIV2_ENABLE_EXTERNAL_XMP=OFF \
                  -DEXIV2_ENABLE_NLS=OFF -DEXIV2_ENABLE_WEBREADY=OFF -DEXIV2_ENABLE_BROTLI=OFF -DEXIV2_ENABLE_INIH=OFF \
                  -DEXIV2_ENABLE_VIDEO=OFF -DEXIV2_ENABLE_CURL=OFF -DEXIV2_BUILD_SAMPLES=OFF -DEXIV2_BUILD_EXIV2_COMMAND=OFF \
