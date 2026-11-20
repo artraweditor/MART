@@ -29,3 +29,9 @@ cmake -S "$ART_SRC" -B "$B" -G Ninja \
   ${ART_CMAKE_EXTRA:-}
 if [ $# -eq 0 ]; then set -- art-lib; fi
 ninja -C "$B" "$@"
+# INSTALL_DATA=1: also install the data of libART (its `libart_data` component: profiles, LUTs, lens
+# database, ...) into $ROOT/build/art-data; it is the same for all slices
+if [ "${INSTALL_DATA:-}" = 1 ]; then
+  cmake --install "$B" --component libart_data --prefix "$ROOT/build/art-install-$SLICE" > /dev/null
+  echo "data: $ROOT/build/art-data"
+fi

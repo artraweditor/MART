@@ -1,9 +1,10 @@
 # Android platform definitions for native/build-deps.sh and native/build-libart.sh (sourced).
 # Needs: NATIVE, SLICE (arm64). Outputs go to android/deps (prefix, build, logs) and android/build.
-# NDK: $ANDROID_NDK_HOME (default: the Homebrew cask), API level 26 (Android 8.0).
+# NDK: $ANDROID_NDK_HOME (default on a Mac: the Homebrew cask), API level 26 (Android 8.0). The host is a Mac or Linux.
 ROOT=$(dirname "$NATIVE")/android
 DEPS=$ROOT/deps
 export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-/opt/homebrew/share/android-ndk}
+case "$(uname -s)" in Darwin) NDK_HOST=darwin-x86_64 ;; *) NDK_HOST=linux-x86_64 ;; esac   # (the NDK has one tag per OS)
 export ANDROID_SLICE=$SLICE
 TOOLCHAIN=$DEPS/toolchain-android.cmake
 PLATFORM_CMAKE_ARGS=()
@@ -20,9 +21,9 @@ endian = 'little'"
 
 platform_setup() {
   [ "$SLICE" = arm64 ] || { echo "android: the only slice is arm64"; exit 1; }
-  NDKBIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin
+  NDKBIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$NDK_HOST/bin
   [ -x $NDKBIN/aarch64-linux-android$ANDROID_API-clang ] || { echo "NDK not found in $ANDROID_NDK_HOME"; exit 1; }
-  NDKLIB=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/lib/clang
+  NDKLIB=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$NDK_HOST/lib/clang
   NDKLIB=$NDKLIB/$(ls $NDKLIB | head -1)
   CC_BIN=$NDKBIN/aarch64-linux-android$ANDROID_API-clang; CXX_BIN=$NDKBIN/aarch64-linux-android$ANDROID_API-clang++
   AR_BIN=$NDKBIN/llvm-ar; RANLIB_BIN=$NDKBIN/llvm-ranlib; STRIP_BIN=$NDKBIN/llvm-strip

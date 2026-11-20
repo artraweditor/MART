@@ -1,0 +1,155 @@
+# Build the Android app (arm64) as an .apk.
+#
+# Run it by hand (Actions > Android APK > Run workflow) or by pushing a tag "v*" (then the .apk is
+# also attached to the release of the tag). The first run builds the dependencies of libART with the
+# NDK (about an hour); the next ones restore them from the cache, unless native/ or the toolchain changed.
+#
+# Signing: with the secrets ANDROID_KEYSTORE_BASE64 (a base64 of the .jks/.keystore file),
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (optional: it is the keystore's)
+# the .apk is signed with your key, and a new version installs over the old one. Without them it is
+# signed with a throwaway key, made for the run: it installs, but an update of an app installed from
+# another run has to be uninstalled first.
+#
+# libART comes from https://github.com/artraweditor/ART: the ref to build is the input art_ref (default: the
+# default branch of the repository). It needs the `thumbnail` command.
+name: Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      art_ref:
+        description: "ART branch, tag or commit (empty: the default branch)"
+        required: false
+        default: ""
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # to attach the .apk to the release of a tag
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: 30.0.16248370        # what the dependencies and libART were built and tested with
+  ANDROID_PLATFORM: android-37.0
+  ANDROID_BUILD_TOOLS: 37.0.0
+
+jobs:
+  apk:
+    # Linux: the NDK has a toolchain for it, and the runners are the cheapest and have the most cores
+    # (the repository variable MART_ANDROID_RUNNER uses another image)
+    runs-on: ${{ vars.MART_ANDROID_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 300
+    env:
+      ART_SRC: ${{ github.workspace }}/ART
+      LIBRAW_SRC: ${{ github.workspace }}/native/src/LibRaw
+      LENSFUNDB: ${{ github.workspace }}/native/src/lensfun-db
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout ART
+        uses: actions/checkout@v4
+        with:
+          repository: artraweditor/ART
+          ref: ${{ inputs.art_ref }}
+          path: ART
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build pkg-config autoconf automake libtool nasm rsync gettext python3-setuptools
+          pipx install meson
+          pipx inject meson setuptools     # glib 2.78's gdbus-codegen imports distutils, which Python 3.12 no longer has
+          # (python3-setuptools above: lensfun runs a setup.py of the system Python)
+
+      - name: Android SDK and NDK
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" "$ANDROID_HOME"    # sdkmanager installs into it
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "ndk;$NDK_VERSION" "platforms;$ANDROID_PLATFORM" "build-tools;$ANDROID_BUILD_TOOLS" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Sources of the dependencies
+        run: native/fetch-sources.sh android
+
+      - name: Cache of the dependencies
+        id: deps
+        uses: actions/cache/restore@v4
+        with:
+          path: android/deps/prefix
+          key: android-deps-${{ runner.os }}-${{ runner.arch }}-${{ env.NDK_VERSION }}-${{ hashFiles('native/versions.sh', 'native/build-deps.sh', 'native/platform/**', 'native/patches/**', 'android/deps/toolchain-android.cmake') }}
+
+      - name: Dependencies of libART (NDK)
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: native/build-deps.sh android arm64
+
+      - name: Save the dependencies
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: android/deps/prefix
+          key: ${{ steps.deps.outputs.cache-primary-key }}
+
+      - name: libART and the data of ART
+        run: INSTALL_DATA=1 native/build-libart.sh android arm64
+
+      - name: Client
+        run: npm ci
+        working-directory: client
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          KS="$RUNNER_TEMP/mart.keystore"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > "$KS"
+            ALIAS=$KEY_ALIAS; STOREPW=$KEYSTORE_PASSWORD; KEYPW=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}
+          else
+            echo "::notice::no signing key in the secrets: the .apk is signed with a throwaway key"
+            ALIAS=mart; STOREPW=$(openssl rand -hex 16); KEYPW=$STOREPW
+            keytool -genkeypair -keystore "$KS" -storepass "$STOREPW" -keypass "$KEYPW" -alias "$ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=MART (CI build)" > /dev/null
+          fi
+          {
+            echo "MART_KEYSTORE=$KS"
+            echo "MART_KEYSTORE_PASSWORD=$STOREPW"
+            echo "MART_KEY_ALIAS=$ALIAS"
+            echo "MART_KEY_PASSWORD=$KEYPW"
+          } >> "$GITHUB_ENV"
+
+      - name: App
+        run: |
+          android/build-native.sh
+          cd android && ./gradlew --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/MART-android-arm64.apk"
+          "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify --print-certs "$GITHUB_WORKSPACE/MART-android-arm64.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MART-android-arm64-apk
+          path: MART-android-arm64.apk
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MART-android-arm64.apk

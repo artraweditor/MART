@@ -1,0 +1,108 @@
+# Build the iOS app (iPhone and iPad) as an UNSIGNED .ipa, for sideloading: whoever installs it signs it with their
+# own Apple ID (AltStore, Sideloadly, ...). Nothing of ours is in it but the code.
+#
+# Run it by hand (Actions > iOS IPA > Run workflow) or by pushing a tag "v*" (then the .ipa is also
+# attached to the release of the tag). The first run builds the dependencies of libART for the device
+# (about an hour or two); the next ones restore them from the cache, unless native/ or the toolchain changed.
+#
+# AltStore (classic): "My Apps" > "+" > choose MART-ios-unsigned.ipa (or open the file with AltStore on
+# the device). AltStore signs it and everything in it with the Apple ID's certificate, and gives it its own
+# bundle id; a free Apple ID keeps an app for 7 days (AltStore refreshes it) and allows 3 apps at a time.
+# The .ipa needs iOS 16 or later; it has no entitlements, no extensions and no signature (ios/build-ipa.sh).
+#
+# libART comes from https://github.com/artraweditor/ART: the ref to build is the input art_ref (default: the
+# default branch of the repository). It needs the `thumbnail` command.
+name: iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      art_ref:
+        description: "ART branch, tag or commit (empty: the default branch)"
+        required: false
+        default: ""
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # to attach the .ipa to the release of a tag
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    # macOS 26 (Xcode 26: what the app was built and tested with); the repository variable MART_IOS_RUNNER
+    # uses another image
+    runs-on: ${{ vars.MART_IOS_RUNNER || 'macos-26' }}
+    timeout-minutes: 360
+    env:
+      ART_SRC: ${{ github.workspace }}/ART
+      LIBRAW_SRC: ${{ github.workspace }}/native/src/LibRaw
+      LENSFUNDB: ${{ github.workspace }}/native/src/lensfun-db
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout ART
+        uses: actions/checkout@v4
+        with:
+          repository: artraweditor/ART
+          ref: ${{ inputs.art_ref }}
+          path: ART
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Tools
+        run: |
+          brew install ninja meson pkg-config autoconf automake libtool nasm xcodegen
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Sources of the dependencies
+        run: native/fetch-sources.sh ios
+
+      - name: Cache of the dependencies
+        id: deps
+        uses: actions/cache/restore@v4
+        with:
+          path: ios/deps/prefix/device
+          key: ios-deps-${{ runner.arch }}-${{ hashFiles('native/versions.sh', 'native/build-deps.sh', 'native/platform/**', 'native/patches/**', 'ios/deps/toolchain-ios.cmake') }}
+
+      - name: Dependencies of libART (device)
+        if: steps.deps.outputs.cache-hit != 'true'
+        run: native/build-deps.sh ios device
+
+      - name: Save the dependencies
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ios/deps/prefix/device
+          key: ${{ steps.deps.outputs.cache-primary-key }}
+
+      - name: libART and the data of ART
+        run: INSTALL_DATA=1 ios/build-libart.sh device
+
+      - name: Client
+        run: npm ci
+        working-directory: client
+
+      - name: Unsigned .ipa
+        run: |
+          ios/build-ipa.sh "$GITHUB_WORKSPACE/MART-ios-unsigned.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MART-ios-unsigned-ipa
+          path: MART-ios-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MART-ios-unsigned.ipa

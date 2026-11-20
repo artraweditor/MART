@@ -7,19 +7,21 @@
 set -euo pipefail; unset LIBRARY_PATH CPATH
 HERE=$(cd "$(dirname "$0")" && pwd); REPO=$(dirname "$HERE")
 export PATH=/opt/homebrew/bin:$PATH ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-/opt/homebrew/share/android-ndk} ANDROID_SLICE=arm64
-NB=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin
+case "$(uname -s)" in Darwin) NDK_HOST=darwin-x86_64 ;; *) NDK_HOST=linux-x86_64 ;; esac
+NB=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$NDK_HOST/bin
 JL=$HERE/app/src/main/jniLibs/arm64-v8a; AS=$HERE/app/src/main/assets
 B=$HERE/build/jni-arm64
 mkdir -p "$JL" "$AS"
-[ -f "$HERE/build/libart-arm64/src/libart/libART.so" ] || "$REPO/native/build-libart.sh" android arm64
+[ -f "$HERE/build/libart-arm64/src/libart/libART.so" ] || INSTALL_DATA=1 "$REPO/native/build-libart.sh" android arm64
 cmake -S "$HERE/jni" -B "$B" -G Ninja -DCMAKE_TOOLCHAIN_FILE=$HERE/deps/toolchain-android.cmake -DCMAKE_BUILD_TYPE=Release
 ninja -C "$B"
 $NB/llvm-strip --strip-unneeded -o "$JL/libmart.so" "$B/libmart.so"
 $NB/llvm-strip --strip-unneeded -o "$JL/libART.so" "$HERE/build/libart-arm64/src/libart/libART.so"
 ( cd "$REPO/client" && npm run build > "$HERE/build/client.log" 2>&1 ) || { tail -20 "$HERE/build/client.log"; exit 1; }
 rsync -a --delete "$REPO/client/dist/" "$AS/www/"
-# libart_data is the same for all platforms: built by the iOS build (cmake --install ... --component libart_data)
-DATA=${ART_DATA:-$REPO/ios/build/art-data}
-[ -d "$DATA" ] || { echo "missing $DATA (cmake --install ios/build/libart-simulator --component libart_data)"; exit 1; }
+# libart_data (INSTALL_DATA=1 native/build-libart.sh ...) is the same for all platforms: ours, or the iOS build's
+DATA=${ART_DATA:-$HERE/build/art-data}
+[ -d "$DATA" ] || DATA=$REPO/ios/build/art-data
+[ -d "$DATA" ] || { echo "missing the data of libART: INSTALL_DATA=1 native/build-libart.sh android arm64"; exit 1; }
 rsync -a --delete "$DATA/" "$AS/art-data/"
 ls -l "$JL"

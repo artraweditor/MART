@@ -5,7 +5,8 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd); REPO=$(dirname "$HERE")
 IMG=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
-NDK=${ANDROID_NDK_HOME:-/opt/homebrew/share/android-ndk}; NB=$NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin
+case "$(uname -s)" in Darwin) NDK_HOST=darwin-x86_64 ;; *) NDK_HOST=linux-x86_64 ;; esac
+NDK=${ANDROID_NDK_HOME:-/opt/homebrew/share/android-ndk}; NB=$NDK/toolchains/llvm/prebuilt/$NDK_HOST/bin
 ADB=${ADB:-adb}; command -v $ADB >/dev/null || ADB=/opt/homebrew/share/android-commandlinetools/platform-tools/adb
 OUT=$HERE/build/smoke; mkdir -p "$OUT"
 LIBDIR=$HERE/build/libart-arm64/src/libart

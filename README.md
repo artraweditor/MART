@@ -135,3 +135,28 @@ A profile that is saved holds a LUT of the folder as ART writes the LUTs of its 
 folder>`, where the host name `R` means relative. So the profile can be applied in ART if the same LUT is installed in its
 LUT folder; and when MART applies a profile, a LUT with an `R` URI (or a relative path) is looked for in MART's folder.
 A LUT elsewhere keeps the path that ART gives it. Renaming or deleting a LUT breaks the profiles and sidecars that name it.
+
+## Apps for Android and iOS
+
+The apps (`android/`, `ios/`) are a web view that shows the client, with the host and libART inside; see
+`android-plan.md` and `ios-plan.md` for how they work and `native/` for the build of the dependencies of libART.
+
+GitHub builds them (`.github/workflows/`), by hand (Actions > Android APK / iOS IPA > Run workflow) or when a
+tag `v*` is pushed (the files are then attached to its release):
+
+- **Android APK** (`android.yml`, `MART-android-arm64.apk`): with the secrets `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (and `ANDROID_KEY_PASSWORD` if the key has its own) it is signed
+  with your key; without them with a throwaway key made for the run (it installs, but cannot update an app installed
+  from another run).
+- **iOS IPA** (`ios.yml`, `MART-ios-unsigned.ipa`): **unsigned**, so that whoever installs it signs it with their
+  own Apple ID: AltStore (classic: "My Apps" > "+", or open the file with AltStore on the device), Sideloadly, or Xcode.
+  It runs on iPhones and iPads (iOS 16 or later) and has no entitlements and no extensions, which is what AltStore wants; a free
+  Apple ID keeps it 7 days (AltStore refreshes it) and allows 3 apps at a time.
+
+Both build libART from [artraweditor/ART](https://github.com/artraweditor/ART) (the input `art_ref` of the
+workflows says which branch, tag or commit; it needs the `thumbnail` command) and its dependencies with
+`native/build-deps.sh`: the first run takes an hour or more, and the dependencies are then cached until `native/`
+or the toolchain changes. The Android build runs on Linux (`ubuntu-24.04`, the repository variable `MART_ANDROID_RUNNER` picks another image),
+the iOS one on `macos-26` (`MART_IOS_RUNNER`). Locally: `native/fetch-sources.sh`, `native/build-deps.sh`,
+`native/build-libart.sh` (`INSTALL_DATA=1` for the data), then `android/build-native.sh` and
+`android/gradlew assembleRelease`, or `ios/build-ipa.sh`.

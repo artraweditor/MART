@@ -39,7 +39,7 @@ meson_cross() {
   { echo "[binaries]"
     echo "c = [$cc]"; echo "cpp = [$cxx]"; [ -n "$objc" ] && echo "$objc"
     echo "ar = '$AR_BIN'"; echo "ranlib = '$RANLIB_BIN'"; echo "strip = '$STRIP_BIN'"
-    echo "pkg-config = '/opt/homebrew/bin/pkg-config'"
+    echo "pkg-config = '$(command -v pkg-config)'"
     echo "[built-in options]"
     echo "c_args = ['-fPIC', '-I$PREFIX/include']"; echo "cpp_args = ['-fPIC', '-I$PREFIX/include']"
     [ -n "$objc_args" ] && echo "$objc_args"

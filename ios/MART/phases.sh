@@ -20,7 +20,10 @@ bundle)
   rsync -a --delete "$IOS/build/art-data/" "$APP/art-data/"
   "$IOS/make-framework.sh" "$SLICE" "$APP/Frameworks" > /dev/null
   # sign the embedded framework with the identity of the app ("-": ad hoc, for the simulator)
-  ID=${EXPANDED_CODE_SIGN_IDENTITY:--}; [ -n "$ID" ] || ID=-
-  codesign --force --sign "$ID" --timestamp=none "$APP/Frameworks/ART.framework"
+  # (an unsigned build, CODE_SIGNING_ALLOWED=NO, leaves it: ios/build-ipa.sh)
+  if [ "${CODE_SIGNING_ALLOWED:-YES}" != NO ]; then
+    ID=${EXPANDED_CODE_SIGN_IDENTITY:--}; [ -n "$ID" ] || ID=-
+    codesign --force --sign "$ID" --timestamp=none "$APP/Frameworks/ART.framework"
+  fi
   ;;
 esac
