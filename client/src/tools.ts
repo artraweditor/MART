@@ -400,17 +400,6 @@ export const TOOLS: Tool[] = [
             ),
             {
                 kind: "slider",
-                label: "Regularization",
-                group: "ToneEqualizer",
-                key: "Regularization",
-                min: 0,
-                max: 4,
-                step: 1,
-                def: 4,
-                digits: 0,
-            },
-            {
-                kind: "slider",
                 label: "Pivot (EV)",
                 group: "ToneEqualizer",
                 key: "Pivot",
