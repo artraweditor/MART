@@ -195,7 +195,7 @@ try {
     );
 
     // ---- the Look sheet -----------------------------------------------------
-    await js(`document.getElementById("look").click()`);
+    await js(`document.getElementById("profiles").click()`);
     await until("profiles listed", () =>
         js(`document.querySelectorAll(".looks .row-btn").length > 1`),
     );
@@ -212,8 +212,7 @@ try {
     );
 
     // ---- the Info sheet -----------------------------------------------------
-    await js(`document.getElementById("more").click()`);
-    await click(".action", "Image information");
+    await js(`document.getElementById("info").click()`);
     await until("summary", () =>
         js(`document.querySelectorAll("#sheet .facts dt").length > 4`),
     );

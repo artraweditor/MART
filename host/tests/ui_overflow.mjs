@@ -66,7 +66,7 @@ try {
                 `${w}px, ${tab}: ${JSON.stringify(r)}`,
             );
         }
-        for (const open of ["look", "more"]) {
+        for (const open of ["profiles", "export", "info", "open"]) {
             await js(
                 `document.getElementById(${JSON.stringify(open)}).click()`,
             );

@@ -71,12 +71,7 @@ try {
         .replace(/ ·.*$/, "");
 
     // ---- the sheet, with the format's own options ---------------------------
-    await js(`document.getElementById("more").click()`);
-    await until("menu", () =>
-        js(`document.querySelectorAll(".sheet-body .action").length === 3`),
-    );
-    await shot("m4-1-menu.png");
-    await click(".action", "Export…");
+    await js(`document.getElementById("export").click()`);
     await until("export sheet", () =>
         js(`document.querySelector(".sheet-title")?.textContent === "Export"`),
     );
@@ -236,8 +231,7 @@ try {
         "back to the form",
     );
     await click(".sheet-close");
-    await js(`document.getElementById("more").click()`);
-    await click(".action", "Export…");
+    await js(`document.getElementById("export").click()`);
     await until("sheet again", () =>
         js(`document.querySelector(".sheet-title")?.textContent === "Export"`),
     );

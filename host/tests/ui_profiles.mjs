@@ -62,7 +62,7 @@ const clickIn = (sel, text) =>
             `${JSON.stringify(text)}); e.click(); return true; })()`,
     );
 const openLook = async () => {
-    await js(`document.getElementById("look").click()`);
+    await js(`document.getElementById("profiles").click()`);
     await until("sheet", () =>
         js(
             `document.querySelector(".sheet-title")?.textContent === ` +

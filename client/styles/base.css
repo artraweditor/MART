@@ -121,9 +121,8 @@ button {
 #bar button.icon {
     font-size: 1.5rem;
 }
-#bar button.text {
+#bar button.accent {
     color: var(--accent);
-    font-weight: 600;
 }
 #bar button:disabled {
     color: var(--muted);
@@ -628,7 +627,7 @@ a.action {
 body.busy #panel,
 body.busy #undo,
 body.busy #redo,
-body.busy #look,
+body.busy #profiles,
 body.busy #save {
     opacity: 0.45;
     pointer-events: none;
@@ -773,8 +772,8 @@ body.busy #sheet {
         padding: 0 8px 0 10px;
     }
     #bar button {
-        min-width: 40px;
-        padding: 0 6px;
+        min-width: 36px;
+        padding: 0 4px;
     }
     .dot {
         margin-left: 2px;
@@ -877,7 +876,8 @@ body.busy #sheet {
     white-space: nowrap;
     border: 0;
 }
-.tab-icon {
+.tab-icon,
+.bar-icon {
     width: 24px;
     height: 24px;
     fill: none;

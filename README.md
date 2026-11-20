@@ -34,15 +34,15 @@ default for a DNG that has no saved choice), capture sharpening by Richardson-Lu
 halation; film simulation with a LUT picked from MART's own (including CTL scripts with their
 parameters); retouching regions with a brush mask (see below); crop with ratios,
 quarter turns, flips and straightening), an Other tab that lists, read-only, the tools of the profile that have no
-controls here (they are kept on Save), undo/redo, Save (the standard `.arp`
-sidecar), **profiles** (the **Look** sheet), and a **⋯** menu
-with **Export** (JPEG, PNG or TIFF at full size or resized to 1920, 2560 or 3840 px, then a download), the image information and metadata, and opening
-another image. Opening another image never drops unsaved edits silently.
+controls here (they are kept on Save profile), undo/redo, and header icons for **Manage profiles**, **Export**
+(JPEG, PNG or TIFF at full size or resized to 1920, 2560 or 3840 px, then a download), **Image information** (and
+metadata), **Open another image** and **Save profile** (the standard `.arp` sidecar). Opening another image never
+drops unsaved edits silently.
 
 ## Profiles
 
 MART has its own profiles (partial `.arp` files), kept in one folder, `~/.config/MART/profiles` (or
-`$XDG_CONFIG_HOME/MART/profiles`; `--profiles DIR` changes it). ART's own profiles are not offered. The **Look** sheet:
+`$XDG_CONFIG_HOME/MART/profiles`; `--profiles DIR` changes it). ART's own profiles are not offered. The **Manage profiles** sheet:
 
 - applies a profile (undo takes all of it away), or the built-in *Neutral* (every tool at its default), or a profile
   "add to my local adjustments" keeps the image's local tools instead of replacing them;
@@ -92,7 +92,7 @@ The PNG icons are made from `client/icons/MART-portrait.svg` by `client/make-ico
     node host/tests/ui_srgb.mjs http://localhost:8080 /tmp            # the preview stays sRGB whatever the profiles say (fresh host)
     node host/tests/srgb_e2e.mjs http://localhost:8080 /path/copy.arw   # exports are sRGB (a COPY: it rewrites its sidecar)
     node host/tests/profiles_e2e.mjs http://localhost:8080 /path/copy.arw DIR   # saving, applying, the default (host with --profiles DIR)
-    node host/tests/ui_profiles.mjs http://localhost:8080 /tmp        # the Look sheet and the Save dialog (fresh host, own --profiles DIR)
+    node host/tests/ui_profiles.mjs http://localhost:8080 /tmp        # the Manage profiles sheet and the Save dialog (fresh host, own --profiles DIR)
     node host/tests/luts_e2e.mjs http://localhost:8080 LUTS_DIR PROFILES_DIR   # the LUT folder, and the R host in profiles (host with --luts and --profiles)
     node host/tests/ui_luts.mjs http://localhost:8080 /tmp            # the LUT drop-down and Manage LUTs (fresh host, own --luts DIR with sigmoid.ctl)
     node host/tests/ui_panel.mjs http://localhost:8080 /tmp           # the floating panel on a phone

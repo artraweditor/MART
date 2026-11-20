@@ -78,8 +78,10 @@ const redoBtn = $<HTMLButtonElement>("redo");
 const saveBtn = $<HTMLButtonElement>("save");
 const toastEl = $("toast");
 
-const lookBtn = $<HTMLButtonElement>("look");
-const moreBtn = $<HTMLButtonElement>("more");
+const profilesBtn = $<HTMLButtonElement>("profiles");
+const exportBtn = $<HTMLButtonElement>("export");
+const infoBtn = $<HTMLButtonElement>("info");
+const openBtn = $<HTMLButtonElement>("open");
 
 let params: Params = {};
 let fileName = "";
@@ -637,7 +639,7 @@ saveBtn.addEventListener(
         ),
 );
 
-lookBtn.addEventListener("click", () => {
+profilesBtn.addEventListener("click", () => {
     void showLooks({
         apply(id, name, append) {
             throttle.flush();
@@ -655,26 +657,17 @@ lookBtn.addEventListener("click", () => {
         },
     });
 });
-moreBtn.addEventListener("click", () => {
-    const sheet = openSheet("Image");
-    const item = (text: string, fn: () => void): void => {
-        const b = el("button", { class: "action", text });
-        b.addEventListener("click", () => {
-            sheet.close();
-            fn();
-        });
-        sheet.body.append(b);
-    };
-    item("Export\u2026", () => showExport(fileName.replace(/\.[^.]*$/, "")));
-    item("Image information", async () => {
-        try {
-            showInfo(await getInfo(), () => showOpen({ save, opened: show }));
-        } catch (e) {
-            onError(e);
-        }
-    });
-    item("Open another image\u2026", () => showOpen({ save, opened: show }));
+exportBtn.addEventListener("click", () =>
+    showExport(fileName.replace(/\.[^.]*$/, "")),
+);
+infoBtn.addEventListener("click", async () => {
+    try {
+        showInfo(await getInfo(), () => showOpen({ save, opened: show }));
+    } catch (e) {
+        onError(e);
+    }
 });
+openBtn.addEventListener("click", () => showOpen({ save, opened: show }));
 document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
