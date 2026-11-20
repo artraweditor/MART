@@ -13,7 +13,7 @@ import java.io.File
  * permission for folders outside the app's own. Each folder is also allowed to the host.
  */
 class FolderStore(private val c: Context) {
-    class Folder(val path: String, val name: String)
+    class Folder(val path: String, val name: String, val needsAccess: Boolean = false)
 
     private val prefs = c.getSharedPreferences("mart", Context.MODE_PRIVATE)
     private val max = 8
@@ -27,14 +27,27 @@ class FolderStore(private val c: Context) {
 
     fun hasAllFilesAccess(): Boolean = Environment.isExternalStorageManager()
 
-    /** the app's own folder, then the chosen ones (most recent first); the host is told about them */
+    /**
+     * The app's own folder, the device's Pictures and Camera (DCIM) folders (they need the all files
+     * access: `needsAccess` says that it is not given yet), then the chosen ones (most recent first);
+     * the host is told about the ones that can be read.
+     */
     fun folders(): List<Folder> {
+        val access = hasAllFilesAccess()
         val own = Host.imagesDir(c)
         val out = mutableListOf(Folder(own.path, "MART (this device)"))
+        // pictures that other apps sent (the copies, see ExternalFile)
+        if (File(own, "Received").isDirectory) out += Folder(File(own, "Received").path, "Received")
+        for ((type, label) in listOf(Environment.DIRECTORY_PICTURES to "Pictures", Environment.DIRECTORY_DCIM to "Camera (DCIM)")) {
+            val d = Environment.getExternalStoragePublicDirectory(type)
+            if (!d.isDirectory) continue
+            if (access) Host.addRoot(d.path)
+            out += Folder(d.path, label, !access)
+        }
         val list = saved()
         val keep = list.filter { File(it).isDirectory }
         if (keep.size != list.size) save(keep)
-        if (hasAllFilesAccess()) for (p in keep) { Host.addRoot(p); out += Folder(p, File(p).name) }
+        if (access) for (p in keep) { Host.addRoot(p); out += Folder(p, File(p).name) }
         return out
     }
 

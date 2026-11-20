@@ -25,7 +25,14 @@
 import { ApiError, listImages, openImage, thumbnailUrl } from "./api.js";
 import type { ImageEntry, ImageInfo } from "./api.js";
 import { formatBytes } from "./exportsheet.js";
-import { isNative, nativeFolders, nativePickFolder } from "./native.js";
+import {
+    isNative,
+    nativeCapabilities,
+    nativeFolders,
+    nativeImportPhotos,
+    nativePickFolder,
+    nativeRequestAccess,
+} from "./native.js";
 import type { NativeFolder } from "./native.js";
 import { el, openSheet } from "./sheet.js";
 
@@ -56,6 +63,30 @@ export function showOpen(host: OpenHost): void {
     const go = el("button", { class: "action", text: "Open" });
     const choice = el("div", { class: "choice" });
 
+    const doOpen = makeDoOpen(host, sheet, text, choice);
+
+    if (native) {
+        void showFolders(sheet.body, text, choice, (p) => doOpen(p, false));
+        return;
+    }
+    sheet.body.append(text, input, go, choice);
+    input.focus();
+    const submit = (): void => {
+        if (input.value.trim()) void doOpen(input.value.trim(), false);
+    };
+    go.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submit();
+    });
+}
+
+/** open an image from the sheet; the choice for unsaved edits is shown in `choice` */
+function makeDoOpen(
+    host: OpenHost,
+    sheet: { close(): void },
+    text: HTMLElement,
+    choice: HTMLElement,
+): (path: string, discard: boolean) => Promise<void> {
     const doOpen = async (path: string, discard: boolean): Promise<void> => {
         choice.replaceChildren();
         try {
@@ -96,20 +127,25 @@ export function showOpen(host: OpenHost): void {
             }
         }
     };
+    return doOpen;
+}
 
-    if (native) {
-        void showFolders(sheet.body, text, choice, (p) => doOpen(p, false));
+/**
+ * An image handed to the app from outside (a file manager's "open with" or "send to"): open it,
+ * asking what to do with unsaved edits if there are any.
+ */
+export async function openExternal(host: OpenHost, path: string): Promise<void> {
+    try {
+        host.opened(await openImage(path, false));
         return;
+    } catch {
+        /* say why, in a sheet (also the choice for unsaved edits) */
     }
-    sheet.body.append(text, input, go, choice);
-    input.focus();
-    const submit = (): void => {
-        if (input.value.trim()) void doOpen(input.value.trim(), false);
-    };
-    go.addEventListener("click", submit);
-    input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") submit();
-    });
+    const sheet = openSheet("Open an image");
+    const text = el("p", { class: "muted", text: path.split("/").pop() ?? path });
+    const choice = el("div", { class: "choice" });
+    sheet.body.append(text, choice);
+    await makeDoOpen(host, sheet, text, choice)(path, false);
 }
 
 function remembered(): string | null {
@@ -141,8 +177,13 @@ async function showFolders(
         class: "action secondary",
         text: "Choose another folder…",
     });
+    const photos = el("button", {
+        class: "action secondary",
+        text: "Import from Photos…",
+    });
+    photos.hidden = true;
     const list = el("div", { class: "thumb-grid" });
-    body.append(text, select, choose, list, choice);
+    body.append(text, select, choose, photos, list, choice);
 
     let folders: NativeFolder[] = [];
     const fillSelect = (current: string): void => {
@@ -156,6 +197,30 @@ async function showFolders(
         );
     };
     const show = async (path: string): Promise<void> => {
+        if (folders.find((f) => f.path === path)?.needsAccess) {
+            // a folder of the device that the app may not read yet
+            const allow = el("button", {
+                class: "action",
+                text: "Allow access…",
+            });
+            allow.addEventListener("click", () => {
+                void nativeRequestAccess().catch(() => undefined);
+            });
+            const box = el("div", {});
+            box.style.gridColumn = "1 / -1"; // the whole width of the grid
+            box.append(
+                el("p", {
+                    class: "muted",
+                    text:
+                        "To open the pictures of this folder in place, next to their " +
+                        "sidecars, MART needs access to all files. Allow it, then " +
+                        "come back and choose the folder again.",
+                }),
+                allow,
+            );
+            list.replaceChildren(box);
+            return;
+        }
         list.replaceChildren(el("p", { class: "muted", text: "Reading…" }));
         let images: ImageEntry[];
         try {
@@ -207,6 +272,20 @@ async function showFolders(
     fillSelect(start);
     if (start) void show(start);
     select.addEventListener("change", () => void show(select.value));
+    void nativeCapabilities().then((c) => {
+        photos.hidden = !c.photos;
+    });
+    photos.addEventListener("click", async () => {
+        try {
+            const f = await nativeImportPhotos();
+            if (!f) return;
+            folders = [f, ...folders.filter((x) => x.path !== f.path)];
+            fillSelect(f.path);
+            await show(f.path);
+        } catch (e) {
+            text.textContent = e instanceof Error ? e.message : String(e);
+        }
+    });
     choose.addEventListener("click", async () => {
         try {
             const f = await nativePickFolder();

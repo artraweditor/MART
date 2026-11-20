@@ -1,8 +1,11 @@
 import UIKit
 import WebKit
+import PhotosUI
+import UniformTypeIdentifiers
 
 final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDelegate, WKUIDelegate,
-                            WKScriptMessageHandlerWithReply, UIDocumentPickerDelegate {
+                            WKScriptMessageHandlerWithReply, UIDocumentPickerDelegate,
+                            PHPickerViewControllerDelegate {
     private var web: WKWebView!
     private let status = UILabel()
     private var downloadURL: URL?
@@ -10,6 +13,10 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
     /// the answer to the file picker that is on screen (the page asks for one at a time)
     private var pickerReply: ((Any?, String?) -> Void)?
     private var pickerKind = ""
+    private var photosReply: ((Any?, String?) -> Void)?
+    /// the page has loaded: a picture that another app handed over can be opened in it
+    private var pageReady = false
+    private var pendingOpen: String?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -48,6 +55,7 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
     override var prefersHomeIndicatorAutoHidden: Bool { true }
 
     private func startHost(restart: Bool = false) {
+        pageReady = false
         status.isHidden = false
         status.text = "Starting MART…"
         let done: (URL?) -> Void = { [weak self] url in
@@ -73,9 +81,27 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
 
     /// MART_EVAL (debugging, through simctl): a script to run when the page has loaded
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pageReady = true
+        flushPendingOpen()
         if let js = ProcessInfo.processInfo.environment["MART_EVAL"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { webView.evaluateJavaScript(js) }
         }
+    }
+
+    // MARK: pictures from other apps ("Open in…", share sheet)
+
+    /// open a picture in the page (window event "mart-open", see client/src/main.ts)
+    func openExternal(_ path: String) {
+        pendingOpen = path
+        flushPendingOpen()
+    }
+
+    private func flushPendingOpen() {
+        guard pageReady, let path = pendingOpen,
+              let data = try? JSONSerialization.data(withJSONObject: [path]),
+              let arr = String(data: data, encoding: .utf8) else { return }
+        pendingOpen = nil
+        web.evaluateJavaScript("window.dispatchEvent(new CustomEvent('mart-open', {detail: {path: \(arr)[0]}}))")
     }
 
     // MARK: downloads (exports): saved in Documents/Exports, then offered to the user
@@ -160,6 +186,21 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
             let list = FolderStore.shared.folders().map { ["path": $0.path, "name": $0.name] }
             return replyHandler(["folders": list], nil)
         }
+        if cmd == "capabilities" { return replyHandler(["photos": true], nil) }
+        if cmd == "requestAccess" { return replyHandler([:], nil) }   // nothing to ask for on iOS
+        if cmd == "importPhotos" {
+            if pickerReply != nil || photosReply != nil { return replyHandler(["error": "a picker is already open"], nil) }
+            // the photo library's own picker: needs no permission; the app gets copies of what is picked
+            var cfg = PHPickerConfiguration()
+            cfg.filter = .images
+            cfg.selectionLimit = 0
+            cfg.preferredAssetRepresentationMode = .current   // the original (a raw stays a raw)
+            let picker = PHPickerViewController(configuration: cfg)
+            picker.delegate = self
+            photosReply = { value, _ in replyHandler(value, nil) }
+            present(picker, animated: true)
+            return
+        }
         if pickerReply != nil { return replyHandler(["error": "a file picker is already open"], nil) }
         let picker: UIDocumentPickerViewController
         switch cmd {
@@ -197,5 +238,31 @@ final class ViewController: UIViewController, WKNavigationDelegate, WKDownloadDe
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
         let reply = pickerReply; pickerReply = nil
         reply?(pickerKind == "saveFile" ? ["saved": false] : ["folder": NSNull()], nil)
+    }
+}
+
+extension ViewController {
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        let reply = photosReply; photosReply = nil
+        if results.isEmpty { reply?(["folder": NSNull()], nil); return }
+        let group = DispatchGroup()
+        for r in results {
+            let p = r.itemProvider
+            guard let type = p.registeredTypeIdentifiers.first(where: { UTType($0)?.conforms(to: .image) == true })
+            else { continue }
+            group.enter()
+            p.loadFileRepresentation(forTypeIdentifier: type) { url, _ in
+                defer { group.leave() }
+                guard let url = url else { return }          // the temporary file is gone after this returns
+                let ext = url.pathExtension.isEmpty ? (UTType(type)?.preferredFilenameExtension ?? "jpg") : url.pathExtension
+                let base = p.suggestedName ?? url.deletingPathExtension().lastPathComponent
+                _ = ExternalFile.importFile(at: url, into: "Photos", name: base + "." + ext)
+            }
+        }
+        group.notify(queue: .main) {
+            let dir = HostController.shared.imagesDir + "/Photos"
+            reply?(["folder": ["path": dir, "name": "Photos (imported)"]], nil)
+        }
     }
 }

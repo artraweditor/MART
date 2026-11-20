@@ -15,6 +15,11 @@ final class FolderStore {
     /// recent first. Their access is started and the host is told.
     func folders() -> [Folder] {
         var out = [Folder(path: HostController.shared.imagesDir, name: "MART (this iPad)")]
+        // pictures that came from other apps and from the photo library (copies, see ExternalFile)
+        for (sub, label) in [("Received", "Received"), ("Photos", "Photos (imported)")] {
+            let path = HostController.shared.imagesDir + "/" + sub
+            if FileManager.default.fileExists(atPath: path) { out.append(Folder(path: path, name: label)) }
+        }
         var bookmarks = UserDefaults.standard.array(forKey: key) as? [Data] ?? []
         var changed = false
         for (i, data) in bookmarks.enumerated().reversed() {

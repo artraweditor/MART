@@ -56,7 +56,7 @@ import type {
 } from "./live.js";
 import { showLooks } from "./looks.js";
 import { isNative } from "./native.js";
-import { showOpen } from "./opener.js";
+import { openExternal, showOpen } from "./opener.js";
 import { el, openSheet } from "./sheet.js";
 import { PreviewView } from "./preview.js";
 import { FrameThrottle, mergePatch } from "./throttle.js";
@@ -569,6 +569,13 @@ function onError(e: unknown): void {
 }
 
 /** (Re)connected: find out what the server has open. */
+// resolved when the page knows what is open (the first start() is done): an image that the app
+// hands over (a file manager's "open with" / "send to") waits for it
+let pageReady: () => void = () => undefined;
+const whenReady = new Promise<void>((resolve) => {
+    pageReady = resolve;
+});
+
 async function start(): Promise<void> {
     try {
         const st = await getStatus();
@@ -586,6 +593,8 @@ async function start(): Promise<void> {
         }
     } catch (e) {
         onError(e);
+    } finally {
+        pageReady();
     }
 }
 
@@ -668,6 +677,14 @@ infoBtn.addEventListener("click", async () => {
     }
 });
 openBtn.addEventListener("click", () => showOpen({ save, opened: show }));
+// the app hands over an image (window event "mart-open", detail: {path})
+window.addEventListener("mart-open", (ev) => {
+    const path = (ev as CustomEvent<{ path?: string }>).detail?.path;
+    if (!path) return;
+    void whenReady.then(() =>
+        openExternal({ save, opened: show }, path),
+    );
+});
 document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();

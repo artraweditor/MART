@@ -40,6 +40,9 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var folders: FolderStore
     private var loaded = false
+    private var pageLoaded = false
+    /** a picture handed over by another app, to open when the page is ready */
+    private var pendingOpen: String? = null
     private val debuggable get() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     /** the answer to the picker that is on screen (the page asks for one at a time) */
@@ -72,6 +75,8 @@ class MainActivity : Activity() {
                 !(r.url.host == "127.0.0.1" && r.url.port == Host.port)   // the page never leaves the host
 
             override fun onPageFinished(v: WebView, url: String) {
+                pageLoaded = true
+                pendingOpen?.let { pendingOpen = null; deliver(it) }
                 // MART_EVAL (debugging, intent extra): a script to run when the page has loaded
                 val js = if (debuggable) intent.getStringExtra("MART_EVAL") else null
                 if (js != null) v.postDelayed({ v.evaluateJavascript(js, null) }, 2000)
@@ -103,9 +108,48 @@ class MainActivity : Activity() {
         root.addView(status, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(root)
         startHost()
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    // ---- pictures handed over by other apps ("open with", "send to") ----
+
+    /** the pictures of a VIEW or SEND intent: copied to the app's folder or found in place, then the first is opened */
+    @Suppress("DEPRECATION")
+    private fun handleIntent(intent: Intent?) {
+        val uris = when (intent?.action) {
+            Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+            Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList<Uri>()
+            else -> emptyList()
+        }
+        if (uris.isEmpty()) return
+        intent?.action = null            // handled: a rotation or a restart must not open it again
+        val access = folders.hasAllFilesAccess()
+        Thread {
+            val paths = uris.mapNotNull { ExternalFile.resolve(this, it, access) }
+            runOnUiThread {
+                if (paths.isEmpty()) Toast.makeText(this, "Cannot read that file", Toast.LENGTH_LONG).show()
+                else if (pageLoaded) deliver(paths[0]) else pendingOpen = paths[0]
+            }
+        }.start()
+    }
+
+    /** tell the page to open a picture (window event "mart-open", see client/src/main.ts) */
+    private fun deliver(path: String) {
+        // a picture found in place is in a folder that the host may not know yet
+        if (!ExternalFile.inOwnFolder(this, path)) File(path).parent?.let { Host.addRoot(it) }
+        web.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('mart-open', {detail: {path: ${JSONObject.quote(path)}}}))", null)
     }
 
     private fun startHost(restart: Boolean = false) {
+        pageLoaded = false
         status.visibility = View.VISIBLE
         status.text = "Starting MART…"
         // MART_E2E_PORT / MART_OPEN (debugging, intent extras): fixed port and no token; open an image
@@ -162,14 +206,20 @@ class MainActivity : Activity() {
         when (m.optString("cmd")) {
             "folders" -> {
                 val a = JSONArray()
-                for (f in folders.folders()) a.put(JSONObject().put("path", f.path).put("name", f.name))
+                for (f in folders.folders())
+                    a.put(JSONObject().put("path", f.path).put("name", f.name).apply { if (f.needsAccess) put("needsAccess", true) })
                 reply(JSONObject().put("folders", a))
+            }
+            "capabilities" -> reply(JSONObject().put("photos", false))
+            "requestAccess" -> {
+                requestAllFilesAccess()
+                reply(JSONObject())
             }
             "pickFolder" -> {
                 if (pickerReply != null) return reply(JSONObject().put("error", "a file picker is already open"))
                 if (!folders.hasAllFilesAccess()) {
                     // images are opened in place: that needs access to all files, granted in the settings
-                    startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+                    requestAllFilesAccess()
                     return reply(JSONObject().put("error", "Allow access to all files for MART in the settings that opened, then choose the folder again."))
                 }
                 pickerReply = reply
@@ -189,6 +239,9 @@ class MainActivity : Activity() {
             else -> reply(JSONObject().put("error", "unknown command"))
         }
     }
+
+    private fun requestAllFilesAccess() =
+        startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
 
     @Deprecated("plain Activity API, no AndroidX")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
