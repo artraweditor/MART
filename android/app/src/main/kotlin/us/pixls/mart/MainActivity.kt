@@ -179,9 +179,14 @@ class MainActivity : Activity() {
         Thread { if (!Host.isAlive()) runOnUiThread { startHost(restart = true) } }.start()
     }
 
+    /** Back closes the sheet that is open (the page's own close button), else leaves the app */
     @Deprecated("predictive back is turned off in the manifest")
     override fun onBackPressed() {
-        if (web.canGoBack()) web.goBack() else moveTaskToBack(true)
+        val closeSheet = "(() => { const b = document.querySelector('#sheet:not([hidden]) .sheet-close'); " +
+            "if (b) { b.click(); return true; } return false; })()"
+        web.evaluateJavascript(closeSheet) { closed ->
+            if (closed != "true") { if (web.canGoBack()) web.goBack() else moveTaskToBack(true) }
+        }
     }
 
     // ---- the bridge to the page (client/src/native.ts) ----
