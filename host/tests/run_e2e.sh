@@ -50,6 +50,7 @@ node "$HERE/tests/ws_e2e.mjs"
 node "$HERE/tests/export_e2e.mjs" http://localhost:8080
 node "$HERE/tests/tools_e2e.mjs" http://localhost:8080
 node "$HERE/tests/thumbnail_e2e.mjs" http://localhost:8080
+node "$HERE/tests/images_e2e.mjs" http://localhost:8080
 node "$HERE/tests/profiles_e2e.mjs" http://localhost:8080 "$COPY" \
     "$WORK/profiles"
 node "$HERE/tests/luts_e2e.mjs" http://localhost:8080 "$WORK/luts" \

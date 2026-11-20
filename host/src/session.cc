@@ -90,12 +90,8 @@ json Session::command(const std::vector<std::string> &argv)
     return doc.contains("result") ? doc["result"] : json::object();
 }
 
-std::string Session::confine(const std::string &path) const
+bool Session::underRoot(const std::string &p) const
 {
-    char *rp = realpath(path.c_str(), nullptr);
-    if (!rp) throw ApiError(404, "no such file: " + path);
-    std::string p = rp;
-    free(rp);
     std::vector<std::string> roots;
     {
         std::lock_guard<std::mutex> g(rootsMutex_);
@@ -106,8 +102,18 @@ std::string Session::confine(const std::string &path) const
         if (!rr) continue;
         std::string r = rr;
         free(rr);
-        if (p == r || p.compare(0, r.size() + 1, r + "/") == 0) return p;
+        if (p == r || p.compare(0, r.size() + 1, r + "/") == 0) return true;
     }
+    return false;
+}
+
+std::string Session::confine(const std::string &path) const
+{
+    char *rp = realpath(path.c_str(), nullptr);
+    if (!rp) throw ApiError(404, "no such file: " + path);
+    std::string p = rp;
+    free(rp);
+    if (underRoot(p)) return p;
     throw ApiError(403, "the file is not under an allowed root");
 }
 
@@ -140,15 +146,39 @@ bool isImageName(const std::string &name)
 
 json Session::listImages(const std::string &dir) const
 {
+    json dirs = json::array();
+    if (dir.empty()) {  // the roots
+        std::vector<std::string> roots;
+        {
+            std::lock_guard<std::mutex> g(rootsMutex_);
+            roots = roots_;
+        }
+        for (auto &root : roots) {
+            char *rr = realpath(root.c_str(), nullptr);
+            if (!rr) continue;
+            const std::string r = rr;
+            free(rr);
+            struct stat st;
+            if (stat(r.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) continue;
+            bool seen = false;
+            for (auto &x : dirs) seen = seen || x["path"] == r;
+            if (!seen) dirs.push_back({{"name", r}, {"path", r}});
+        }
+        return {{"dir", ""}, {"parent", ""}, {"dirs", dirs}, {"images", json::array()}};
+    }
     const std::string d = confine(dir);
     DIR *dp = opendir(d.c_str());
     if (!dp) throw ApiError(404, "cannot read the folder: " + dir);
     json images = json::array();
     while (dirent *e = readdir(dp)) {
         const std::string name = e->d_name;
-        if (!isImageName(name)) continue;
         const std::string path = d + "/" + name;
         struct stat st;
+        if (name[0] != '.' && stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+            dirs.push_back({{"name", name}, {"path", path}});
+            continue;
+        }
+        if (!isImageName(name)) continue;
         if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) continue;
         struct stat sc;
         images.push_back({{"name", name},
@@ -158,10 +188,16 @@ json Session::listImages(const std::string &dir) const
                           {"edited", stat((path + ".arp").c_str(), &sc) == 0}});
     }
     closedir(dp);
-    std::sort(images.begin(), images.end(), [](const json &a, const json &b) {
+    auto byName = [](const json &a, const json &b) {
         return a["name"].get<std::string>() < b["name"].get<std::string>();
-    });
-    return {{"dir", d}, {"images", images}};
+    };
+    std::sort(images.begin(), images.end(), byName);
+    std::sort(dirs.begin(), dirs.end(), byName);
+    // the folder above, if it may be browsed too
+    std::string parent;
+    const auto slash = d.rfind('/');
+    if (slash != std::string::npos && slash > 0 && underRoot(d.substr(0, slash))) parent = d.substr(0, slash);
+    return {{"dir", d}, {"parent", parent}, {"dirs", dirs}, {"images", images}};
 }
 
 json Session::status() const

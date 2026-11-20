@@ -125,7 +125,6 @@ export interface ImageEntry {
     edited: boolean;
 }
 
-/** The images in a folder that the host may read. */
 /**
  * The address of the thumbnail of an image of a folder (a JPEG whose longest edge is at most `size`
  * pixels; made by the host with libART, from the embedded preview of a raw). The file's mtime is
@@ -135,9 +134,25 @@ export function thumbnailUrl(im: ImageEntry, size: number): string {
     return `/api/thumbnail?path=${encodeURIComponent(im.path)}&size=${size}&v=${im.mtime}`;
 }
 
-export async function listImages(dir: string): Promise<ImageEntry[]> {
+/** A folder that the host may read: its subfolders and its images. */
+export interface FolderListing {
+    /** the folder ("" is the list of the folders that the host allows) */
+    dir: string;
+    /** the folder above, if it may be browsed too ("": the list of the allowed folders) */
+    parent: string;
+    dirs: { name: string; path: string }[];
+    images: ImageEntry[];
+}
+
+/** The subfolders and the images of a folder that the host may read ("" lists the allowed folders). */
+export async function browseFolder(dir: string): Promise<FolderListing> {
     const res = await request("/api/images?dir=" + encodeURIComponent(dir));
-    return (await res.json()).images;
+    return (await res.json()) as FolderListing;
+}
+
+/** The images in a folder that the host may read. */
+export async function listImages(dir: string): Promise<ImageEntry[]> {
+    return (await browseFolder(dir)).images;
 }
 
 export type Metadata = Record<

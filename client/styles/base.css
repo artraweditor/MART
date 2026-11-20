@@ -110,6 +110,24 @@ button {
 .dot.bad {
     background: var(--bad);
 }
+/* an hourglass instead of the green dot while a preview is rendering */
+.dot.ok.wait {
+    border-radius: 0;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%, 50% 50%);
+    animation: dot-turn 1.2s ease-in-out infinite;
+}
+@keyframes dot-turn {
+    50%,
+    100% {
+        transform: rotate(180deg);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dot.ok.wait {
+        animation: none;
+    }
+}
 #bar button {
     min-width: var(--tap);
     min-height: var(--tap);
@@ -520,6 +538,24 @@ form button {
 .choice {
     margin-top: 8px;
 }
+.folder-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+.folder-where {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl; /* a long path is cut at its start: the end matters */
+    text-align: left;
+}
+.folder-browser .chips {
+    margin: 6px 0;
+}
 .thumb-grid {
     margin: 8px 0;
     max-height: 55vh;
@@ -554,8 +590,10 @@ form button {
     height: 100%;
     object-fit: contain;
 }
-.thumb-tile:active .thumb-pic {
+.thumb-tile:active .thumb-pic,
+.thumb-tile.selected .thumb-pic {
     border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
 }
 .image-name {
     overflow: hidden;

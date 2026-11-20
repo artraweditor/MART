@@ -37,7 +37,9 @@ quarter turns, flips and straightening), an Other tab that lists, read-only, the
 controls here (they are kept on Save profile), undo/redo, and header icons for **Manage profiles**, **Export**
 (JPEG, PNG or TIFF at full size or resized to 1920, 2560 or 3840 px, then a download), **Image information** (and
 metadata), **Open another image** and **Save profile** (the standard `.arp` sidecar). Opening another image never
-drops unsaved edits silently.
+drops unsaved edits silently. In a browser the Open sheet browses the folders that the host allows (`--root`, by
+default the folder of the image it was started with) with their subfolders and the thumbnails of the images, or opens a
+file or a folder whose path is typed; the apps list the folders of the device.
 
 ## Profiles
 

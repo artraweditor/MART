@@ -22,8 +22,15 @@
 // list of the images of a folder chosen on the device (they are opened in place). Unsaved edits
 // are never dropped silently.
 
-import { ApiError, listImages, openImage, thumbnailUrl } from "./api.js";
-import type { ImageEntry, ImageInfo } from "./api.js";
+import {
+    ApiError,
+    browseFolder,
+    getStatus,
+    listImages,
+    openImage,
+    thumbnailUrl,
+} from "./api.js";
+import type { FolderListing, ImageEntry, ImageInfo } from "./api.js";
 import { formatBytes } from "./exportsheet.js";
 import {
     isNative,
@@ -51,7 +58,7 @@ export function showOpen(host: OpenHost): void {
         class: "muted",
         text: native
             ? "Choose an image from a folder on this device."
-            : "Type the path of a raw file on the machine running MART.",
+            : "Choose an image from the folders of the machine running MART, or type the path of a file or of a folder.",
     });
     const input = el("input", {
         type: "text",
@@ -69,15 +76,25 @@ export function showOpen(host: OpenHost): void {
         void showFolders(sheet.body, text, choice, (p) => doOpen(p, false));
         return;
     }
-    sheet.body.append(text, input, go, choice);
+    const browser = serverBrowser(text, input, (p) => doOpen(p, false));
+    sheet.body.append(text, input, go, browser.el, choice);
     input.focus();
-    const submit = (): void => {
-        if (input.value.trim()) void doOpen(input.value.trim(), false);
+    // a folder is browsed, anything else is a file to open
+    const submit = async (): Promise<void> => {
+        const v = input.value.trim();
+        if (!v) return;
+        try {
+            browser.show(await browseFolder(v));
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 404) void doOpen(v, false);
+            else text.textContent = e instanceof Error ? e.message : String(e);
+        }
     };
-    go.addEventListener("click", submit);
+    go.addEventListener("click", () => void submit());
     input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") submit();
+        if (e.key === "Enter") void submit();
     });
+    void browser.start();
 }
 
 /** open an image from the sheet; the choice for unsaved edits is shown in `choice` */
@@ -122,6 +139,7 @@ function makeDoOpen(
                     saveOpen,
                     discardOpen,
                 );
+                choice.scrollIntoView({ block: "nearest" });
             } else {
                 text.textContent = e instanceof Error ? e.message : String(e);
             }
@@ -241,23 +259,7 @@ async function showFolders(
             );
             return;
         }
-        list.replaceChildren(
-            ...images.map((im) => {
-                const b = el("button", { class: "thumb-tile" });
-                const pic = el("span", { class: "thumb-pic" });
-                b.append(
-                    pic,
-                    el("span", {
-                        class: "image-name",
-                        text: im.name + (im.edited ? " \u25CF" : ""),
-                    }),
-                    el("span", { class: "muted", text: formatBytes(im.size) }),
-                );
-                b.addEventListener("click", () => void open(im.path));
-                lazyThumbnail(pic, im);
-                return b;
-            }),
-        );
+        fillImages(list, images, open);
     };
 
     try {
@@ -297,6 +299,120 @@ async function showFolders(
             text.textContent = e instanceof Error ? e.message : String(e);
         }
     });
+}
+
+/** the tiles of the images of a folder, with their thumbnails */
+function fillImages(
+    list: HTMLElement,
+    images: ImageEntry[],
+    open: (path: string) => Promise<void>,
+): void {
+    list.replaceChildren(
+        ...images.map((im) => {
+            const b = el("button", { class: "thumb-tile" });
+            const pic = el("span", { class: "thumb-pic" });
+            b.append(
+                pic,
+                el("span", {
+                    class: "image-name",
+                    text: im.name + (im.edited ? " \u25CF" : ""),
+                }),
+                el("span", { class: "muted", text: formatBytes(im.size) }),
+            );
+            b.addEventListener("click", () => {
+                // stays marked while the sheet asks what to do with the
+                // unsaved edits of the current image
+                for (const t of list.querySelectorAll(".thumb-tile.selected")) {
+                    t.classList.remove("selected");
+                }
+                b.classList.add("selected");
+                void open(im.path);
+            });
+            lazyThumbnail(pic, im);
+            return b;
+        }),
+    );
+}
+
+/**
+ * The folders of the machine that runs the host, in a browser: the folder that is shown with its
+ * subfolders (and "Up"), and the thumbnails of its images. The folders are the ones that the host
+ * allows (the roots), so the first screen is their list, unless there is only one.
+ */
+function serverBrowser(
+    text: HTMLElement,
+    input: HTMLInputElement,
+    open: (path: string) => Promise<void>,
+): { el: HTMLElement; show(l: FolderListing): void; start(): Promise<void> } {
+    const root = el("div", { class: "folder-browser" });
+    const up = el("button", { class: "chip", text: "\u2191 Up" });
+    const where = el("span", { class: "muted folder-where" });
+    const bar = el("div", { class: "folder-bar" }, up, where);
+    const subs = el("div", { class: "chips" });
+    const grid = el("div", { class: "thumb-grid" });
+    root.append(bar, subs, grid);
+    let parent = "";
+    const intro = text.textContent ?? "";
+
+    const show = (l: FolderListing): void => {
+        parent = l.parent;
+        up.disabled = l.dir === "";
+        where.textContent = l.dir === "" ? "Folders" : l.dir;
+        if (l.dir !== "") input.value = l.dir;
+        text.textContent = intro; // (an error of the last try is gone)
+        subs.replaceChildren(
+            ...l.dirs.map((d) => {
+                const b = el("button", { class: "chip", text: d.name + (l.dir ? "/" : "") });
+                b.addEventListener("click", () => void go(d.path));
+                return b;
+            }),
+        );
+        if (l.dir !== "") remember(l.dir);
+        if (l.images.length > 0) fillImages(grid, l.images, open);
+        else
+            grid.replaceChildren(
+                el("p", {
+                    class: "muted",
+                    text:
+                        l.dir === ""
+                            ? l.dirs.length === 0
+                                ? "The host allows no folder: start it with --root DIR."
+                                : ""
+                            : "No images in this folder.",
+                }),
+            );
+    };
+    const go = async (dir: string, auto = false): Promise<boolean> => {
+        try {
+            const l = await browseFolder(dir);
+            // one allowed folder only: start in it
+            if (auto && l.dir === "" && l.dirs.length === 1) return go(l.dirs[0]!.path);
+            show(l);
+            return true;
+        } catch (e) {
+            text.textContent = e instanceof Error ? e.message : String(e);
+            return false;
+        }
+    };
+    up.addEventListener("click", () => void go(parent));
+    return {
+        el: root,
+        show,
+        async start() {
+            // the folder of last time, the folder of the image that is open, the allowed folders
+            const tries: string[] = [];
+            const last = remembered();
+            if (last) tries.push(last);
+            try {
+                const st = await getStatus();
+                if (st.open) tries.push(st.open.file.slice(0, st.open.file.lastIndexOf("/")) || "/");
+            } catch {
+                /* the page says so elsewhere */
+            }
+            for (const t of tries) if (await go(t)) return;
+            await go("", true);
+        },
+    };
 }
 
 // Thumbnails come from the host (libART's `thumbnail`), a few at a time as the tiles scroll

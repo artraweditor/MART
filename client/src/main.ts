@@ -206,6 +206,7 @@ const live = new Live({
     },
     error: (message) => toast(message),
     busy: (what) => setBusy(what),
+    rendering: (on) => conn.classList.toggle("wait", on),
 });
 
 const preview = new PreviewView($("view") as HTMLCanvasElement, () => {

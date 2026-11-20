@@ -59,7 +59,9 @@ public:
     json status() const;
     /// allow opening images under `dir` (any thread)
     void addRoot(const std::string &dir);
-    /// the images in a folder under a root: {dir, images: [{name, path, size, mtime, edited}]}
+    /// the images in a folder under a root: {dir, parent, dirs: [{name, path}], images: [{name, path, size,
+    /// mtime, edited}]}. `parent` is the folder above if it is under a root too, else "" (the list of the roots);
+    /// an empty `dir` is that list itself: `dirs` are the roots, with no images.
     json listImages(const std::string &dir) const;
     json open(
         const std::string &path,
@@ -105,6 +107,7 @@ private:
         const std::vector<std::string> &argv);  // "result" of a JSON reply
     std::string confine(
         const std::string &path) const;  // realpath under a root
+    bool underRoot(const std::string &realPath) const;  // a realpath that is a root or in one
     void refreshInfo();
     void applyOpeningDefaults();
     // apply the profile file (a MART profile can hold the halation, which is

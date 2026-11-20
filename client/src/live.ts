@@ -70,6 +70,8 @@ export interface LiveEvents {
     error(message: string, seq: number): void;
     /** the engine is busy (an export) or free again */
     busy(what: string | null): void;
+    /** a preview is being rendered (a request is waiting for its frame) or not */
+    rendering(on: boolean): void;
 }
 
 const HEARTBEAT_MS = 5000;
@@ -77,6 +79,8 @@ const HEARTBEAT_MS = 5000;
 export class Live {
     private ws: WebSocket | null = null;
     private seq = 0;
+    /** the last request that asks for a frame, until a frame or an error answers it */
+    private awaiting = 0;
     private retry = 0;
     private timer = 0;
     private beat = 0;
@@ -114,6 +118,7 @@ export class Live {
         ws.onclose = (e) => {
             if (this.ws !== ws) return;
             this.ws = null;
+            this.answered(Infinity);
             window.clearInterval(this.beat);
             this.ev.close(e.reason || "connection closed");
             if (!this.stopped && e.reason !== "replaced by a newer connection")
@@ -151,6 +156,7 @@ export class Live {
                     this.ev.busy(typeof m.what === "string" ? m.what : null);
                     break;
                 case "error":
+                    this.answered(Number(m.seq));
                     this.ev.error(String(m.message), Number(m.seq));
                     break;
                 case "replaced":
@@ -165,15 +171,29 @@ export class Live {
             new TextDecoder().decode(new Uint8Array(buf, 4, n)),
         ) as FrameHeader;
         this.lastPong = performance.now();
+        this.answered(header.seq);
         this.ev.frame(
             header,
             new Blob([new Uint8Array(buf, 4 + n)], { type: "image/jpeg" }),
         );
     }
 
+    /** the host answers the newest request only: a frame with that seq (or a later one) ends the wait */
+    private answered(seq: number): void {
+        if (this.awaiting === 0 || seq < this.awaiting) return;
+        this.awaiting = 0;
+        this.ev.rendering(false);
+    }
+
     private send(m: Record<string, unknown>): number {
         const seq = ++this.seq;
-        if (this.connected) this.ws!.send(JSON.stringify({ ...m, seq }));
+        if (this.connected) {
+            this.ws!.send(JSON.stringify({ ...m, seq }));
+            if (m.type !== "ping") {
+                if (this.awaiting === 0) this.ev.rendering(true);
+                this.awaiting = seq;
+            }
+        }
         return seq;
     }
 
