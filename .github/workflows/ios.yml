@@ -22,7 +22,9 @@ on:
         required: false
         default: ""
   push:
-    tags: ["v*"]
+    tags:
+      - '[1-9].[0-9]+'
+      - '[1-9].[0-9]+.[0-9]+'
 
 permissions:
   contents: write   # to attach the .ipa to the release of a tag
@@ -108,8 +110,19 @@ jobs:
           path: MART-ios-unsigned.ipa
           if-no-files-found: error
 
+      - name: Prepare release name
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+              echo "RELEASE_TAG=$GITHUB_REF_NAME" >> $GITHUB_ENV
+              echo "RELEASE_MAKE_LATEST=true" >> $GITHUB_ENV
+          else
+              echo "RELEASE_TAG=nightly" >> $GITHUB_ENV
+              echo "RELEASE_MAKE_LATEST=false" >> $GITHUB_ENV
+          fi
+          
       - name: Attach to the release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          make_latest: ${{ env.RELEASE_MAKE_LATEST }}
           files: MART-ios-unsigned.ipa
