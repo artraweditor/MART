@@ -671,7 +671,7 @@ exportBtn.addEventListener("click", () =>
 );
 infoBtn.addEventListener("click", async () => {
     try {
-        showInfo(await getInfo(), () => showOpen({ save, opened: show }));
+        showInfo(await getInfo());
     } catch (e) {
         onError(e);
     }

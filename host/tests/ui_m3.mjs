@@ -246,8 +246,8 @@ try {
     await shot("m3-6-metadata.png");
 
     // ---- open another image: refused while there are unsaved edits ----------
-    await click(".subtabs .chip", "Summary");
-    await click(".action", "Open another image…");
+    await click(".sheet-close");
+    await js(`document.getElementById("open").click()`);
     const file = await js(
         `window.__mart && document.getElementById("title").textContent`,
     );

@@ -88,7 +88,7 @@ export function filterTags(md: Metadata, filter: string): [string, string][] {
     return out;
 }
 
-export function showInfo(info: ImageInfo, openOther: () => void): void {
+export function showInfo(info: ImageInfo): void {
     const sheet = openSheet("Image information");
     const tabs = el("div", { class: "subtabs", type: "" });
     const summaryTab = el("button", { class: "chip", text: "Summary" });
@@ -109,15 +109,7 @@ export function showInfo(info: ImageInfo, openOther: () => void): void {
         const dl = el("dl", { class: "facts" });
         for (const [k, v] of summaryRows(info))
             dl.append(el("dt", { text: k }), el("dd", { text: v }));
-        const open = el("button", {
-            class: "action",
-            text: "Open another image…",
-        });
-        open.addEventListener("click", () => {
-            sheet.close();
-            openOther();
-        });
-        content.append(dl, open);
+        content.append(dl);
     };
 
     const renderMetadata = async (): Promise<void> => {
