@@ -13,7 +13,7 @@ settings:
     ENABLE_BITCODE: NO
     ARCHS: arm64
     EXCLUDED_ARCHS: x86_64
-    DEVELOPMENT_TEAM: 62R8R9TQ9F       # personal team of alberto.griggio@gmail.com
+    DEVELOPMENT_TEAM: ${MART_TEAM}     # your Apple team: see native/env.sh
 targets:
   MART:
     type: application

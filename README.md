@@ -116,6 +116,9 @@ and Node.js (all but Xcode are in Homebrew), and a checkout of ART as above.
 This makes the same unsigned `.ipa` as the workflow. For the Simulator use the `simulator` slice instead of `device`
 (`native/build-deps.sh ios simulator`, `ios/build-libart.sh simulator`) and then `ios/build-app.sh simulator`.
 
+To build an app signed with your own Apple developer team and put it on a device, set `MART_TEAM` to the team id
+and run `ios/build-app.sh device -configuration Release -allowProvisioningUpdates`.
+
 ## Running in a browser
 
 You need a build of ART that has libART (the shared library), `cmake`, `ninja`, a C++17 compiler and Node.js.
