@@ -57,9 +57,16 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
 
+      # Python 3.11, not the Homebrew one (3.15 on the image): glib 2.78 needs distutils (removed in 3.12) in
+      # gdbus-codegen, and meson runs it with its own interpreter.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Tools
         run: |
-          brew install ninja meson pkg-config autoconf automake libtool nasm xcodegen
+          python -m pip install meson
+          brew install ninja pkg-config autoconf automake libtool nasm xcodegen
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
