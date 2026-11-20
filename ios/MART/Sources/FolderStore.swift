@@ -14,7 +14,7 @@ final class FolderStore {
     /// The app's own Documents/Images (also in the Files app), then the chosen folders, most
     /// recent first. Their access is started and the host is told.
     func folders() -> [Folder] {
-        var out = [Folder(path: HostController.shared.imagesDir, name: "MART (this iPad)")]
+        var out = [Folder(path: HostController.shared.imagesDir, name: "MART (this device)")]
         // pictures that came from other apps and from the photo library (copies, see ExternalFile)
         for (sub, label) in [("Received", "Received"), ("Photos", "Photos (imported)")] {
             let path = HostController.shared.imagesDir + "/" + sub
