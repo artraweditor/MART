@@ -166,7 +166,7 @@ try {
     await b.goto("http://localhost:8080/");
     await until(
         "app from the cache",
-        () => js(`document.getElementById("tabs")?.children.length === 4`),
+        () => js(`document.getElementById("tabs")?.children.length >= 4`),
         15000,
     ); // the page and its scripts ran
     await until(

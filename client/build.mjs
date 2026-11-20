@@ -31,6 +31,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { Script } from "node:vm";
 
 rmSync("dist", { recursive: true, force: true });
 execFileSync("node_modules/.bin/tsc", ["-p", "tsconfig.json"], {
@@ -64,9 +65,13 @@ const hash = createHash("sha256");
 for (const f of files) hash.update(f).update(readFileSync(f));
 const shell = ["/", ...files.map((f) => "/" + f.slice("dist/".length))];
 let sw = readFileSync("dist/sw.js", "utf8");
+// the list goes inside the string of `JSON.parse("__SHELL__")`: its quotes and backslashes are escaped
+const escaped = JSON.stringify(shell).replace(/[\\"]/g, "\\$&");
 sw = sw
     .replace("__VERSION__", hash.digest("hex").slice(0, 12))
-    .replace("__SHELL__", JSON.stringify(shell));
+    .replace("__SHELL__", () => escaped);
+// a service worker with a syntax error is never installed, and nothing says so: fail the build
+new Script(sw, { filename: "dist/sw.js" });
 writeFileSync("dist/sw.js", sw);
 console.log(
     `client built in dist/ (${files.length} files kept for offline start-up)`,

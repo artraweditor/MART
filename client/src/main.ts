@@ -711,8 +711,9 @@ live.connect();
 };
 
 // Keep the application for offline start-up. Only where the browser allows it:
-// a secure context (https, or localhost).
-if ("serviceWorker" in navigator) {
+// a secure context (https, or localhost). Not in the apps: the host is in the app, and its port
+// changes at each start (each one would get its own copy of the files).
+if ("serviceWorker" in navigator && !isNative()) {
     navigator.serviceWorker.register("/sw.js").catch(() => {
         /*
          * not allowed here (plain http on a network): the app just works
