@@ -67,6 +67,7 @@ public:
         const std::string &path,
         bool discard = false);  // returns get-info; 409 if dirty and !discard
     json info();
+    json version();
     PreviewFrame preview(const PreviewRequest &r);
     /// a JPEG (sRGB) thumbnail of an image file under a root, whose longest edge is at most
     /// `size` (libART's `thumbnail --no-profile`: the embedded preview of a raw, ignoring
@@ -127,6 +128,7 @@ private:
     std::string tmpdir_;
     std::string file_;
     json info_;
+    json version_;
     bool dirty_ = false;
     int lookSeq_ =
         0;  // keys that merge the history entries of one applied profile

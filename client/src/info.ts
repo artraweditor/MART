@@ -20,8 +20,8 @@
 
 // The Info sheet: a summary of the image, and all its metadata (read-only).
 
-import { getMetadata } from "./api.js";
-import type { ImageInfo, Metadata } from "./api.js";
+import { getMetadata, getStatus, getVersion } from "./api.js";
+import type { ImageInfo, Metadata, EngineInfo, Status } from "./api.js";
 import { el, openSheet } from "./sheet.js";
 
 const MAX_ROWS = 300;
@@ -93,15 +93,18 @@ export function showInfo(info: ImageInfo): void {
     const tabs = el("div", { class: "subtabs", type: "" });
     const summaryTab = el("button", { class: "chip", text: "Summary" });
     const metaTab = el("button", { class: "chip", text: "All metadata" });
-    tabs.append(summaryTab, metaTab);
+    const aboutTab = el("button", { class: "chip", text: "About MART" });
+    tabs.append(summaryTab, metaTab, aboutTab);
     const content = el("div", { class: "sheet-content" });
     sheet.body.append(tabs, content);
 
-    const select = (which: "summary" | "meta"): void => {
+    const select = (which: "summary" | "meta" | "about"): void => {
         summaryTab.setAttribute("aria-checked", String(which === "summary"));
         metaTab.setAttribute("aria-checked", String(which === "meta"));
+        aboutTab.setAttribute("aria-checked", String(which === "about"));
         content.replaceChildren();
         if (which === "summary") renderSummary();
+        else if (which === "about") void renderAbout();
         else void renderMetadata();
     };
 
@@ -153,7 +156,44 @@ export function showInfo(info: ImageInfo): void {
         await load();
     };
 
+    const renderAbout = async (): Promise<void> => {
+        // Everything goes into a container of our own: if the user switches tab
+        // while we wait, the container is detached and the late result is harmless.
+        const box = el("div", {});
+        const status = el("p", { class: "muted", text: "Reading…" });
+        box.append(status);
+        content.append(box);
+        try {
+            const [v, st]: [EngineInfo, Status] = await Promise.all([
+                getVersion(),
+                getStatus(),
+            ]);
+            const logo = document.createElement("img");
+            logo.src = "icons/icon-192.png";
+            logo.alt = "MART";
+            logo.className = "about-logo";
+            logo.width = 72;
+            logo.height = 72;
+            const dl = el("dl", { class: "facts" });
+            dl.append(
+                el("dt", { text: "MART version" }),
+                el("dd", { text: st.version }),
+                el("dt", { text: "ART engine version" }),
+                el("dd", { text: v.version }),
+            );
+            const fold = el("details", { class: "fold" });
+            fold.append(
+                el("summary", { text: "ART engine build info" }),
+                el("p", { class: "about", text: v.about }),
+            );
+            box.replaceChildren(logo, dl, fold);
+        } catch (e) {
+            status.textContent = e instanceof Error ? e.message : String(e);
+        }
+    };
+
     summaryTab.addEventListener("click", () => select("summary"));
     metaTab.addEventListener("click", () => select("meta"));
+    aboutTab.addEventListener("click", () => select("about"));
     select("summary");
 }

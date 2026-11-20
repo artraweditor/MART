@@ -444,6 +444,13 @@ int run(int argc, char **argv, const ReadyFn &ready)
             sendJson(res, w.submit([&] { return session->info(); }).get());
         });
     });
+    svr.Get("/api/version",
+            [&](const httplib::Request &, httplib::Response &res) {
+                serve(worker, res, [&](Worker &w) {
+                    sendJson(res,
+                             w.submit([&] { return session->version(); }).get());
+                });
+            });
     svr.Get("/api/metadata",
             [&](const httplib::Request &req, httplib::Response &res) {
                 serve(worker, res, [&](Worker &w) {

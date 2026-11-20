@@ -985,3 +985,14 @@ details.fold > summary {
 details.fold[open] > summary {
     margin-bottom: 8px;
 }
+.about-logo {
+    float: right;
+    margin: 0 0 8px 12px;
+    border-radius: 12px;
+}
+.about {
+    margin: 0;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

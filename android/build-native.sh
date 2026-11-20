@@ -13,7 +13,8 @@ JL=$HERE/app/src/main/jniLibs/arm64-v8a; AS=$HERE/app/src/main/assets
 B=$HERE/build/jni-arm64
 mkdir -p "$JL" "$AS"
 [ -f "$HERE/build/libart-arm64/src/libart/libART.so" ] || INSTALL_DATA=1 "$REPO/native/build-libart.sh" android arm64
-cmake -S "$HERE/jni" -B "$B" -G Ninja -DCMAKE_TOOLCHAIN_FILE=$HERE/deps/toolchain-android.cmake -DCMAKE_BUILD_TYPE=Release
+cmake -S "$HERE/jni" -B "$B" -G Ninja -DCMAKE_TOOLCHAIN_FILE=$HERE/deps/toolchain-android.cmake -DCMAKE_BUILD_TYPE=Release \
+  ${MART_VERSION:+-DMART_VERSION="$MART_VERSION"}
 ninja -C "$B"
 $NB/llvm-strip --strip-unneeded -o "$JL/libmart.so" "$B/libmart.so"
 $NB/llvm-strip --strip-unneeded -o "$JL/libART.so" "$HERE/build/libart-arm64/src/libart/libART.so"

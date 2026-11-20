@@ -51,6 +51,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Version of MART
+        # the tag, or "nightly-" and the short hash of the commit
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then V=$GITHUB_REF_NAME; else V=nightly-${GITHUB_SHA::7}; fi
+          echo "MART_VERSION=$V" >> "$GITHUB_ENV"
+
       - name: Checkout ART
         uses: actions/checkout@v4
         with:
@@ -141,13 +147,13 @@ jobs:
         run: |
           android/build-native.sh
           cd android && ./gradlew --no-daemon assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/MART-android-arm64.apk"
-          "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify --print-certs "$GITHUB_WORKSPACE/MART-android-arm64.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/MART-android-arm64-$MART_VERSION.apk"
+          "$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner" verify --print-certs "$GITHUB_WORKSPACE/MART-android-arm64-$MART_VERSION.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: MART-android-arm64-apk
-          path: MART-android-arm64.apk
+          path: MART-android-arm64-${{ env.MART_VERSION }}.apk
           if-no-files-found: error
 
       - name: Prepare release name
@@ -165,4 +171,4 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           make_latest: ${{ env.RELEASE_MAKE_LATEST }}
-          files: MART-android-arm64.apk
+          files: MART-android-arm64-${{ env.MART_VERSION }}.apk

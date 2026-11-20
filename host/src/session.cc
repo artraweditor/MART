@@ -35,6 +35,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// set at build time (CMake: -DMART_VERSION=...); the default is for builds that do not go through CMake
+#ifndef MART_VERSION
+#define MART_VERSION "0.1.0"
+#endif
+
 namespace mart {
 
 namespace {
@@ -56,6 +61,7 @@ Session::Session(const EngineOptions &o, std::vector<std::string> roots,
     profiles_(std::move(profileDirs)), luts_(std::move(lutDir))
 {
     engine_ = Engine::create(o);
+    version_ = nullptr;
 }
 
 Session::~Session()
@@ -212,7 +218,7 @@ json Session::listImages(const std::string &dir) const
 json Session::status() const
 {
     json s;
-    s["version"] = "0.1.0";
+    s["version"] = MART_VERSION;
     s["art_version"] = Engine::version();
     s["backend"] = opts_.inprocess ? "inprocess" : "remote";
     s["open"] = file_.empty() ? json(nullptr) : json{{"file", file_}};
@@ -297,6 +303,14 @@ json Session::info()
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
     return info_;
+}
+
+json Session::version()
+{
+    if (version_.is_null()) {
+        version_ = command({"get-version"});
+    }
+    return version_;
 }
 
 PreviewFrame Session::preview(const PreviewRequest &rq)

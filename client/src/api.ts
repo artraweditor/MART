@@ -20,6 +20,12 @@
 
 // HTTP access to the MART host.
 
+export interface EngineInfo {
+    version: string;
+    about: string;
+}
+
+
 export interface ImageInfo {
     file: string;
     is_raw: boolean;
@@ -97,6 +103,10 @@ export async function getStatus(): Promise<Status> {
 
 export async function getInfo(): Promise<ImageInfo> {
     return (await request("/api/info", { cache: "no-store" })).json();
+}
+
+export async function getVersion(): Promise<EngineInfo> {
+    return (await request("/api/version", { cache: "no-store" })).json();
 }
 
 /**

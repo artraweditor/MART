@@ -5,7 +5,7 @@
 # attached to the release of the tag). The first run builds the dependencies of libART for the device
 # (about an hour or two); the next ones restore them from the cache, unless native/ or the toolchain changed.
 #
-# AltStore (classic): "My Apps" > "+" > choose MART-ios-unsigned.ipa (or open the file with AltStore on
+# AltStore (classic): "My Apps" > "+" > choose MART-ios-unsigned-<version>.ipa (or open the file with AltStore on
 # the device). AltStore signs it and everything in it with the Apple ID's certificate, and gives it its own
 # bundle id; a free Apple ID keeps an app for 7 days (AltStore refreshes it) and allows 3 apps at a time.
 # The .ipa needs iOS 16 or later; it has no entitlements, no extensions and no signature (ios/build-ipa.sh).
@@ -45,6 +45,12 @@ jobs:
       LENSFUNDB: ${{ github.workspace }}/native/src/lensfun-db
     steps:
       - uses: actions/checkout@v4
+
+      - name: Version of MART
+        # the tag, or "nightly-" and the short hash of the commit
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then V=$GITHUB_REF_NAME; else V=nightly-${GITHUB_SHA::7}; fi
+          echo "MART_VERSION=$V" >> "$GITHUB_ENV"
 
       - name: Checkout ART
         uses: actions/checkout@v4
@@ -102,12 +108,12 @@ jobs:
 
       - name: Unsigned .ipa
         run: |
-          ios/build-ipa.sh "$GITHUB_WORKSPACE/MART-ios-unsigned.ipa"
+          ios/build-ipa.sh "$GITHUB_WORKSPACE/MART-ios-unsigned-$MART_VERSION.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
           name: MART-ios-unsigned-ipa
-          path: MART-ios-unsigned.ipa
+          path: MART-ios-unsigned-${{ env.MART_VERSION }}.ipa
           if-no-files-found: error
 
       - name: Prepare release name
@@ -125,4 +131,4 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           make_latest: ${{ env.RELEASE_MAKE_LATEST }}
-          files: MART-ios-unsigned.ipa
+          files: MART-ios-unsigned-${{ env.MART_VERSION }}.ipa
