@@ -178,10 +178,10 @@ export function showExport(imageName: string): void {
             chips(
                 "Size",
                 [
-                    ["0", "Full size"],
                     ["1920", "1920 px"],
                     ["2560", "2560 px"],
                     ["3840", "3840 px"],
+                    ["0", "Full size"],
                 ],
                 () => String(s.size),
                 (v) => (s.size = Number(v) as Saved["size"]),
@@ -192,8 +192,7 @@ export function showExport(imageName: string): void {
                 el("p", {
                     class: "muted",
                     text:
-                        `The longest edge is at most ${s.size} px. A ` +
-                        `resized export uses ART's fast export pipeline.`,
+                        `The longest edge is at most ${s.size} px.`,
                 }),
             );
         if (s.format === "jpg") {
