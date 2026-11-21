@@ -169,7 +169,8 @@ breaks the profiles and sidecars that name it.
 The retouching regions are regions of ART's Color/tone correction tool in perceptual mode, named `MART retouch <id>` and added
 after the regions that the sidecar already has. In ART they are ordinary regions. The only mask is the brush, in "intersect"
 mode, so a region with a brush mask and nothing painted does nothing. Halation is a region of the Smoothing tool in halation
-mode, named `MART halation`.
+mode, named `MART halation`. Local contrast is a region of the Local Contrast tool (no mask; *Coarse* is its residual
+contrast, *Fine* the middle point of its curve), named `MART local contrast`.
 
 ## Tests
 
