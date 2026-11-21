@@ -33,10 +33,10 @@ The source is organised like this:
 ## Android and iOS
 
 The apps are built by the GitHub Actions workflows in `.github/workflows/`, either by hand (Actions, then Android APK or
-iOS IPA, then Run workflow) or when a tag `v*` is pushed. In the second case the files are attached to the release:
+iOS IPA, then Run workflow) or when a release tag is pushed. In the second case the files are attached to the release:
 
-  - `MART-android-arm64.apk`, for 64-bit ARM devices with Android 8 or later;
-  - `MART-ios-unsigned.ipa`, for iPhones and iPads with iOS 16 or later. It is not signed (see below).
+  - `MART-android-arm64-VERSION.apk`, for 64-bit ARM devices with Android 8 or later;
+  - `MART-ios-unsigned-VERSION.ipa`, for iPhones and iPads with iOS 16 or later. It is not signed (see below).
 
 Both workflows build libART from [artraweditor/ART](https://github.com/artraweditor/ART). The input `art_ref` says which
 branch, tag or commit to use. The dependencies of libART are cached between runs, until `native/` or the toolchain changes.
@@ -46,7 +46,7 @@ repository variables `MART_ANDROID_RUNNER` and `MART_IOS_RUNNER` can select othe
 ### Installing on Android
 
 Copy the `.apk` to the device and open it, allowing the installation from that source when Android asks (or use
-`adb install MART-android-arm64.apk`). The first time, MART asks for the "All files access" permission: it needs it to list
+`adb install MART-android-arm64-VERSION.apk`). The first time, MART asks for the "All files access" permission: it needs it to list
 the pictures of the device and to write the sidecars next to them.
 
 The APK of the workflow is signed with your key if the repository has the secrets `ANDROID_KEYSTORE_BASE64`,
@@ -64,7 +64,7 @@ with a paid developer account it lasts a year. Before installing, turn on Develo
 With [AltStore](https://altstore.io) (the classic version):
 
 1. Install AltServer on a Mac or a PC, and AltStore on the device, as AltStore explains.
-2. Put `MART-ios-unsigned.ipa` on the device, for example in the Files app.
+2. Put `MART-ios-unsigned-VERSION.ipa` on the device, for example in the Files app.
 3. In AltStore open My Apps, tap `+` and choose the file (or open the file with AltStore from the Files app). AltStore signs
    it and installs it.
 4. Keep AltServer running on the same network, so that AltStore can refresh the app before it expires.
@@ -75,7 +75,7 @@ and press Start.
 To sign it yourself, you need a certificate and a provisioning profile of your developer account, and a tool that signs
 `.ipa` files, like [zsign](https://github.com/zhlynn/zsign):
 
-    zsign -k cert.p12 -p PASSWORD -m profile.mobileprovision -b com.example.MART -o MART-signed.ipa MART-ios-unsigned.ipa
+    zsign -k cert.p12 -p PASSWORD -m profile.mobileprovision -b com.example.MART -o MART-signed.ipa MART-ios-unsigned-VERSION.ipa
 
 Then install `MART-signed.ipa` with Xcode (Window, Devices and Simulators, `+`), Apple Configurator or `ideviceinstaller`.
 Use a bundle id that your provisioning profile allows: nothing in MART depends on it.
