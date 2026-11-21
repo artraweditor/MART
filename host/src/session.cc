@@ -246,6 +246,14 @@ void Session::applyOpeningDefaults()
     struct stat st;
     const bool hasSidecar = stat((file_ + ".arp").c_str(), &st) == 0;
     if (!hasSidecar) command({"apply", ":neutral"});
+    if (defaults_.is_null()) {
+        // the parameters of the neutral profile, once: the Other tab lists what
+        // a profile changes that has no controls. With a sidecar the neutral
+        // profile is applied just for this, and the sidecar again after it.
+        if (hasSidecar) command({"apply", ":neutral"});
+        defaults_ = arp::parse(command({"get-params"}).value("params", ""));
+        if (hasSidecar) command({"apply", file_ + ".arp"});
+    }
     std::string lower = file_;
     for (auto &c : lower)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -375,6 +383,9 @@ json Session::params()
                                // one of the Smoothing regions
     doc["LocalContrast"] = localcontrast::state(
         ini);  // likewise: one region of the Local Contrast tool
+    if (!defaults_.is_null())
+        doc["Defaults"] = defaults_;  // what the neutral profile has, to tell
+                                      // what a profile changes
     doc["Retouch"] = retouch::state(
         ini);  // likewise: our regions of the Color/tone correction tool, by id
     return {{"params", doc}, {"ini", ini}};

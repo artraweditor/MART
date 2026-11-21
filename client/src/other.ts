@@ -25,23 +25,17 @@ import { registerControl } from "./controls.js";
 import type { Control } from "./controls.js";
 import type { Params } from "./live.js";
 import { el } from "./sheet.js";
-import { denoiseValue } from "./tools.js";
+import { TOOLS, denoiseValue } from "./tools.js";
 
-/** the groups that have controls here (or are no tools): never listed */
+/**
+ * the groups that are wholly covered by the controls here (or are no tools):
+ * never listed. The other groups that have controls are listed for the keys
+ * that no control has, when the profile changes them (see `leftovers`)
+ */
 const COVERED = new Set([
-    "Exposure",
-    "White Balance",
-    "ToneCurve",
-    "Saturation",
-    "ToneEqualizer",
-    "Channel Mixer",
-    "SoftLight",
-    "Sharpening",
-    "Grain",
     "Film Simulation",
     "Crop",
     "Rotation",
-    "LensProfile",
     "Coarse Transformation",
     "Halation",
     "LocalContrast",
@@ -49,7 +43,57 @@ const COVERED = new Set([
     "Retouch",
 ]);
 
+/** the keys that the controls of each group edit */
+let exposedKeys: Map<string, Set<string>> | null = null;
+function exposed(group: string): Set<string> | undefined {
+    if (!exposedKeys) {
+        exposedKeys = new Map();
+        for (const t of TOOLS)
+            for (const c of t.controls) {
+                if (!("key" in c) || !c.group) continue;
+                let s = exposedKeys.get(c.group);
+                if (!s) exposedKeys.set(c.group, (s = new Set()));
+                s.add(c.key);
+            }
+    }
+    // written together with FlatFieldUseEmbedded
+    exposedKeys.get("RAW")?.add("FlatFieldEnabled");
+    return exposedKeys.get(group);
+}
+
+/**
+ * the keys of a group that has controls but not for all of them, that the
+ * profile sets to something other than what the neutral profile has
+ */
+function leftovers(
+    group: string,
+    g: Record<string, unknown>,
+    defaults: Params | undefined,
+): [string, string][] {
+    const keys = exposed(group)!;
+    const d = defaults?.[group];
+    if (!d) return [];
+    return Object.entries(g)
+        .filter(
+            ([k, v]) =>
+                k !== "Enabled" &&
+                !keys.has(k) &&
+                JSON.stringify(v) !== JSON.stringify(d[k]),
+        )
+        .map(([k, v]): [string, string] => [k, show(v)]);
+}
+
 const NAMES: Record<string, string> = {
+    Exposure: "Exposure",
+    "White Balance": "White balance",
+    ToneCurve: "Tone curve",
+    Saturation: "Saturation and vibrance",
+    ToneEqualizer: "Tone equalizer",
+    "Channel Mixer": "Primaries correction",
+    SoftLight: "Soft light",
+    Sharpening: "Capture sharpening",
+    Grain: "Film grain",
+    LensProfile: "Lens correction",
     "Black & White": "Black & white",
     CACorrection: "Chromatic aberration correction",
     ColorCorrection: "Color/tone correction",
@@ -171,8 +215,23 @@ function colorCorrection(g: Record<string, unknown>): Item | null {
 /** the tools that the profile applies and that have no controls in this app */
 export function summarize(params: Params): Item[] {
     const items: Item[] = [];
+    // what the neutral profile has, from the host
+    const defaults = params["Defaults"] as unknown as Params | undefined;
     for (const [group, g] of Object.entries(params)) {
-        if (COVERED.has(group) || !g || g["Enabled"] !== true) continue;
+        if (group === "Defaults" || COVERED.has(group) || !g) continue;
+        if (exposed(group) && group !== "Denoise") {
+            // a tool with controls: only what they do not edit
+            if (g["Enabled"] === false) continue;
+            const rows = leftovers(group, g, defaults);
+            if (rows.length)
+                items.push({
+                    name: NAMES[group] ?? group,
+                    summary: "other settings",
+                    rows,
+                });
+            continue;
+        }
+        if (g["Enabled"] !== true) continue;
         // one of the presets of the Detail tab
         if (group === "Denoise" && denoiseValue(g) !== "custom") continue;
         if (group === "Smoothing") {

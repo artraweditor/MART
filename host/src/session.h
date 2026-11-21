@@ -128,6 +128,7 @@ private:
     std::string tmpdir_;
     std::string file_;
     json info_;
+    json defaults_;  // the parameters of the neutral profile (null until seen)
     json version_;
     bool dirty_ = false;
     int lookSeq_ =
