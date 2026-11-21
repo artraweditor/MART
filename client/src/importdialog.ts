@@ -29,7 +29,7 @@ export interface ImportOptions<T> {
     title: string;
     /** what is imported, for the text of the dialog: "a profile" */
     what: string;
-    /** the types that the file dialog offers: ".arp,text/plain" */
+    /** the types that are expected, ".arp,text/plain" (the file dialog offers all files: see showImport) */
     accept: string;
     /** the name proposed for a file */
     proposedName: (file: File) => string;
@@ -44,7 +44,8 @@ export interface ImportOptions<T> {
 export function showImport<T>(o: ImportOptions<T>): void {
     const sheet = openSheet(o.title);
     const input = el("input", { type: "file" });
-    input.accept = o.accept;
+    // not set as input.accept: iOS greys out every file whose extension it has no type for
+    // (.arp, .ctl, ...), so that nothing could be chosen; the type is checked by the store instead
     input.hidden = true;
     const choose = el("button", {
         class: "action secondary",
