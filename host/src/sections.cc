@@ -20,6 +20,7 @@
 
 #include "sections.h"
 #include "halation.h"
+#include "localcontrast.h"
 #include "retouch.h"
 #include <set>
 #include <stdexcept>
@@ -62,6 +63,7 @@ const std::vector<Def> &table()
         {{"denoise", "Noise reduction", true}, {{"Denoise", {}}}},
         {{"grain", "Film grain", true}, {{"Grain", {}}}},
         {{"halation", "Halation", true}, {}},
+        {{"localcontrast", "Local contrast", true}, {}},
         {{"retouch", "Retouching", true}, {}},
         {{"geometry", "Crop and rotation", false},
          {{"Crop", {}}, {"Rotation", {}}, {"Coarse Transformation", {}}}},
@@ -119,9 +121,12 @@ std::string build(const std::string &paramsText,
         if (!wanted.count(d.section.id)) continue;
         if (d.items.empty()) {  // the halation, or the retouching regions: not
                                 // groups of the profile
-            const std::string h = d.section.id == "retouch"
-                                      ? retouch::profileText(paramsText)
-                                      : halation::profileText(paramsText);
+            const std::string h =
+                d.section.id == "retouch"
+                    ? retouch::profileText(paramsText)
+                : d.section.id == "localcontrast"
+                    ? localcontrast::profileText(paramsText)
+                    : halation::profileText(paramsText);
             if (!h.empty()) out += h + "\n";
             continue;
         }

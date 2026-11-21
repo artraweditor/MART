@@ -26,7 +26,7 @@ endif()
 find_package(Threads REQUIRED)
 # everything but main() is a library, so that an app can embed the host
 add_library(mart-host STATIC src/app.cc src/session.cc src/editor.cc src/arp.cc
-    src/profiles.cc src/luts.cc src/halation.cc src/retouch.cc src/sections.cc
+    src/profiles.cc src/luts.cc src/halation.cc src/localcontrast.cc src/retouch.cc src/sections.cc
     src/icctag.cc src/exportreq.cc src/exporter.cc src/libart_dyn.cc
     src/tempdir.cc)
 target_include_directories(mart-host PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -57,7 +57,7 @@ target_include_directories(test_halation PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME halation COMMAND test_halation)
 
 add_executable(test_sections tests/test_sections.cc src/sections.cc
-    src/halation.cc src/retouch.cc)
+    src/halation.cc src/localcontrast.cc src/retouch.cc)
 target_include_directories(test_sections PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME sections COMMAND test_sections)
 

@@ -44,6 +44,7 @@ const COVERED = new Set([
     "LensProfile",
     "Coarse Transformation",
     "Halation",
+    "LocalContrast",
     "Dehaze",
     "Retouch",
 ]);
@@ -94,6 +95,8 @@ const SMOOTHING_WITH_CHANNEL = new Set([0, 1, 3, 6, 8]);
  * host/src/halation.cc)
  */
 const OURS = "MART halation";
+/** likewise, the region of the Local Contrast tool (host/src/localcontrast.cc) */
+const OURS_LC = "MART local contrast";
 
 export interface Item {
     name: string;
@@ -179,7 +182,13 @@ export function summarize(params: Params): Item[] {
             const c = colorCorrection(g);
             if (c) items.push(c);
         } else if (group === "Local Contrast" || group === "TextureBoost") {
-            const n = lastRegion(g) + 1; // the first region has no suffix
+            let n = lastRegion(g) + 1; // the first region has no suffix
+            if (group === "Local Contrast") {
+                // the one of the Detail tab
+                for (let k = 0; k < lastRegion(g) + 1; k++)
+                    if (g[k ? `MaskName_${k}` : "MaskName"] === OURS_LC) n--;
+                if (n <= 0) continue;
+            }
             items.push({
                 name: NAMES[group]!,
                 summary: `${n} region${n > 1 ? "s" : ""}`,

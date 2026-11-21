@@ -22,6 +22,7 @@
 #include "session.h"
 #include "arp.h"
 #include "halation.h"
+#include "localcontrast.h"
 #include "tempdir.h"
 #include "retouch.h"
 #include "icctag.h"
@@ -372,6 +373,8 @@ json Session::params()
     doc["Halation"] =
         halation::state(ini);  // not a group of the profile: MART's own view of
                                // one of the Smoothing regions
+    doc["LocalContrast"] = localcontrast::state(
+        ini);  // likewise: one region of the Local Contrast tool
     doc["Retouch"] = retouch::state(
         ini);  // likewise: our regions of the Color/tone correction tool, by id
     return {{"params", doc}, {"ini", ini}};
@@ -408,7 +411,11 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
 {
     if (file_.empty()) throw ApiError(409, "no image is open");
     json patch = patchIn;
-    json halationChange, retouchChange;
+    json halationChange, retouchChange, lcChange;
+    if (patch.is_object() && patch.contains("LocalContrast")) {
+        lcChange = patch["LocalContrast"];
+        patch.erase("LocalContrast");
+    }
     if (patch.is_object() && patch.contains("Halation")) {
         halationChange = patch["Halation"];
         patch.erase("Halation");
@@ -430,7 +437,8 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         command(a);
         dirty_ = true;
     };
-    if ((halationChange.is_null() && retouchChange.is_null()) ||
+    if ((halationChange.is_null() && retouchChange.is_null() &&
+         lcChange.is_null()) ||
         !patch.empty()) {
         std::string text;
         try {
@@ -449,6 +457,16 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         try {
             text = halation::rewrite(
                 command({"get-params"}).value("params", ""), halationChange);
+        } catch (const std::invalid_argument &e) {
+            throw ApiError(400, e.what());
+        }
+        apply(text);
+    }
+    if (!lcChange.is_null()) {
+        std::string text;
+        try {
+            text = localcontrast::rewrite(
+                command({"get-params"}).value("params", ""), lcChange);
         } catch (const std::invalid_argument &e) {
             throw ApiError(400, e.what());
         }
@@ -583,7 +601,8 @@ void Session::applyProfileFile(const std::string &path, bool append,
     const std::string original = slurp(path);
     const std::string text = luts_.resolveInProfile(original);
     const bool hasHalation = halation::present(text),
-               hasRetouch = retouch::present(text);
+               hasRetouch = retouch::present(text),
+               hasLC = localcontrast::present(text);
     auto writeTmp = [&](const std::string &name, const std::string &content) {
         const std::string file = tmpdir_ + "/" + name;
         std::ofstream f(file, std::ios::binary | std::ios::trunc);
@@ -591,7 +610,7 @@ void Session::applyProfileFile(const std::string &path, bool append,
         if (!f) throw ApiError(500, "cannot write " + file);
         return file;
     };
-    if (!hasHalation && !hasRetouch) {
+    if (!hasHalation && !hasRetouch && !hasLC) {
         apply(text == original ? path : writeTmp("profile.arp", text));
         return;
     }
@@ -603,6 +622,7 @@ void Session::applyProfileFile(const std::string &path, bool append,
     std::string rest = text;
     if (hasHalation) rest = halation::withoutSmoothing(rest);
     if (hasRetouch) rest = retouch::withoutColorCorrection(rest);
+    if (hasLC) rest = localcontrast::withoutLocalContrast(rest);
     if (rest.find('[') != std::string::npos)
         apply(writeTmp("profile.arp", rest));
     auto applyText = [&](const std::string &t) {
@@ -618,6 +638,14 @@ void Session::applyProfileFile(const std::string &path, bool append,
                        {"Tint", st["Tint"]}};
         applyText(halation::rewrite(command({"get-params"}).value("params", ""),
                                     change));
+    }
+    if (hasLC) {
+        json st = localcontrast::state(text);
+        json change = {{"Enabled", st["Enabled"]},
+                       {"Fine", st["Fine"]},
+                       {"Coarse", st["Coarse"]}};
+        applyText(localcontrast::rewrite(
+            command({"get-params"}).value("params", ""), change));
     }
     if (hasRetouch)
         applyText(retouch::replace(command({"get-params"}).value("params", ""),

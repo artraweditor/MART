@@ -639,6 +639,41 @@ export const TOOLS: Tool[] = [
                         ? { Enabled: false }
                         : { Enabled: true, ...DENOISE_PRESETS[String(v)] },
             },
+            // a region of the Local Contrast tool (host/src/localcontrast.cc)
+            {
+                kind: "heading",
+                label: "Local contrast",
+                group: "LocalContrast",
+            },
+            {
+                kind: "toggle",
+                label: "Enabled",
+                group: "LocalContrast",
+                key: "Enabled",
+                def: false,
+            },
+            {
+                kind: "slider",
+                label: "Fine",
+                group: "LocalContrast",
+                key: "Fine",
+                min: -100,
+                max: 100,
+                step: 1,
+                def: 0,
+                digits: 0,
+            },
+            {
+                kind: "slider",
+                label: "Coarse",
+                group: "LocalContrast",
+                key: "Coarse",
+                min: -100,
+                max: 100,
+                step: 1,
+                def: 0,
+                digits: 0,
+            },
             { kind: "heading", label: "Film grain", group: "Grain" },
             {
                 kind: "toggle",
