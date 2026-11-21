@@ -18,6 +18,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.JsResult
 import android.webkit.MimeTypeMap
 import android.webkit.URLUtil
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -48,6 +49,8 @@ class MainActivity : Activity() {
     /** the answer to the picker that is on screen (the page asks for one at a time) */
     private var pickerReply: ((JSONObject) -> Unit)? = null
     private var savePath: String? = null
+    /** the answer to the page's <input type=file> (a WebView shows no chooser unless asked to) */
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,6 +99,19 @@ class MainActivity : Activity() {
                     .setNegativeButton(android.R.string.cancel) { _, _ -> r.cancel() }
                     .setOnCancelListener { r.cancel() }.show()
                 return true
+            }
+
+            override fun onShowFileChooser(v: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = cb
+                // the accepted types may be extensions (".arp"), which an intent cannot filter on: offer all files
+                val intent = Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                    .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, p.mode == FileChooserParams.MODE_OPEN_MULTIPLE)
+                return try {
+                    startActivityForResult(Intent.createChooser(intent, null), REQ_FILE); true
+                } catch (e: Exception) {
+                    fileCallback = null; cb.onReceiveValue(null); false
+                }
             }
         }
         // downloads (exports): fetched into the exports folder, then offered to the user to save
@@ -250,6 +266,15 @@ class MainActivity : Activity() {
 
     @Deprecated("plain Activity API, no AndroidX")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == REQ_FILE) {
+            val cb = fileCallback; fileCallback = null
+            val uris = if (resultCode != RESULT_OK || data == null) null else {
+                val c = data.clipData
+                if (c != null) Array(c.itemCount) { c.getItemAt(it).uri } else data.data?.let { arrayOf(it) }
+            }
+            cb?.onReceiveValue(uris)
+            return
+        }
         val reply = pickerReply; pickerReply = null
         val uri = if (resultCode == RESULT_OK) data?.data else null
         when (requestCode) {
@@ -300,5 +325,6 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_TREE = 1
         private const val REQ_SAVE = 2
+        private const val REQ_FILE = 3
     }
 }
