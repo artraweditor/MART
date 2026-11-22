@@ -13,6 +13,8 @@ settings:
     ENABLE_BITCODE: NO
     ARCHS: arm64
     EXCLUDED_ARCHS: x86_64
+    MARKETING_VERSION: ${MART_APP_VERSION}        # the version of the host: build-app.sh, native/version.sh
+    CURRENT_PROJECT_VERSION: ${MART_APP_BUILD}
     DEVELOPMENT_TEAM: ${MART_TEAM}     # your Apple team: see native/env.sh
 targets:
   MART:

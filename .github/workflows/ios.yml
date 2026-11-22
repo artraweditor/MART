@@ -109,6 +109,11 @@ jobs:
       - name: Unsigned .ipa
         run: |
           ios/build-ipa.sh "$GITHUB_WORKSPACE/MART-ios-unsigned-$MART_VERSION.ipa"
+          # the app has the version of the host (MART_VERSION, see native/version.sh: digits only)
+          unzip -p "$GITHUB_WORKSPACE/MART-ios-unsigned-$MART_VERSION.ipa" Payload/MART.app/Info.plist > "$RUNNER_TEMP/Info.plist"
+          got=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$RUNNER_TEMP/Info.plist")
+          want=$(native/version.sh numeric)
+          [ "$got" = "$want" ] || { echo "the version of the ipa is $got, not $want"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:

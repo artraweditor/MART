@@ -2,6 +2,16 @@ plugins {
     id("com.android.application")
 }
 
+// the version of the app is the one of the host (MART_VERSION: native/version.sh)
+fun martVersion(mode: String): String {
+    val script = rootDir.resolve("../native/version.sh").canonicalPath
+    val p = ProcessBuilder("bash", script, *(if (mode.isEmpty()) arrayOf() else arrayOf(mode)))
+        .redirectErrorStream(true).start()
+    val out = p.inputStream.bufferedReader().readText().trim()
+    check(p.waitFor() == 0) { "native/version.sh failed: $out" }
+    return out
+}
+
 android {
     namespace = "us.pixls.mart"
     compileSdk = 37
@@ -9,8 +19,8 @@ android {
         applicationId = "us.pixls.mart"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = martVersion("code").toInt()
+        versionName = martVersion("")
         ndk { abiFilters += "arm64-v8a" }
     }
     // a release is signed with the key of MART_KEYSTORE (MART_KEYSTORE_PASSWORD, MART_KEY_ALIAS,

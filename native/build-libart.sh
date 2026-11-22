@@ -33,5 +33,9 @@ ninja -C "$B" "$@"
 # database, ...) into $ROOT/build/art-data; it is the same for all slices
 if [ "${INSTALL_DATA:-}" = 1 ]; then
   cmake --install "$B" --component libart_data --prefix "$ROOT/build/art-install-$SLICE" > /dev/null
+  # `get-version` reports the build info ("about") from AboutThisBuild.txt in the data directory, but
+  # ART installs it with the credits, not with libart_data: add it (the one of this build)
+  [ -f "$B/AboutThisBuild.txt" ] || ninja -C "$B" UpdateInfo
+  cp "$B/AboutThisBuild.txt" "$ROOT/build/art-data/AboutThisBuild.txt"
   echo "data: $ROOT/build/art-data"
 fi
