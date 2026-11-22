@@ -238,6 +238,20 @@ const cropOverlay = new CropOverlay(
     (rect) => setCrop(rect, cropState().ratio),
 );
 preview.afterDraw = () => cropOverlay.draw();
+cropOverlay.onVignette = (x, y) => {
+    // placing the center switches the filter on, as moving a slider does
+    applyPatch({ PCVignette: { Enabled: true, CenterX: x, CenterY: y } });
+};
+
+/** the vignette center in the overlay, when the filter is on */
+function syncVignette(): void {
+    const v = params["PCVignette"];
+    const n = (k: string): number =>
+        typeof v?.[k] === "number" ? (v[k] as number) : 0;
+    cropOverlay.setVignette(
+        v?.["Enabled"] === true ? { x: n("CenterX"), y: n("CenterY") } : null,
+    );
+}
 attachRetouch(preview, () => ({ w: imgW, h: imgH }));
 
 const cropState = () => cropFromParams(params, imgW, imgH);
@@ -254,6 +268,7 @@ function syncCrop(): void {
         c.ratio ? ratioFor(c.ratio, imgW, imgH, c.portrait) : null,
     );
     cropTab.sync(c);
+    syncVignette();
     preview.setBounds(activeTool !== "crop" && c.enabled ? c.rect : null, {
         w: imgW,
         h: imgH,
@@ -362,6 +377,7 @@ const host: ControlHost = {
 
 function syncControls(): void {
     for (const c of controls) c.sync(params);
+    syncVignette();
 }
 
 let pickBtn: HTMLButtonElement | null = null;

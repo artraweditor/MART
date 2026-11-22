@@ -66,7 +66,7 @@ const std::vector<Def> &table()
         {{"localcontrast", "Local contrast", true}, {}},
         {{"retouch", "Retouching", true}, {}},
         {{"geometry", "Crop and rotation", false},
-         {{"Crop", {}}, {"Rotation", {}}, {"Coarse Transformation", {}}}},
+         {{"Crop", {}}, {"Rotation", {}}, {"Coarse Transformation", {}}, {"PCVignette", {}}}},
     };
     return t;
 }

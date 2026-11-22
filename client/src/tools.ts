@@ -47,6 +47,12 @@ export interface SliderDef extends Base {
     step: number;
     def: number;
     digits: number;
+    /**
+     * a logarithmic scale, as ART's Adjuster::setLogScale(base, pivot): the
+     * slider's position runs linearly from `min` to `max`, the value grows
+     * exponentially away from `pivot`, so that the values near it are finer
+     */
+    log?: { base: number; pivot: number };
     /** other keys that must go with this one */
     extra?: (get: Getter) => Record<string, unknown>;
     /**
@@ -775,6 +781,51 @@ export const TOOLS: Tool[] = [
                 step: 0.1,
                 def: 0,
                 digits: 1,
+                // as in ART: fine near 0, where straightening is done
+                log: { base: 10, pivot: 0 },
+            },
+            // ART's vignette filter (post-crop vignette); its center is placed on the picture
+            // (crop.ts)
+            { kind: "heading", label: "Vignette filter", group: "PCVignette" },
+            {
+                kind: "toggle",
+                label: "Enabled",
+                group: "PCVignette",
+                key: "Enabled",
+                def: false,
+            },
+            {
+                kind: "slider",
+                label: "Strength",
+                group: "PCVignette",
+                key: "Strength",
+                min: -6,
+                max: 6,
+                step: 0.01,
+                def: 0.6,
+                digits: 2,
+            },
+            {
+                kind: "slider",
+                label: "Feather",
+                group: "PCVignette",
+                key: "Feather",
+                min: 0,
+                max: 100,
+                step: 1,
+                def: 50,
+                digits: 0,
+            },
+            {
+                kind: "slider",
+                label: "Roundness",
+                group: "PCVignette",
+                key: "Roundness",
+                min: 0,
+                max: 100,
+                step: 1,
+                def: 50,
+                digits: 0,
             },
         ],
     },

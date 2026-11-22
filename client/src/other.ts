@@ -37,6 +37,7 @@ const COVERED = new Set([
     "Crop",
     "Rotation",
     "Coarse Transformation",
+    "PCVignette",
     "Halation",
     "LocalContrast",
     "Dehaze",

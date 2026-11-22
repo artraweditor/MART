@@ -74,6 +74,40 @@ function fmt(v: number, digits: number): string {
     return v.toFixed(digits);
 }
 
+/**
+ * The scale of a slider: the position of the thumb (what the input holds) and
+ * the value that it stands for. Linear, or logarithmic as in ART's
+ * Adjuster (getSliderValue/setSliderValue, anchored at the pivot).
+ */
+function scale(def: SliderDef): {
+    toValue: (pos: number) => number;
+    toPos: (value: number) => number;
+} {
+    const l = def.log;
+    if (!l) return { toValue: (p) => p, toPos: (v) => v };
+    const { base, pivot } = l;
+    const grow = (x: number) => (Math.pow(base, x) - 1) / (base - 1);
+    const inv = (x: number) => Math.log(x * (base - 1) + 1) / Math.log(base);
+    return {
+        toValue(pos) {
+            if (pos >= pivot) {
+                const range = def.max - pivot;
+                return pivot + grow((pos - pivot) / range) * range;
+            }
+            const range = pivot - def.min;
+            return pivot - grow((pivot - pos) / range) * range;
+        },
+        toPos(v) {
+            if (v >= pivot) {
+                const range = def.max - pivot;
+                return pivot + inv(Math.min((v - pivot) / range, 1)) * range;
+            }
+            const range = pivot - def.min;
+            return pivot - inv(Math.min((pivot - v) / range, 1)) * range;
+        },
+    };
+}
+
 function slider(def: SliderDef, host: ControlHost): Control {
     const el = document.createElement("div");
     el.className = "ctl";
@@ -95,15 +129,22 @@ function slider(def: SliderDef, host: ControlHost): Control {
     input.id = id;
     input.min = String(def.min);
     input.max = String(def.max);
-    input.step = String(def.step);
-    input.value = String(def.def);
+    // on a log scale the thumb moves in finer steps than the value: the value
+    // is rounded to `step` when it is read
+    const { toValue, toPos } = scale(def);
+    input.step = String(def.log ? def.step / 10 : def.step);
+    input.value = String(toPos(def.def));
     el.appendChild(input);
+    const valueOf = (): number =>
+        def.log
+            ? Math.round(toValue(Number(input.value)) / def.step) * def.step
+            : Number(input.value);
 
     let gesture = 0;
     // the exact value from the engine, until the user moves the slider
     let shown: number | null = null;
     const show = () => {
-        const v = shown ?? Number(input.value);
+        const v = shown ?? valueOf();
         out.textContent = fmt(v, def.digits);
         reset.classList.toggle("changed", Math.abs(v - def.def) > def.step / 2);
     };
@@ -111,7 +152,7 @@ function slider(def: SliderDef, host: ControlHost): Control {
         shown = null;
         if (!gesture) gesture = nextGesture++;
         show();
-        host.set(def, Number(input.value), gesture);
+        host.set(def, valueOf(), gesture);
     });
     const end = () => {
         if (!gesture) return;
@@ -123,7 +164,7 @@ function slider(def: SliderDef, host: ControlHost): Control {
     input.addEventListener("pointercancel", end);
     reset.addEventListener("click", () => {
         shown = null;
-        input.value = String(def.def);
+        input.value = String(toPos(def.def));
         show();
         host.set(def, def.def, 0);
     });
@@ -136,13 +177,15 @@ function slider(def: SliderDef, host: ControlHost): Control {
             const n = typeof v === "number" ? v : def.def;
             // the image can hold a value beyond the nominal range of the
             // slider: widen it, never misreport the value
-            input.min = String(
-                Math.min(def.min, Math.floor(n / def.step) * def.step),
-            );
-            input.max = String(
-                Math.max(def.max, Math.ceil(n / def.step) * def.step),
-            );
-            input.value = String(n);
+            if (!def.log) {
+                input.min = String(
+                    Math.min(def.min, Math.floor(n / def.step) * def.step),
+                );
+                input.max = String(
+                    Math.max(def.max, Math.ceil(n / def.step) * def.step),
+                );
+            }
+            input.value = String(toPos(n));
             shown = n;
             show();
         },

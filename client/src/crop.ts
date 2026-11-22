@@ -207,6 +207,15 @@ export class CropOverlay {
     private view: PreviewView;
     private hit: HTMLElement;
     private onCommit: (r: Rect) => void;
+    /**
+     * the center of the vignette filter, as ART has it: -100..100 of half the
+     * width and height of the crop, from its middle; null when there is no
+     * vignette to place
+     */
+    private vignette: { x: number; y: number } | null = null;
+    onVignette: (x: number, y: number) => void = () => {};
+    private vdrag: { id: number; start: { x: number; y: number } } | null =
+        null;
     private rect: Rect = { x: 0, y: 0, w: 0, h: 0 };
     private W = 0;
     private H = 0;
@@ -270,6 +279,36 @@ export class CropOverlay {
         this.ratio = ratio;
     }
 
+    /** show the center of the vignette (percent, see above), or hide it */
+    setVignette(c: { x: number; y: number } | null): void {
+        if (!this.vdrag) this.vignette = c;
+        this.draw();
+    }
+
+    /** where the center of the vignette is on the screen */
+    private vignetteScreen(c: { x: number; y: number }): {
+        x: number;
+        y: number;
+    } {
+        const r = this.rect;
+        return this.view.toScreen(
+            r.x + r.w / 2 + (c.x * r.w) / 200,
+            r.y + r.h / 2 + (c.y * r.h) / 200,
+        );
+    }
+
+    /** the vignette center for a point of the screen, rounded and limited */
+    private vignetteAt(px: number, py: number): { x: number; y: number } {
+        const i = this.view.toImage(px, py);
+        const r = this.rect;
+        const pct = (v: number): number =>
+            Math.max(-100, Math.min(100, Math.round(v)));
+        return {
+            x: pct(((i.x - (r.x + r.w / 2)) * 200) / r.w),
+            y: pct(((i.y - (r.y + r.h / 2)) * 200) / r.h),
+        };
+    }
+
     setActive(on: boolean): void {
         this.active = on;
         this.canvas.hidden = !on;
@@ -293,6 +332,13 @@ export class CropOverlay {
 
     private down(e: PointerEvent): void {
         if (!this.active || !this.W) return;
+        if (this.vdrag) {
+            // a second finger: the same
+            this.vignette = this.vdrag.start;
+            this.vdrag = null;
+            this.draw();
+            return;
+        }
         if (this.drag) {
             // a second finger: give the gesture back to the view (pinch)
             this.rect = this.drag.start;
@@ -301,6 +347,16 @@ export class CropOverlay {
             return;
         }
         const p = this.local(e);
+        if (this.vignette && this.rect.w > 0) {
+            // the marker is above the crop handles
+            const v = this.vignetteScreen(this.vignette);
+            if (Math.hypot(p.x - v.x, p.y - v.y) <= REACH) {
+                e.stopImmediatePropagation();
+                this.hit.setPointerCapture(e.pointerId);
+                this.vdrag = { id: e.pointerId, start: { ...this.vignette } };
+                return;
+            }
+        }
         const handle = hitHandle(this.screenRect(this.rect), p.x, p.y, REACH);
         if (!handle) return;
         e.stopImmediatePropagation();
@@ -315,6 +371,15 @@ export class CropOverlay {
     }
 
     private move(e: PointerEvent): void {
+        const vd = this.vdrag;
+        if (vd) {
+            if (e.pointerId !== vd.id) return;
+            e.stopImmediatePropagation();
+            const p = this.local(e);
+            this.vignette = this.vignetteAt(p.x, p.y);
+            this.draw();
+            return;
+        }
         const d = this.drag;
         if (!d || e.pointerId !== d.id) return;
         e.stopImmediatePropagation();
@@ -333,6 +398,17 @@ export class CropOverlay {
     }
 
     private up(e: PointerEvent): void {
+        const vd = this.vdrag;
+        if (vd) {
+            if (e.pointerId !== vd.id) return;
+            e.stopImmediatePropagation();
+            this.vdrag = null;
+            const c = this.vignette;
+            if (c && (c.x !== vd.start.x || c.y !== vd.start.y))
+                this.onVignette(c.x, c.y);
+            this.draw();
+            return;
+        }
         const d = this.drag;
         if (!d || e.pointerId !== d.id) return;
         e.stopImmediatePropagation();
@@ -348,6 +424,14 @@ export class CropOverlay {
     }
 
     private cancel(e: PointerEvent): void {
+        const vd = this.vdrag;
+        if (vd) {
+            if (e.pointerId !== vd.id) return;
+            this.vignette = vd.start;
+            this.vdrag = null;
+            this.draw();
+            return;
+        }
         const d = this.drag;
         if (!d || e.pointerId !== d.id) return;
         this.rect = d.start;
@@ -407,6 +491,26 @@ export class CropOverlay {
             c.beginPath();
             c.arc(x, y, 7, 0, Math.PI * 2);
             c.fill();
+        }
+        // the center of the vignette: a ring with a cross, dark and light so
+        // that it shows on any picture
+        if (this.vignette) {
+            const v = this.vignetteScreen(this.vignette);
+            const R = 14;
+            for (const [color, w] of [
+                ["rgba(0,0,0,0.6)", 5],
+                ["#ffffff", 2],
+            ] as const) {
+                c.strokeStyle = color;
+                c.lineWidth = w;
+                c.beginPath();
+                c.arc(v.x, v.y, R, 0, Math.PI * 2);
+                c.moveTo(v.x - R - 6, v.y);
+                c.lineTo(v.x + R + 6, v.y);
+                c.moveTo(v.x, v.y - R - 6);
+                c.lineTo(v.x, v.y + R + 6);
+                c.stroke();
+            }
         }
     }
 }
