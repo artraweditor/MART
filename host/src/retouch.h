@@ -69,6 +69,11 @@ std::string rewrite(const std::string &profileText, const json &change);
  * empty if there are none */
 std::string profileText(const std::string &paramsText);
 
+/** the details (see localcontrast.h) that the regions of a profile made by
+ * `profileText` ask for: an object by id, 0 for a region that has none; they are a key of ours in the region,
+ * which ART does not know and ignores */
+json profileDetails(const std::string &profileText);
+
 /** the text of a profile without its `[ColorCorrection]` group */
 std::string withoutColorCorrection(const std::string &profileText);
 

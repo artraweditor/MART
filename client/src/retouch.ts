@@ -143,6 +143,22 @@ export const TONE_FIELDS: Field[] = [
         toStored: same,
     },
 ];
+/**
+ * the details of the region: local contrast limited to it, as the "Fine" of
+ * the Local contrast tool (a region of that tool, with a mask linked to this
+ * one: host/src/localcontrast.cc)
+ */
+const DETAILS_FIELD: Field = {
+    key: "Details",
+    label: "Details",
+    min: -100,
+    max: 100,
+    step: 1,
+    def: 0,
+    digits: 0,
+    toUi: same,
+    toStored: same,
+};
 const BRUSH_FIELDS: Field[] = [
     {
         key: "BrushFeather",
@@ -179,7 +195,7 @@ const BRUSH_FIELDS: Field[] = [
     },
 ];
 const FIELDS = new Map(
-    [...TONE_FIELDS, ...BRUSH_FIELDS].map((f) => [f.key, f]),
+    [...TONE_FIELDS, DETAILS_FIELD, ...BRUSH_FIELDS].map((f) => [f.key, f]),
 );
 
 /**
@@ -195,6 +211,7 @@ export const DEFAULTS: Record<string, unknown> = {
     Power: 1,
     Pivot: 1,
     Compression: 0,
+    Details: 0,
     BrushEnabled: false,
     BrushFeather: 0,
     BrushOpacity: 100,
@@ -622,6 +639,7 @@ registerControl("retouch", (_def, host: ControlHost): Control => {
             ),
         );
         for (const f of TONE_FIELDS) put(slider(id, f, rh));
+        put(slider(id, DETAILS_FIELD, rh));
 
         // the brush mask
         const brushBox = el("div", { class: "brush-box" });

@@ -34,6 +34,35 @@ using json = nlohmann::json;
 /** the name of the region (its `MaskName`), by which it is found again */
 extern const char *const REGION_NAME;
 
+/** the prefix of the `MaskName` of the regions that add detail to a retouching
+ * region (retouch.h): the rest is the id of that region */
+extern const char *const DETAIL_PREFIX;
+
+/** the "details" of the retouching regions of a profile (the text of
+ * `get-params`): an object by id of the value of the region that goes with it
+ * (the "fine" of its curve, -100..100), for those that have one */
+json details(const std::string &profileText);
+
+/**
+ * The text of a `[Local Contrast]` group to apply (replacing the regions of the
+ * tool) that keeps every region of `profileText` as it is, and has one region
+ * for each retouching region that has details: its curve is the one of "fine"
+ * (see `rewrite`), its mask is linked to the mask of the retouching region
+ * (a region of "colorcorrection" of the same id), and it is on when that one
+ * is. `change` is an object by id with the details to set (a number; null, or
+ * 0, removes them); the regions that it does not name keep theirs. `retouch`
+ * is an object by id of the retouching regions that exist, each an object with
+ * `on` (is the region on) and `masked` (does it have a mask: the mask of the
+ * details is linked to it only then; ART fails to link to a region that has
+ * none): those that are not there lose their details. Turning a region on also
+ * turns the tool on, but the regions that were switched off with the tool stay
+ * off; the tool is turned off when the last region that is on goes. Empty if
+ * there is nothing to do (none before, none after). Throws std::invalid_argument
+ * for a bad `change`.
+ */
+std::string syncDetails(const std::string &profileText, const json &change,
+                        const json &retouch);
+
 /** {"Enabled", "Fine", "Coarse"} of the region of a profile (the text of
  * `get-params`); the defaults if none */
 json state(const std::string &profileText);

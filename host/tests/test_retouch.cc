@@ -19,6 +19,7 @@
  */
 
 // Unit tests of the retouching regions.
+#include "../src/localcontrast.h"
 #include "../src/retouch.h"
 #include <cmath>
 #include <iostream>
@@ -215,6 +216,66 @@ int main()
     CHECK(withoutColorCorrection("[Exposure]\nEnabled=true\n\n" + p +
                                  "[Grain]\nEnabled=true\n")
               .find("[Grain]") != std::string::npos);
+
+    // details: a region of Local Contrast with a curve and a mask linked to the
+    // retouching region
+    {
+        namespace lc = mart::localcontrast;
+        const json ON = {{"on", true}, {"masked", true}},
+                   OFF = {{"on", false}, {"masked", true}},
+                   NOMASK = {{"on", true}, {"masked", false}};
+        const std::string base =
+            rewrite("", {{"3", {{"Enabled", true}, {"Slope", 2}}}});
+        // nothing to do without details
+        CHECK(lc::syncDetails(base, json::object(), json{{"3", ON}}).empty());
+        const std::string t =
+            lc::syncDetails(base, json{{"3", 40}}, json{{"3", ON}});
+        CHECK(has("\n" + t, "Enabled=true") &&
+              has("\n" + t, "MaskName=MART retouch detail 3") &&
+              has("\n" + t, "LinkedMaskEnabled=true") &&
+              has("\n" + t, "LinkedMask=colorcorrection|MART retouch 3") &&
+              has("\n" + t, "MaskEnabled=true"));
+        CHECK(lc::details(t)["3"].get<double>() == 40);
+        // no mask on the region: nothing to link to
+        CHECK(has("\n" + lc::syncDetails(base, json{{"3", 40}}, json{{"3", NOMASK}}),
+                  "LinkedMaskEnabled=false"));
+        // the curve of "fine": the middle point is raised by fine / 200
+        CHECK(has("\n" + t, "Curve=1;0;0.5;0;0;0.5;0.7;0.35;0.35;1;0.5;0;0;"));
+        // the region follows the retouching region: off with it, gone with it
+        const std::string off =
+            lc::syncDetails(t, json::object(), json{{"3", OFF}});
+        CHECK(has("\n" + off, "MaskEnabled=false") &&
+              has("\n" + off, "Enabled=false"));
+        CHECK(lc::details(off)["3"].get<double>() == 40);
+        CHECK(lc::details(lc::syncDetails(t, json::object(), json::object()))
+                  .empty());
+        // zero removes the details; they are kept when others change
+        CHECK(lc::details(lc::syncDetails(t, json{{"3", 0}}, json{{"3", ON}}))
+                  .empty());
+        CHECK(lc::details(lc::syncDetails(t, json{{"4", 10}},
+                                          json{{"3", ON}, {"4", ON}}))
+                  .size() == 2);
+        CHECK(lc::details(lc::syncDetails(t, json{{"3", nullptr}},
+                                          json{{"3", ON}}))
+                  .empty());
+        // our own region of the tool is left alone, and leaves the details
+        const std::string both = lc::rewrite(t, {{"Fine", 20}});
+        CHECK(lc::details(both)["3"].get<double>() == 40 &&
+              std::fabs(lc::state(both)["Fine"].get<double>() - 20) < 1e-6);
+        // a bad value
+        bool refusedBad = false;
+        try {
+            lc::syncDetails(base, json{{"3", 500}}, json{{"3", ON}});
+        } catch (const std::invalid_argument &) {
+            refusedBad = true;
+        }
+        CHECK(refusedBad);
+        // in a profile
+        const std::string p2 = profileText(base + t);
+        CHECK(has("\n" + p2, "MartDetails_1=40"));
+        CHECK(profileDetails(p2)["3"].get<double>() == 40);
+        CHECK(profileDetails(profileText(base))["3"].get<double>() == 0);
+    }
 
     if (failures) return 1;
     std::cout << "retouch tests: ok\n";

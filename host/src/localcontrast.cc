@@ -25,12 +25,16 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <utility>
+#include <cstring>
+#include <map>
+#include <set>
 #include <vector>
 
 namespace mart {
 namespace localcontrast {
 
 const char *const REGION_NAME = "MART local contrast";
+const char *const DETAIL_PREFIX = "MART retouch detail ";
 
 namespace {
 
@@ -168,6 +172,39 @@ bool isOn(const Lines &r)
     return !(m && *m == "false");
 }
 
+// the id of the retouching region that a region adds detail to (0 if it is not
+// one of those)
+int detailId(const Lines &r)
+{
+    auto n = find(r, "MaskName");
+    const size_t L = std::strlen(DETAIL_PREFIX);
+    if (!n || n->compare(0, L, DETAIL_PREFIX) != 0 || n->size() == L ||
+        n->size() - L > 6)
+        return 0;
+    for (size_t i = L; i < n->size(); ++i)
+        if ((*n)[i] < '0' || (*n)[i] > '9') return 0;
+    return std::atoi(n->c_str() + L);
+}
+
+double fineOfRegion(const Lines &r)
+{
+    auto cv = find(r, "Curve");
+    return cv ? std::round(fineOf(*cv) * 1000) / 1000 : 0.0;  // no float noise
+}
+
+// the text of the group
+std::string serializeGroup(bool enabled, const std::vector<Lines> &regions)
+{
+    std::string out = std::string("[") + GROUP + "]\nEnabled=" +
+                      (enabled ? "true" : "false") +
+                      "\nShowMask=-1\nSelectedRegion=0\n";
+    for (size_t j = 0; j < regions.size(); ++j)
+        for (auto &p : regions[j])
+            out += p.first + (j ? "_" + std::to_string(j) : "") + "=" +
+                   p.second + "\n";
+    return out + "\n";
+}
+
 }  // namespace
 
 json state(const std::string &profileText)
@@ -201,6 +238,91 @@ std::string profileText(const std::string &paramsText)
            "\nCurve=" + curve(s["Fine"].get<double>()) +
            "\nMaskEnabled=" + (s["Enabled"].get<bool>() ? "true" : "false") +
            "\nMaskName=" + REGION_NAME + "\n";
+}
+
+json details(const std::string &profileText)
+{
+    json r = json::object();
+    for (auto &l : parse(profileText).regions)
+        if (int id = detailId(l)) r[std::to_string(id)] = fineOfRegion(l);
+    return r;
+}
+
+std::string syncDetails(const std::string &profileText, const json &change,
+                        const json &retouch)
+{
+    if (!change.is_object() || !retouch.is_object())
+        throw std::invalid_argument("details: expected an object");
+    for (auto &[k, v] : change.items()) {
+        if (k.empty() || k.size() > 4 ||
+            k.find_first_not_of("0123456789") != std::string::npos)
+            throw std::invalid_argument("details: bad region id " + k);
+        if (v.is_null()) continue;
+        if (!v.is_number() || !std::isfinite(v.get<double>()) ||
+            v.get<double>() < -100 || v.get<double>() > 100)
+            throw std::invalid_argument("Details: out of range");
+    }
+    Group g = parse(profileText);
+    const bool toolOn = [&] {
+        auto e = find(g.top, "Enabled");
+        return e && *e == "true";
+    }();
+    // the regions that are not details, and the ones that are, by id
+    std::vector<Lines> others;
+    std::map<int, Lines> have;
+    for (auto &l : g.regions) {
+        if (int id = detailId(l))
+            have[id] = l;
+        else
+            others.push_back(l);
+    }
+    std::set<int> ids;
+    for (auto &[id, l] : have) ids.insert(id);
+    for (auto &[k, v] : change.items()) ids.insert(std::atoi(k.c_str()));
+    std::vector<Lines> details;
+    bool any = !have.empty();
+    for (int id : ids) {
+        const std::string ks = std::to_string(id);
+        double value = have.count(id) ? fineOfRegion(have[id]) : 0;
+        if (change.contains(ks))
+            value = change[ks].is_null() ? 0 : change[ks].get<double>();
+        if (!retouch.contains(ks) || value == 0) continue;  // none (any more)
+        Lines r = have.count(id) ? have[id] : Lines();
+        if (!have.count(id)) set(r, "Contrast", "0");
+        set(r, "Curve", curve(value));
+        set(r, "MaskEnabled", retouch[ks].value("on", false) ? "true" : "false");
+        set(r, "MaskName", std::string(DETAIL_PREFIX) + ks);
+        // a region without a mask of its own has none to link to: the details
+        // are then for the whole picture, as the region is
+        set(r, "LinkedMaskEnabled",
+            retouch[ks].value("masked", false) ? "true" : "false");
+        set(r, "LinkedMaskInverted", "false");
+        set(r, "LinkedMask", "colorcorrection|" + std::string("MART retouch ") + ks);
+        details.push_back(r);
+        any = true;
+    }
+    if (!any) return "";
+    bool detailOn = false;
+    for (auto &d : details) detailOn = detailOn || isOn(d);
+    bool otherOn = false;
+    for (auto &o : others) otherOn = otherOn || isOn(o);
+    bool enabled = toolOn;
+    if (detailOn && !toolOn) {  // the regions of the image were off with the
+                                // tool: they stay off
+        for (auto &o : others) set(o, "MaskEnabled", "false");
+        enabled = true;
+    } else if (!detailOn && !otherOn) {
+        enabled = false;
+    }
+    std::vector<Lines> all = others;
+    all.insert(all.end(), details.begin(), details.end());
+    if (all.empty()) {  // the tool needs a region: one that does nothing
+        Lines r;
+        set(r, "Contrast", "0");
+        set(r, "Curve", curve(0));
+        all.push_back(r);
+    }
+    return serializeGroup(enabled, all);
 }
 
 std::string withoutLocalContrast(const std::string &profileText)

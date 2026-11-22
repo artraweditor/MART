@@ -61,7 +61,7 @@ add_executable(test_sections tests/test_sections.cc src/sections.cc
 target_include_directories(test_sections PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME sections COMMAND test_sections)
 
-add_executable(test_retouch tests/test_retouch.cc src/retouch.cc)
+add_executable(test_retouch tests/test_retouch.cc src/retouch.cc src/localcontrast.cc)
 target_include_directories(test_retouch PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME retouch COMMAND test_retouch)
 

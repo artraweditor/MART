@@ -19,6 +19,7 @@
  */
 
 #include "retouch.h"
+#include "localcontrast.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -515,15 +516,34 @@ std::string profileText(const std::string &paramsText)
 {
     Group g = parse(paramsText);
     const bool on = g.toolOn();
+    const json details = localcontrast::details(paramsText);
     Group out;
     out.setTool(true);
     for (auto &r : g.regions) {
         if (!r.id()) continue;
         Region c = r;
+        auto d = details.find(std::to_string(r.id()));
+        if (d != details.end() && d->get<double>() != 0)
+            c.set("MartDetails", num(d->get<double>()));
         c.set("MaskEnabled", on && r.on() ? "true" : "false");
         out.regions.push_back(std::move(c));
     }
     return out.regions.empty() ? "" : serialize(out);
+}
+
+json profileDetails(const std::string &profileText)
+{
+    json out = json::object();
+    for (auto &r : parse(profileText).regions) {
+        const int id = r.id();
+        auto d = r.find("MartDetails");
+        if (id)
+            out[std::to_string(id)] =
+                d && !d->empty()
+                    ? std::max(-100.0, std::min(100.0, std::atof(d->c_str())))
+                    : 0.0;
+    }
+    return out;
 }
 
 std::string withoutColorCorrection(const std::string &profileText)

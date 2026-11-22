@@ -388,6 +388,11 @@ json Session::params()
                                       // what a profile changes
     doc["Retouch"] = retouch::state(
         ini);  // likewise: our regions of the Color/tone correction tool, by id
+    {   // the details of each: a region of Local Contrast linked to its mask
+        const json d = localcontrast::details(ini);
+        for (auto &[id, r] : doc["Retouch"].items())
+            r["Details"] = d.contains(id) ? d[id] : json(0);
+    }
     return {{"params", doc}, {"ini", ini}};
 }
 
@@ -431,9 +436,27 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         halationChange = patch["Halation"];
         patch.erase("Halation");
     }
+    json detailsChange = json::object();  // the "Details" of retouching regions
     if (patch.is_object() && patch.contains("Retouch")) {
         retouchChange = patch["Retouch"];
         patch.erase("Retouch");
+        if (retouchChange.is_object()) {
+            // the details are regions of Local Contrast, not keys of ours
+            for (auto it = retouchChange.begin(); it != retouchChange.end();) {
+                if (it.value().is_null()) {
+                    detailsChange[it.key()] = nullptr;  // the region goes
+                } else if (it.value().is_object() &&
+                           it.value().contains("Details")) {
+                    detailsChange[it.key()] = it.value()["Details"];
+                    it.value().erase("Details");
+                    if (it.value().empty()) {
+                        it = retouchChange.erase(it);
+                        continue;
+                    }
+                }
+                ++it;
+            }
+        }
     }
     auto apply = [&](const std::string &text) {
         const std::string path = tmpdir_ + "/patch.arp";
@@ -483,7 +506,7 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         }
         apply(text);
     }
-    if (!retouchChange.is_null()) {
+    if (!retouchChange.is_null() && !retouchChange.empty()) {
         std::string text;
         try {
             text = retouch::rewrite(command({"get-params"}).value("params", ""),
@@ -493,7 +516,39 @@ void Session::applyPatch(const json &patchIn, const std::string &mergeKey)
         }
         apply(text);
     }
+    // the details follow the regions: when one is switched on or off or goes,
+    // or its details are set
+    if (!retouchChange.is_null() || !detailsChange.empty())
+        syncDetails(detailsChange, mergeKey);
     if (patch.contains("Coarse Transformation")) refreshInfo();
+}
+
+void Session::syncDetails(const json &change, const std::string &mergeKey)
+{
+    const std::string ini = command({"get-params"}).value("params", "");
+    json on = json::object();
+    const json regions = retouch::state(ini);  // (not a temporary: items())
+    for (auto &[id, r] : regions.items())
+        on[id] = {{"on", r.value("Enabled", false)},
+                  {"masked", r.value("BrushEnabled", false)}};
+    std::string text;
+    try {
+        text = localcontrast::syncDetails(ini, change, on);
+    } catch (const std::invalid_argument &e) {
+        throw ApiError(400, e.what());
+    }
+    if (text.empty()) return;
+    const std::string path = tmpdir_ + "/patch.arp";
+    {
+        std::ofstream f(path, std::ios::binary | std::ios::trunc);
+        f << text;
+        if (!f) throw ApiError(500, "cannot write " + path);
+    }
+    std::vector<std::string> a = {"apply"};
+    if (!mergeKey.empty()) a.insert(a.end(), {"--merge", mergeKey});
+    a.push_back(path);
+    command(a);
+    dirty_ = true;
 }
 
 json Session::undo()
@@ -658,9 +713,11 @@ void Session::applyProfileFile(const std::string &path, bool append,
         applyText(localcontrast::rewrite(
             command({"get-params"}).value("params", ""), change));
     }
-    if (hasRetouch)
+    if (hasRetouch) {
         applyText(retouch::replace(command({"get-params"}).value("params", ""),
                                    text));
+        syncDetails(retouch::profileDetails(text), mergeKey);
+    }
 }
 
 json Session::profileSections()

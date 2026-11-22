@@ -76,6 +76,10 @@ public:
 
     json params();  // {params:{Group:{Key:v}}, ini}
     void applyPatch(const json &patch, const std::string &mergeKey);
+    /** make the regions of Local Contrast that give details to the retouching
+     * regions match them (localcontrast::syncDetails); `change` has the
+     * details to set, by region id */
+    void syncDetails(const json &change, const std::string &mergeKey);
     json undo();  // result of `undo`
     json redo();
     json history();  // {selected, count, can_undo, can_redo}
