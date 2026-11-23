@@ -6,7 +6,7 @@
 # filesystem (the iOS simulator has one, a device does not).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); T=$HERE/../host/tests
-IMG=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); PORT=${PORT:-8081}; PKG=us.pixls.mart
+IMG=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); PORT=${PORT:-8081}; PKG=us.pixls.art.MART
 ADB=${ADB:-adb}; command -v $ADB >/dev/null || ADB=/opt/homebrew/share/android-commandlinetools/platform-tools/adb
 IMGS=/sdcard/Android/data/$PKG/files/Images
 $ADB shell am force-stop $PKG

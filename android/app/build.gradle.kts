@@ -13,10 +13,10 @@ fun martVersion(mode: String): String {
 }
 
 android {
-    namespace = "us.pixls.mart"
+    namespace = "us.pixls.art.MART"
     compileSdk = 37
     defaultConfig {
-        applicationId = "us.pixls.mart"
+        applicationId = "us.pixls.art.MART"
         minSdk = 26
         targetSdk = 36
         versionCode = martVersion("code").toInt()

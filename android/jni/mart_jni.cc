@@ -19,7 +19,7 @@
  */
 
 // JNI shim of the MART host (host/src/app.h) for the Android app: the Kotlin object
-// us.pixls.mart.Host has run/stop/addRoot.
+// us.pixls.art.MART.Host has run/stop/addRoot.
 #include <jni.h>
 
 #include <android/log.h>
@@ -33,7 +33,7 @@ namespace {
 JavaVM *vm = nullptr;
 
 struct Ready {
-    jobject callback;  // global ref to us.pixls.mart.Host.Ready
+    jobject callback;  // global ref to us.pixls.art.MART.Host.Ready
     jmethodID method;
 };
 
@@ -62,7 +62,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *v, void *) {
 }
 
 /** Host.run(args: Array<String>, cb: Host.Ready): Int; returns when the host has stopped */
-JNIEXPORT jint JNICALL Java_us_pixls_mart_Host_run(JNIEnv *env, jclass, jobjectArray jargs, jobject cb) {
+JNIEXPORT jint JNICALL Java_us_pixls_art_MART_Host_run(JNIEnv *env, jclass, jobjectArray jargs, jobject cb) {
     std::vector<std::string> args;
     const jsize n = env->GetArrayLength(jargs);
     for (jsize i = 0; i < n; ++i) {
@@ -84,9 +84,9 @@ JNIEXPORT jint JNICALL Java_us_pixls_mart_Host_run(JNIEnv *env, jclass, jobjectA
     return rc;
 }
 
-JNIEXPORT void JNICALL Java_us_pixls_mart_Host_stop(JNIEnv *, jclass) { mart_stop(); }
+JNIEXPORT void JNICALL Java_us_pixls_art_MART_Host_stop(JNIEnv *, jclass) { mart_stop(); }
 
-JNIEXPORT jint JNICALL Java_us_pixls_mart_Host_addRoot(JNIEnv *env, jclass, jstring dir) {
+JNIEXPORT jint JNICALL Java_us_pixls_art_MART_Host_addRoot(JNIEnv *env, jclass, jstring dir) {
     const char *c = env->GetStringUTFChars(dir, nullptr);
     int rc = mart_add_root(c);
     env->ReleaseStringUTFChars(dir, c);

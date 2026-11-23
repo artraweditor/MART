@@ -1,4 +1,4 @@
-package us.pixls.mart
+package us.pixls.art.MART
 
 import android.app.Activity
 import android.app.AlertDialog

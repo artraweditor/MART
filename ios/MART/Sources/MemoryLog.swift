@@ -6,7 +6,7 @@ import os
 /// before is kept in memory.prev.log), to find out why iOS kills the app: the last lines
 /// before a kill show how much it used. Read it from the Mac with
 ///   xcrun devicectl device copy from --device ID --domain-type appDataContainer
-///       --domain-identifier us.pixls.MART --source Library/Caches/MART/memory.log --destination .
+///       --domain-identifier us.pixls.art.MART --source Library/Caches/MART/memory.log --destination .
 final class MemoryLog {
     static let shared = MemoryLog()
     private var handle: FileHandle?
