@@ -25,6 +25,7 @@ import {
     NetworkError,
     getInfo,
     getStatus,
+    onOpening,
     openImage,
     saveImage,
     spotWB,
@@ -77,6 +78,21 @@ const undoBtn = $<HTMLButtonElement>("undo");
 const redoBtn = $<HTMLButtonElement>("redo");
 const saveBtn = $<HTMLButtonElement>("save");
 const toastEl = $("toast");
+// "Opening <file>…" in the middle of the picture while the host reads the image (shown only
+// if it takes a moment, so that a quick open does not flash it)
+const openingEl = $("opening");
+let openingTimer = 0;
+onOpening((path) => {
+    window.clearTimeout(openingTimer);
+    if (path === null) {
+        openingEl.hidden = true;
+        return;
+    }
+    openingTimer = window.setTimeout(() => {
+        openingEl.textContent = `Opening ${path.split("/").pop() ?? path}…`;
+        openingEl.hidden = false;
+    }, 150);
+});
 
 const profilesBtn = $<HTMLButtonElement>("profiles");
 const exportBtn = $<HTMLButtonElement>("export");
@@ -458,9 +474,10 @@ function buildPanel(): void {
     // the picture, or on the open tab)
     const setOpen = (open: boolean): void => {
         panel.classList.toggle("collapsed", !open);
-        store("mart.open", open ? "1" : "0");
     };
-    setOpen(store("mart.open") !== "0");
+    // the app starts with the tools folded away in the phone layout (the column layout of a
+    // tablet in landscape, see styles/base.css, shows them whatever this says)
+    panel.classList.add("collapsed");
     preview.onAnyTap = () => setOpen(false);
     const activate = (i: number): void => {
         sections.forEach((s, j) => (s.hidden = j !== i));
@@ -552,7 +569,13 @@ function buildPanel(): void {
 
 // ---- image and connection --------------------------------------------------
 
+// counts the images shown: a start() that began before one was shown must not cover it
+let shownCount = 0;
+// images handed over by the app that are not open yet
+let externalPending = 0;
+
 function show(info: ImageInfo): void {
+    shownCount++;
     fileName = info.file.split("/").pop() ?? info.file;
     setTitle();
     hideOverlay();
@@ -594,12 +617,13 @@ const whenReady = new Promise<void>((resolve) => {
 });
 
 async function start(): Promise<void> {
+    const before = shownCount;
     try {
         const st = await getStatus();
         conn.className = "dot ok";
         setBusy(st.busy);
         if (st.open) show(await getInfo());
-        else {
+        else if (shownCount === before && externalPending === 0) {
             showOverlay(
                 "Open an image",
                 isNative()
@@ -698,9 +722,13 @@ openBtn.addEventListener("click", () => showOpen({ save, opened: show }));
 window.addEventListener("mart-open", (ev) => {
     const path = (ev as CustomEvent<{ path?: string }>).detail?.path;
     if (!path) return;
-    void whenReady.then(() =>
-        openExternal({ save, opened: show }, path),
-    );
+    // the image is on its way: no "Open an image" prompt meanwhile, even if start() is still
+    // running or has shown it already
+    externalPending++;
+    hideOverlay();
+    void whenReady
+        .then(() => openExternal({ save, opened: show }, path))
+        .finally(() => externalPending--);
 });
 document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {

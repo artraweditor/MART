@@ -113,16 +113,27 @@ export async function getVersion(): Promise<EngineInfo> {
  * Open an image. Without `discard` an image with unsaved edits is refused
  * (ApiError 409).
  */
+/** called with the path when an open starts and with null when it is over (for a busy indicator) */
+let openingHook: (path: string | null) => void = () => undefined;
+export function onOpening(hook: (path: string | null) => void): void {
+    openingHook = hook;
+}
+
 export async function openImage(
     path: string,
     discard = false,
 ): Promise<ImageInfo> {
-    const res = await request("/api/open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path, discard }),
-    });
-    return res.json();
+    openingHook(path);
+    try {
+        const res = await request("/api/open", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path, discard }),
+        });
+        return await res.json();
+    } finally {
+        openingHook(null);
+    }
 }
 
 export interface ImageEntry {
