@@ -127,6 +127,7 @@ try {
         }),
     );
     const before = await next((m) => m.type === "state");
+    const dirtyBefore = (await status()).dirty;
     assert.equal(
         before.params["Color Management"].OutputProfile,
         "RTv4_DisplayP3",
@@ -158,7 +159,7 @@ try {
     );
     const after = await next((m) => m.type === "state" && m.seq === 2);
     assert.deepEqual(after.history, before.history, "the history is unchanged");
-    assert.equal((await status()).dirty, false, "and there is nothing to save");
+    assert.equal((await status()).dirty, dirtyBefore, "and the dirty flag too");
     console.log("export is sRGB, the image is untouched: ok");
 
     // a TIFF and a JPEG as well (the JPEG carries the profile in an APP2

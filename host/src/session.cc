@@ -279,6 +279,8 @@ void Session::applyOpeningDefaults()
         if (!profile.empty()) {
             try {
                 applyProfileFile(profile, false, "default#1");
+                // the profile is not in a sidecar yet: Save writes it
+                dirty_ = true;
             } catch (const ApiError &) {
                 // a profile that ART does not accept must not keep the image
                 // from opening

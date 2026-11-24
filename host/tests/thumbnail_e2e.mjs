@@ -26,6 +26,7 @@ import assert from "node:assert/strict";
 
 const base = process.argv[2] ?? "http://localhost:8080";
 let image = process.argv[3];
+const dirtyBefore = (await (await fetch(base + "/api/status")).json()).dirty;
 if (!image) {
     const st = await (await fetch(base + "/api/status")).json();
     assert.ok(st.open, "open an image first, or pass its path");
@@ -76,5 +77,5 @@ assert.equal((await get(100000)).r.status, 400);
 
 // it does not touch the open image
 const st = await (await fetch(base + "/api/status")).json();
-assert.equal(st.dirty, false);
+assert.equal(st.dirty, dirtyBefore);
 console.log("thumbnail e2e: ok");
