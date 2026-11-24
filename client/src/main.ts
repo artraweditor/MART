@@ -276,6 +276,9 @@ const cropState = () => cropFromParams(params, imgW, imgH);
  * show the crop rectangle in the overlay; outside the Crop tab the view shows
  * only the cropped part
  */
+let cropOpen = false;
+const cropEditing = (): boolean => activeTool === "crop" && cropOpen;
+
 function syncCrop(): void {
     if (!imgW) return;
     const c = cropState();
@@ -285,7 +288,7 @@ function syncCrop(): void {
     );
     cropTab.sync(c);
     syncVignette();
-    preview.setBounds(activeTool !== "crop" && c.enabled ? c.rect : null, {
+    preview.setBounds(!cropEditing() && c.enabled ? c.rect : null, {
         w: imgW,
         h: imgH,
     });
@@ -486,7 +489,7 @@ function buildPanel(): void {
         );
         store("mart.tab", String(i));
         activeTool = TOOLS[i]!.id;
-        cropOverlay.setActive(activeTool === "crop");
+        cropOverlay.setActive(cropEditing());
         setRetouchActive(activeTool === "retouch");
         setPicking(false);
         syncCrop();
@@ -514,7 +517,6 @@ function buildPanel(): void {
         tabButtons.push(b);
         const sec = document.createElement("section");
         sec.setAttribute("role", "tabpanel");
-        if (tool.id === "crop") sec.appendChild(cropTab.el);
         // each heading starts a collapsible group; one group of a tab is open
         // at a time
         const groups: { group: HTMLElement; toggle: HTMLButtonElement }[] = [];
@@ -536,8 +538,15 @@ function buildPanel(): void {
         // tab
         if (tool.id === "color")
             groups[0]!.group.querySelector(".tool-body")!.prepend(pickButton());
+        if (tool.id === "crop")
+            groups[0]!.group.querySelector(".tool-body")!.prepend(cropTab.el);
         if (groups.length) {
             const open = (n: number): void => {
+                if (tool.id === "crop") {
+                    cropOpen = n === 0;
+                    cropOverlay.setActive(cropEditing());
+                    syncCrop();
+                }
                 groups.forEach((g, k) => {
                     g.group.classList.toggle("open", k === n);
                     g.toggle.setAttribute("aria-expanded", String(k === n));
@@ -549,19 +558,20 @@ function buildPanel(): void {
                     open(g.group.classList.contains("open") ? -1 : k),
                 ),
             );
-            const savedGroup = Number(store("mart.group." + tool.id) ?? 0);
-            open(
-                Number.isInteger(savedGroup) && savedGroup < groups.length
-                    ? savedGroup
-                    : 0,
-            );
+            // every group starts folded
+            open(-1);
         }
         tools.appendChild(sec);
         sections.push(sec);
     });
+    // the column layout (tablet in landscape, see styles/base.css) always
+    // starts on the first tab; the phone layout restores the last one
+    const column = window.matchMedia(
+        "(min-width: 820px) and (orientation: landscape)",
+    ).matches;
     const saved = Number(store("mart.tab"));
     activate(
-        Number.isInteger(saved) && saved >= 0 && saved < TOOLS.length
+        !column && Number.isInteger(saved) && saved >= 0 && saved < TOOLS.length
             ? saved
             : 0,
     );

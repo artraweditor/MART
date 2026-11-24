@@ -529,56 +529,6 @@ export const TOOLS: Tool[] = [
         id: "detail",
         label: "Detail",
         controls: [
-            { kind: "heading", label: "Lens correction", group: "LensProfile" },
-            {
-                kind: "choice",
-                label: "Source",
-                group: "LensProfile",
-                key: "LcMode",
-                def: "none",
-                options: [
-                    { value: "none", label: "Off" },
-                    { value: "lfauto", label: "Automatic" },
-                    { value: "exif", label: "Embedded" },
-                ],
-            },
-            {
-                kind: "toggle",
-                label: "Distortion",
-                group: "LensProfile",
-                key: "UseDistortion",
-                def: true,
-                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
-            },
-            {
-                kind: "toggle",
-                label: "Vignetting",
-                group: "LensProfile",
-                key: "UseVignette",
-                def: true,
-                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
-            },
-            {
-                kind: "toggle",
-                label: "Chromatic aberration",
-                group: "LensProfile",
-                key: "UseCA",
-                def: false,
-                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
-            },
-            {
-                // the flat field of the raw file (DNG gain maps, as phones
-                // write them); it is used only if the file has one
-                kind: "toggle",
-                label: "Use the embedded flat field, if any",
-                group: "RAW",
-                key: "FlatFieldUseEmbedded",
-                def: false,
-                write: (v) =>
-                    v === true
-                        ? { FlatFieldUseEmbedded: true, FlatFieldEnabled: true }
-                        : { FlatFieldUseEmbedded: false },
-            },
             {
                 kind: "heading",
                 label: "Capture sharpening",
@@ -767,10 +717,11 @@ export const TOOLS: Tool[] = [
     },
     {
         id: "crop",
-        label: "Crop",
+        label: "Geometry",
         // the crop itself is in croptool.ts and the overlay; the fine rotation
         // is a slider
         controls: [
+            { kind: "heading", label: "Crop and straighten", group: "CropEdit" },
             {
                 kind: "slider",
                 label: "Straighten",
@@ -783,6 +734,56 @@ export const TOOLS: Tool[] = [
                 digits: 1,
                 // as in ART: fine near 0, where straightening is done
                 log: { base: 10, pivot: 0 },
+            },
+            { kind: "heading", label: "Lens correction", group: "LensProfile" },
+            {
+                kind: "choice",
+                label: "Source",
+                group: "LensProfile",
+                key: "LcMode",
+                def: "none",
+                options: [
+                    { value: "none", label: "Off" },
+                    { value: "lfauto", label: "Automatic" },
+                    { value: "exif", label: "Embedded" },
+                ],
+            },
+            {
+                kind: "toggle",
+                label: "Distortion",
+                group: "LensProfile",
+                key: "UseDistortion",
+                def: true,
+                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
+            },
+            {
+                kind: "toggle",
+                label: "Vignetting",
+                group: "LensProfile",
+                key: "UseVignette",
+                def: true,
+                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
+            },
+            {
+                kind: "toggle",
+                label: "Chromatic aberration",
+                group: "LensProfile",
+                key: "UseCA",
+                def: false,
+                showWhen: { key: "LcMode", values: ["lfauto", "exif"] },
+            },
+            {
+                // the flat field of the raw file (DNG gain maps, as phones
+                // write them); it is used only if the file has one
+                kind: "toggle",
+                label: "Use the embedded flat field, if any",
+                group: "RAW",
+                key: "FlatFieldUseEmbedded",
+                def: false,
+                write: (v) =>
+                    v === true
+                        ? { FlatFieldUseEmbedded: true, FlatFieldEnabled: true }
+                        : { FlatFieldUseEmbedded: false },
             },
             // ART's vignette filter (post-crop vignette); its center is placed on the picture
             // (crop.ts)

@@ -787,8 +787,8 @@ registerControl("retouch", (_def, host: ControlHost): Control => {
                 built = ids.join(",");
                 uis = ids.map(make);
                 list.replaceChildren(...uis.map((u) => u.group));
-                if (openId === null || !ids.includes(openId))
-                    openId = ids.length ? ids[0]! : null;
+                // regions start folded
+                if (openId !== null && !ids.includes(openId)) openId = null;
                 if (paintId !== null && !ids.includes(paintId)) endEdit(false);
             }
             add.disabled = ids.length >= MAX_REGIONS;
